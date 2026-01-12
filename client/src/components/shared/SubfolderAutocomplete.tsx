@@ -79,7 +79,8 @@ export function SubfolderAutocomplete({
 
   // Combine API subfolders with locally added ones
   const allSubfolders = useMemo(() => {
-    const combined = new Set([...subfolders, ...localSubfolders]);
+    const safeSubfolders = Array.isArray(subfolders) ? subfolders : [];
+    const combined = new Set([...safeSubfolders, ...localSubfolders]);
     return Array.from(combined).sort();
   }, [subfolders, localSubfolders]);
 

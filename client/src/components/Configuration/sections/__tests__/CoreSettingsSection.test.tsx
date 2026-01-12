@@ -2,23 +2,24 @@ import React from 'react';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import { CoreSettingsSection } from '../CoreSettingsSection';
 import { renderWithProviders } from '../../../../test-utils';
 import { ConfigState, DeploymentEnvironment, PlatformManagedState } from '../../types';
 import { DEFAULT_CONFIG } from '../../../../config/configSchema';
 
 // Mock useSubfolders hook to prevent network requests
-jest.mock('../../../../hooks/useSubfolders', () => ({
+vi.mock('../../../../hooks/useSubfolders', () => ({
   useSubfolders: () => ({
     subfolders: ['__Sports', '__Music', '__Tech'],
     loading: false,
     error: null,
-    refetch: jest.fn(),
+    refetch: vi.fn(),
   }),
 }));
 
 // Mock SubtitleLanguageSelector to simplify testing
-jest.mock('../../SubtitleLanguageSelector', () => ({
+vi.mock('../../SubtitleLanguageSelector', () => ({
   __esModule: true,
   default: function MockSubtitleLanguageSelector(props: {
     value: string;
@@ -36,8 +37,8 @@ jest.mock('../../SubtitleLanguageSelector', () => ({
 }));
 
 // Mock SubfolderAutocomplete for dialog tests
-jest.mock('../../../shared/SubfolderAutocomplete', () => ({
-  SubfolderAutocomplete: function MockSubfolderAutocomplete(props: {
+vi.mock('../../../shared/SubfolderAutocomplete', () => {
+  const MockSubfolderAutocomplete = function MockSubfolderAutocomplete(props: {
     value: string | null;
     onChange: (value: string | null) => void;
     label: string;
@@ -49,8 +50,13 @@ jest.mock('../../../shared/SubfolderAutocomplete', () => ({
         onClick: () => props.onChange('NewFolder')
       }, 'Change Subfolder')
     );
-  }
-}));
+  };
+  return {
+    __esModule: true,
+    default: MockSubfolderAutocomplete,
+    SubfolderAutocomplete: MockSubfolderAutocomplete,
+  };
+});
 
 const createConfig = (overrides: Partial<ConfigState> = {}): ConfigState => ({
   ...DEFAULT_CONFIG,
