@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import ChannelPage from '../ChannelPage';
 import { BrowserRouter } from 'react-router-dom';
 import useMediaQuery from '@mui/material/useMediaQuery';
@@ -8,7 +9,7 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 const dialogPropsStore: { current: any } = { current: null };
 
 // Mock child components
-jest.mock('../ChannelPage/ChannelVideos', () => ({
+vi.mock('../ChannelPage/ChannelVideos', () => ({
   __esModule: true,
   default: function MockChannelVideos(props: any) {
     const React = require('react');
@@ -21,7 +22,7 @@ jest.mock('../ChannelPage/ChannelVideos', () => ({
   }
 }));
 
-jest.mock('../ChannelPage/ChannelSettingsDialog', () => ({
+vi.mock('../ChannelPage/ChannelSettingsDialog', () => ({
   __esModule: true,
   default: (props: any) => {
     const React = require('react');
@@ -34,9 +35,9 @@ jest.mock('../ChannelPage/ChannelSettingsDialog', () => ({
 }));
 
 // Mock Material-UI hooks
-jest.mock('@mui/material/useMediaQuery');
-jest.mock('@mui/material/styles', () => ({
-  ...jest.requireActual('@mui/material/styles'),
+vi.mock('@mui/material/useMediaQuery', () => vi.fn());
+vi.mock('@mui/material/styles', () => ({
+  ...vi.importActual('@mui/material/styles'),
   useTheme: () => ({
     breakpoints: { down: () => false },
   }),
@@ -44,13 +45,13 @@ jest.mock('@mui/material/styles', () => ({
 
 // Mock react-router-dom
 const mockParams = { channel_id: 'UC123456' };
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual('react-router-dom'),
+vi.mock('react-router-dom', () => ({
+  ...vi.importActual('react-router-dom'),
   useParams: () => mockParams,
 }));
 
 // Mock fetch
-const mockFetch = jest.fn();
+const mockFetch = vi.fn();
 global.fetch = mockFetch as any;
 
 describe('ChannelPage Component', () => {
@@ -63,9 +64,9 @@ describe('ChannelPage Component', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockFetch.mockReset();
-    (useMediaQuery as jest.Mock).mockReturnValue(false); // Default to desktop
+    (useMediaQuery as any).mockReturnValue(false); // Default to desktop
     dialogPropsStore.current = null;
   });
 
@@ -73,7 +74,7 @@ describe('ChannelPage Component', () => {
     test('renders channel page with loading state initially', () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(mockChannel)
+        json: vi.fn().mockResolvedValueOnce(mockChannel)
       });
 
       render(
@@ -90,7 +91,7 @@ describe('ChannelPage Component', () => {
     test('fetches and displays channel information', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(mockChannel)
+        json: vi.fn().mockResolvedValueOnce(mockChannel)
       });
 
       render(
@@ -116,7 +117,7 @@ describe('ChannelPage Component', () => {
     test('renders ChannelVideos component with token and channelAutoDownloadTabs props', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(mockChannel)
+        json: vi.fn().mockResolvedValueOnce(mockChannel)
       });
 
       render(
@@ -142,7 +143,7 @@ describe('ChannelPage Component', () => {
     test('renders with null token', () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(mockChannel)
+        json: vi.fn().mockResolvedValueOnce(mockChannel)
       });
 
       render(
@@ -171,7 +172,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelWithoutTabs)
+        json: vi.fn().mockResolvedValueOnce(channelWithoutTabs)
       });
 
       render(
@@ -189,7 +190,7 @@ describe('ChannelPage Component', () => {
     test('updates channel display after settings dialog saves', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(mockChannel)
+        json: vi.fn().mockResolvedValueOnce(mockChannel)
       });
 
       render(
@@ -223,7 +224,7 @@ describe('ChannelPage Component', () => {
     test('updates channel display when settings are cleared (null values)', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValueOnce({
           ...mockChannel,
           sub_folder: 'InitialFolder',
           video_quality: '1080'
@@ -267,7 +268,7 @@ describe('ChannelPage Component', () => {
     test('handles onSettingsSaved when channel is not loaded', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(mockChannel)
+        json: vi.fn().mockResolvedValueOnce(mockChannel)
       });
 
       render(
@@ -278,7 +279,7 @@ describe('ChannelPage Component', () => {
 
       // Try to call onSettingsSaved before channel loads
       // This tests the safety check in handleSettingsSaved
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       // Since dialogPropsStore.current is null initially, this test ensures
       // the component handles the case gracefully
@@ -290,7 +291,7 @@ describe('ChannelPage Component', () => {
     test('updates channel with new filter settings', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(mockChannel)
+        json: vi.fn().mockResolvedValueOnce(mockChannel)
       });
 
       render(
@@ -325,7 +326,7 @@ describe('ChannelPage Component', () => {
     test('does not render filter indicators when no filters are set', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(mockChannel)
+        json: vi.fn().mockResolvedValueOnce(mockChannel)
       });
 
       render(
@@ -350,7 +351,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelWithQuality)
+        json: vi.fn().mockResolvedValueOnce(channelWithQuality)
       });
 
       render(
@@ -372,7 +373,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelWithDuration)
+        json: vi.fn().mockResolvedValueOnce(channelWithDuration)
       });
 
       render(
@@ -393,7 +394,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelWithMinDuration)
+        json: vi.fn().mockResolvedValueOnce(channelWithMinDuration)
       });
 
       render(
@@ -414,7 +415,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelWithMaxDuration)
+        json: vi.fn().mockResolvedValueOnce(channelWithMaxDuration)
       });
 
       render(
@@ -435,7 +436,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelWithRegex)
+        json: vi.fn().mockResolvedValueOnce(channelWithRegex)
       });
 
       render(
@@ -459,7 +460,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelWithAllFilters)
+        json: vi.fn().mockResolvedValueOnce(channelWithAllFilters)
       });
 
       render(
@@ -478,7 +479,7 @@ describe('ChannelPage Component', () => {
 
   describe('Regex Filter Popover/Dialog', () => {
     test('opens popover on desktop when regex chip is clicked', async () => {
-      (useMediaQuery as jest.Mock).mockReturnValue(false); // Desktop
+      (useMediaQuery as any).mockReturnValue(false); // Desktop
 
       const channelWithRegex = {
         ...mockChannel,
@@ -487,7 +488,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelWithRegex)
+        json: vi.fn().mockResolvedValueOnce(channelWithRegex)
       });
 
       render(
@@ -514,7 +515,7 @@ describe('ChannelPage Component', () => {
     });
 
     test('popover displays correct regex pattern on desktop', async () => {
-      (useMediaQuery as jest.Mock).mockReturnValue(false); // Desktop
+      (useMediaQuery as any).mockReturnValue(false); // Desktop
 
       const channelWithRegex = {
         ...mockChannel,
@@ -523,7 +524,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelWithRegex)
+        json: vi.fn().mockResolvedValueOnce(channelWithRegex)
       });
 
       render(
@@ -545,7 +546,7 @@ describe('ChannelPage Component', () => {
     });
 
     test('opens dialog on mobile when regex chip is clicked', async () => {
-      (useMediaQuery as jest.Mock).mockReturnValue(true); // Mobile
+      (useMediaQuery as any).mockReturnValue(true); // Mobile
 
       const channelWithRegex = {
         ...mockChannel,
@@ -554,7 +555,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelWithRegex)
+        json: vi.fn().mockResolvedValueOnce(channelWithRegex)
       });
 
       render(
@@ -578,7 +579,7 @@ describe('ChannelPage Component', () => {
     });
 
     test('renders dialog instead of popover on mobile', async () => {
-      (useMediaQuery as jest.Mock).mockReturnValue(true); // Mobile
+      (useMediaQuery as any).mockReturnValue(true); // Mobile
 
       const channelWithRegex = {
         ...mockChannel,
@@ -587,7 +588,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelWithRegex)
+        json: vi.fn().mockResolvedValueOnce(channelWithRegex)
       });
 
       render(
@@ -610,7 +611,7 @@ describe('ChannelPage Component', () => {
     });
 
     test('does not show dialog initially on desktop', async () => {
-      (useMediaQuery as jest.Mock).mockReturnValue(false); // Desktop
+      (useMediaQuery as any).mockReturnValue(false); // Desktop
 
       const channelWithRegex = {
         ...mockChannel,
@@ -619,7 +620,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelWithRegex)
+        json: vi.fn().mockResolvedValueOnce(channelWithRegex)
       });
 
       render(
@@ -645,7 +646,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelWithBothDurations)
+        json: vi.fn().mockResolvedValueOnce(channelWithBothDurations)
       });
 
       render(
@@ -667,7 +668,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelWithZeroMin)
+        json: vi.fn().mockResolvedValueOnce(channelWithZeroMin)
       });
 
       render(
@@ -690,7 +691,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelWithZeroMax)
+        json: vi.fn().mockResolvedValueOnce(channelWithZeroMax)
       });
 
       render(
@@ -713,7 +714,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelWithOddSeconds)
+        json: vi.fn().mockResolvedValueOnce(channelWithOddSeconds)
       });
 
       render(
@@ -731,7 +732,7 @@ describe('ChannelPage Component', () => {
     test('displays channel thumbnail with correct source', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(mockChannel)
+        json: vi.fn().mockResolvedValueOnce(mockChannel)
       });
 
       render(
@@ -749,7 +750,7 @@ describe('ChannelPage Component', () => {
     test('thumbnail has border styling', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(mockChannel)
+        json: vi.fn().mockResolvedValueOnce(mockChannel)
       });
 
       render(
@@ -767,7 +768,7 @@ describe('ChannelPage Component', () => {
     test('shows empty source when channel is not loaded', () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(mockChannel)
+        json: vi.fn().mockResolvedValueOnce(mockChannel)
       });
 
       render(
@@ -785,7 +786,7 @@ describe('ChannelPage Component', () => {
     test('displays channel description with HTML formatting', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(mockChannel)
+        json: vi.fn().mockResolvedValueOnce(mockChannel)
       });
 
       render(
@@ -814,7 +815,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelWithUrl)
+        json: vi.fn().mockResolvedValueOnce(channelWithUrl)
       });
 
       render(
@@ -840,7 +841,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelWithNewlines)
+        json: vi.fn().mockResolvedValueOnce(channelWithNewlines)
       });
 
       render(
@@ -868,7 +869,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelNoDescription)
+        json: vi.fn().mockResolvedValueOnce(channelNoDescription)
       });
 
       render(
@@ -894,7 +895,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(channelNoDescription)
+        json: vi.fn().mockResolvedValueOnce(channelNoDescription)
       });
 
       render(
@@ -914,7 +915,7 @@ describe('ChannelPage Component', () => {
 
   describe('Error Handling', () => {
     test('handles fetch error gracefully', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
       render(
@@ -935,7 +936,7 @@ describe('ChannelPage Component', () => {
     });
 
     test('handles non-ok response', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       mockFetch.mockResolvedValueOnce({
         ok: false,
         statusText: 'Not Found'
@@ -955,10 +956,10 @@ describe('ChannelPage Component', () => {
     });
 
     test('handles JSON parse error', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockRejectedValueOnce(new Error('Invalid JSON'))
+        json: vi.fn().mockRejectedValueOnce(new Error('Invalid JSON'))
       });
 
       render(
@@ -977,13 +978,13 @@ describe('ChannelPage Component', () => {
 
   describe('Mobile View', () => {
     beforeEach(() => {
-      (useMediaQuery as jest.Mock).mockReturnValue(true);
+      (useMediaQuery as any).mockReturnValue(true);
     });
 
     test('renders title with smaller variant on mobile', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(mockChannel)
+        json: vi.fn().mockResolvedValueOnce(mockChannel)
       });
 
       render(
@@ -1002,7 +1003,7 @@ describe('ChannelPage Component', () => {
     test('description box has mobile-specific height', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(mockChannel)
+        json: vi.fn().mockResolvedValueOnce(mockChannel)
       });
 
       render(
@@ -1023,13 +1024,13 @@ describe('ChannelPage Component', () => {
 
   describe('Desktop View', () => {
     beforeEach(() => {
-      (useMediaQuery as jest.Mock).mockReturnValue(false);
+      (useMediaQuery as any).mockReturnValue(false);
     });
 
     test('renders title with larger variant on desktop', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(mockChannel)
+        json: vi.fn().mockResolvedValueOnce(mockChannel)
       });
 
       render(
@@ -1054,7 +1055,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(complexDescription)
+        json: vi.fn().mockResolvedValueOnce(complexDescription)
       });
 
       render(
@@ -1083,7 +1084,7 @@ describe('ChannelPage Component', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(emptyDescription)
+        json: vi.fn().mockResolvedValueOnce(emptyDescription)
       });
 
       render(
@@ -1104,7 +1105,7 @@ describe('ChannelPage Component', () => {
     test('shows loading text while fetching channel data', () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(mockChannel)
+        json: vi.fn().mockResolvedValueOnce(mockChannel)
       });
 
       render(
@@ -1119,7 +1120,7 @@ describe('ChannelPage Component', () => {
     test('updates from loading to channel data', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(mockChannel)
+        json: vi.fn().mockResolvedValueOnce(mockChannel)
       });
 
       render(
@@ -1142,7 +1143,7 @@ describe('ChannelPage Component', () => {
     test('renders with correct card structure', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(mockChannel)
+        json: vi.fn().mockResolvedValueOnce(mockChannel)
       });
 
       render(
@@ -1161,7 +1162,7 @@ describe('ChannelPage Component', () => {
     test('renders all main components', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce(mockChannel)
+        json: vi.fn().mockResolvedValueOnce(mockChannel)
       });
 
       render(

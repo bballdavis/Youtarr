@@ -49,8 +49,9 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    setupFiles: ['./src/setupTests.ts'], // Will rename existing setupTests if needed
+    setupFiles: ['./src/setupTests.ts'],
     exclude: ['node_modules', 'dist', '.idea', '.git', '.cache'],
+    testTimeout: 10000,
     coverage: {
       exclude: ['**/*.stories.*', '.storybook/**'],
       reporter: ['text', 'json-summary', 'lcov'],

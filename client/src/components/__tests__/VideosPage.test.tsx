@@ -2,20 +2,21 @@ import React from 'react';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import VideosPage from '../VideosPage';
 import { VideoData } from '../../types/VideoData';
 
-jest.mock('axios', () => ({
-  get: jest.fn()
+vi.mock('axios', () => ({
+  get: vi.fn()
 }));
 
 const axios = require('axios');
 
-jest.mock('react-swipeable', () => ({
+vi.mock('react-swipeable', () => ({
   useSwipeable: jest.fn(() => ({}))
 }));
 
-jest.mock('../../utils', () => ({
+vi.mock('../../utils', () => ({
   formatDuration: jest.fn((duration: number | null) => {
     if (!duration) return 'Unknown';
     return `${Math.floor(duration / 60)}m`;
@@ -26,10 +27,10 @@ jest.mock('../../utils', () => ({
   })
 }));
 
-jest.mock('@mui/material/useMediaQuery');
+vi.mock('@mui/material/useMediaQuery', () => vi.fn());
 
-jest.mock('@mui/material/styles', () => ({
-  ...jest.requireActual('@mui/material/styles'),
+vi.mock('@mui/material/styles', () => ({
+  ...vi.importActual('@mui/material/styles'),
   useTheme: () => ({
     breakpoints: {
       down: (breakpoint: string) => false
@@ -37,7 +38,7 @@ jest.mock('@mui/material/styles', () => ({
   })
 }));
 
-jest.mock('../shared/DeleteVideosDialog', () => ({
+vi.mock('../shared/DeleteVideosDialog', () => ({
   __esModule: true,
   default: function MockDeleteVideosDialog(props: any) {
     const React = require('react');
@@ -60,8 +61,8 @@ jest.mock('../shared/DeleteVideosDialog', () => ({
   }
 }));
 
-jest.mock('../shared/useVideoDeletion', () => ({
-  useVideoDeletion: jest.fn()
+vi.mock('../shared/useVideoDeletion', () => ({
+  useVideoDeletion: vi.fn()
 }));
 
 const mockVideos: VideoData[] = [
@@ -122,16 +123,16 @@ describe('VideosPage Component', () => {
   const useMediaQuery = require('@mui/material/useMediaQuery');
   const { useVideoDeletion } = require('../shared/useVideoDeletion');
 
-  const mockDeleteVideos = jest.fn();
+  const mockDeleteVideos = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     useMediaQuery.default.mockReturnValue(false);
 
     // Mock useVideoDeletion to return a mock function
     useVideoDeletion.mockReturnValue({
       deleteVideos: mockDeleteVideos,
-      deleteVideosByYoutubeIds: jest.fn(),
+      deleteVideosByYoutubeIds: vi.fn(),
       loading: false,
       error: null
     });
@@ -606,7 +607,7 @@ describe('VideosPage Component', () => {
     });
 
     test('handles API error gracefully', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       axios.get.mockRejectedValueOnce(new Error('Network error'));
 
@@ -1188,7 +1189,7 @@ describe('VideosPage Component', () => {
         // Set loading state
         useVideoDeletion.mockReturnValue({
           deleteVideos: mockDeleteVideos,
-          deleteVideosByYoutubeIds: jest.fn(),
+          deleteVideosByYoutubeIds: vi.fn(),
           loading: true,
           error: null
         });

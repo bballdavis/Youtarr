@@ -2,30 +2,31 @@ import React from 'react';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import { CookieConfigSection } from '../CookieConfigSection';
 import { renderWithProviders } from '../../../../test-utils';
 import { ConfigState, SnackbarState, CookieStatus } from '../../types';
 import { DEFAULT_CONFIG } from '../../../../config/configSchema';
 
-const mockUseCookieManagement = jest.fn();
+const mockUseCookieManagement = vi.fn();
 
-jest.mock('../../hooks/useCookieManagement', () => ({
+vi.mock('../../hooks/useCookieManagement', () => ({
   useCookieManagement: (...args: unknown[]) => mockUseCookieManagement(...args),
 }));
 
 type HookValue = {
   cookieStatus: CookieStatus | null;
   uploadingCookie: boolean;
-  uploadCookieFile: jest.Mock;
-  deleteCookies: jest.Mock;
+  uploadCookieFile: any;
+  deleteCookies: any;
 };
 
 const createHookValue = (overrides: Partial<HookValue> = {}) => {
   const value: HookValue = {
     cookieStatus: null,
     uploadingCookie: false,
-    uploadCookieFile: jest.fn(),
-    deleteCookies: jest.fn(),
+    uploadCookieFile: vi.fn(),
+    deleteCookies: vi.fn(),
     ...overrides,
   };
   mockUseCookieManagement.mockReturnValue(value);
@@ -42,10 +43,10 @@ const createSectionProps = (
 ): React.ComponentProps<typeof CookieConfigSection> => ({
   token: 'test-token',
   config: createConfig(),
-  setConfig: jest.fn() as React.Dispatch<React.SetStateAction<ConfigState>>,
-  onConfigChange: jest.fn(),
-  setSnackbar: jest.fn() as React.Dispatch<React.SetStateAction<SnackbarState>>,
-  onMobileTooltipClick: jest.fn(),
+  setConfig: vi.fn() as React.Dispatch<React.SetStateAction<ConfigState>>,
+  onConfigChange: vi.fn(),
+  setSnackbar: vi.fn() as React.Dispatch<React.SetStateAction<SnackbarState>>,
+  onMobileTooltipClick: vi.fn(),
   ...overrides,
 });
 
@@ -56,7 +57,7 @@ const expandAccordion = async (user: ReturnType<typeof userEvent.setup>) => {
 
 describe('CookieConfigSection', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('calls onConfigChange when toggling the cookie switch', async () => {

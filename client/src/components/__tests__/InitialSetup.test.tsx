@@ -2,22 +2,23 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import InitialSetup from '../InitialSetup';
 
 // Mock axios
-jest.mock('axios', () => ({
-  get: jest.fn(),
-  post: jest.fn()
+vi.mock('axios', () => ({
+  get: vi.fn(),
+  post: vi.fn()
 }));
 
 const axios = require('axios');
 
 // Mock localStorage
 const localStorageMock = {
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
-  clear: jest.fn(),
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
 };
 Object.defineProperty(window, 'localStorage', {
   value: localStorageMock,
@@ -25,10 +26,10 @@ Object.defineProperty(window, 'localStorage', {
 });
 
 describe('InitialSetup Component', () => {
-  const mockOnSetupComplete = jest.fn();
+  const mockOnSetupComplete = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Initial Status Check', () => {
@@ -45,7 +46,7 @@ describe('InitialSetup Component', () => {
     });
 
     test('handles setup status check failure gracefully', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation();
       axios.get.mockRejectedValueOnce(new Error('Network error'));
 
       render(<InitialSetup onSetupComplete={mockOnSetupComplete} />);

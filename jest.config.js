@@ -15,7 +15,7 @@ module.exports = {
         '!client/src/config/configSchema.ts'
     ],
     coverageDirectory: 'coverage',
-    coverageReporters: ['text', 'lcov', 'html'],
+    coverageReporters: ['text', 'json-summary', 'lcov', 'html'],
     testTimeout: 10000,
     setupFilesAfterEnv: ['<rootDir>/jest.setup.js'],
     maxWorkers: 1,

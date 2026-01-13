@@ -1,17 +1,18 @@
 import { renderHook, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import { useChannelMutations } from '../useChannelMutations';
 import { Channel } from '../../../../types/Channel';
 
-jest.mock('axios', () => ({
-  get: jest.fn(),
-  post: jest.fn(),
+vi.mock('axios', () => ({
+  get: vi.fn(),
+  post: vi.fn(),
 }));
 
 const axios = require('axios');
 const mockedAxios = axios as {
-  get: jest.Mock;
-  post: jest.Mock;
+  get: any;
+  post: any;
 };
 
 describe('useChannelMutations', () => {
@@ -31,12 +32,12 @@ describe('useChannelMutations', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockedAxios.get.mockResolvedValue({ data: { channels: [] } });
   });
 
   test('initializes with default state', () => {
-    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: jest.fn() }));
+    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: vi.fn() }));
 
     expect(result.current.pendingAdditions).toEqual([]);
     expect(result.current.deletedChannels).toEqual([]);
@@ -46,7 +47,7 @@ describe('useChannelMutations', () => {
   });
 
   test('requires authentication to add a channel', async () => {
-    const { result } = renderHook(() => useChannelMutations({ token: null, onRefresh: jest.fn() }));
+    const { result } = renderHook(() => useChannelMutations({ token: null, onRefresh: vi.fn() }));
 
     let response;
     await act(async () => {
@@ -59,7 +60,7 @@ describe('useChannelMutations', () => {
   });
 
   test('rejects invalid channel input', async () => {
-    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: jest.fn() }));
+    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: vi.fn() }));
 
     let response;
     await act(async () => {
@@ -75,7 +76,7 @@ describe('useChannelMutations', () => {
   });
 
   test('prevents adding the same channel twice while pending', async () => {
-    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: jest.fn() }));
+    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: vi.fn() }));
 
     mockedAxios.get.mockResolvedValueOnce({ data: { channels: [] } });
     mockedAxios.post.mockResolvedValueOnce({
@@ -96,7 +97,7 @@ describe('useChannelMutations', () => {
   });
 
   test('restores a channel that was queued for deletion', async () => {
-    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: jest.fn() }));
+    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: vi.fn() }));
 
     const channel: Channel = { url: validUrl, uploader: 'Example' };
 
@@ -117,7 +118,7 @@ describe('useChannelMutations', () => {
   test('skips adding when the channel already exists on the server', async () => {
     mockedAxios.get.mockResolvedValueOnce({ data: { channels: [{ url: validUrl }] } });
 
-    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: jest.fn() }));
+    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: vi.fn() }));
 
     let response;
     await act(async () => {
@@ -140,7 +141,7 @@ describe('useChannelMutations', () => {
       data: { status: 'success', channelInfo: mockChannelInfo },
     });
 
-    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: jest.fn() }));
+    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: vi.fn() }));
 
     let response;
     await act(async () => {
@@ -173,7 +174,7 @@ describe('useChannelMutations', () => {
     mockedAxios.get.mockResolvedValueOnce({ data: { channels: [] } });
     mockedAxios.post.mockRejectedValueOnce({ response: { status: 503 } });
 
-    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: jest.fn() }));
+    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: vi.fn() }));
 
     let response;
     await act(async () => {
@@ -194,7 +195,7 @@ describe('useChannelMutations', () => {
       data: { status: 'success', channelInfo: mockChannelInfo },
     });
 
-    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: jest.fn() }));
+    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: vi.fn() }));
 
     await act(async () => {
       await result.current.addChannel(validUrl);
@@ -209,7 +210,7 @@ describe('useChannelMutations', () => {
   });
 
   test('queueChannelForDeletion adds unique deletions', () => {
-    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: jest.fn() }));
+    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: vi.fn() }));
 
     const channel: Channel = { url: validUrl, uploader: 'Example' };
 
@@ -226,7 +227,7 @@ describe('useChannelMutations', () => {
   });
 
   test('undoChanges clears pending state and triggers refresh', () => {
-    const onRefresh = jest.fn();
+    const onRefresh = vi.fn();
     const { result } = renderHook(() => useChannelMutations({ token, onRefresh }));
 
     const channel: Channel = { url: validUrl, uploader: 'Example' };
@@ -246,7 +247,7 @@ describe('useChannelMutations', () => {
   });
 
   test('saveChanges requires authentication', async () => {
-    const { result } = renderHook(() => useChannelMutations({ token: null, onRefresh: jest.fn() }));
+    const { result } = renderHook(() => useChannelMutations({ token: null, onRefresh: vi.fn() }));
 
     let response;
     await act(async () => {
@@ -258,7 +259,7 @@ describe('useChannelMutations', () => {
   });
 
   test('saveChanges returns message when there is nothing to save', async () => {
-    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: jest.fn() }));
+    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: vi.fn() }));
 
     let response;
     await act(async () => {
@@ -275,7 +276,7 @@ describe('useChannelMutations', () => {
       data: { status: 'success', channelInfo: mockChannelInfo },
     });
 
-    const onRefresh = jest.fn();
+    const onRefresh = vi.fn();
     const { result } = renderHook(() => useChannelMutations({ token, onRefresh }));
 
     await act(async () => {
@@ -309,7 +310,7 @@ describe('useChannelMutations', () => {
       data: { status: 'success', channelInfo: mockChannelInfo },
     });
 
-    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: jest.fn() }));
+    const { result } = renderHook(() => useChannelMutations({ token, onRefresh: vi.fn() }));
 
     await act(async () => {
       await result.current.addChannel(validUrl);

@@ -2,15 +2,16 @@ import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import axios from 'axios';
 import DownloadManager from '../DownloadManager';
 import WebSocketContext from '../../contexts/WebSocketContext';
 import { Job } from '../../types/Job';
 
-jest.mock('axios', () => {
+vi.mock('axios', () => {
   const mock = {
-    get: jest.fn(),
-    post: jest.fn(),
+    get: vi.fn(),
+    post: vi.fn(),
   };
   return {
     __esModule: true,
@@ -19,9 +20,9 @@ jest.mock('axios', () => {
     post: mock.post,
   };
 });
-const mockedAxios = axios as jest.Mocked<typeof axios>;
+const mockedAxios = axios as anyed<typeof axios>;
 
-jest.mock('../DownloadManager/DownloadNew', () => ({
+vi.mock('../DownloadManager/DownloadNew', () => ({
   __esModule: true,
   default: function MockDownloadNew({ videoUrls, setVideoUrls, token, fetchRunningJobs, downloadInitiatedRef }: any) {
     const React = require('react');
@@ -44,7 +45,7 @@ jest.mock('../DownloadManager/DownloadNew', () => ({
   }
 }));
 
-jest.mock('../DownloadManager/DownloadProgress', () => ({
+vi.mock('../DownloadManager/DownloadProgress', () => ({
   __esModule: true,
   default: function MockDownloadProgress({ downloadProgressRef, downloadInitiatedRef }: any) {
     const React = require('react');
@@ -56,7 +57,7 @@ jest.mock('../DownloadManager/DownloadProgress', () => ({
   }
 }));
 
-jest.mock('../DownloadManager/DownloadHistory', () => ({
+vi.mock('../DownloadManager/DownloadHistory', () => ({
   __esModule: true,
   default: function MockDownloadHistory({ jobs, expanded, handleExpandCell, anchorEl, setAnchorEl, currentTime, isMobile }: any) {
     const React = require('react');
@@ -83,8 +84,8 @@ jest.mock('../DownloadManager/DownloadHistory', () => ({
 
 describe('DownloadManager', () => {
   const mockToken = 'test-token-123';
-  const mockSubscribe = jest.fn();
-  const mockUnsubscribe = jest.fn();
+  const mockSubscribe = vi.fn();
+  const mockUnsubscribe = vi.fn();
   const mockWebSocketContextValue = {
     subscribe: mockSubscribe,
     unsubscribe: mockUnsubscribe,
@@ -127,13 +128,13 @@ describe('DownloadManager', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockedAxios.get.mockResolvedValue({ data: [] });
     mockedAxios.post.mockResolvedValue({ data: {} });
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Component Initialization', () => {
@@ -146,7 +147,7 @@ describe('DownloadManager', () => {
     });
 
     test('throws error when WebSocketContext is not provided', () => {
-      const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       expect(() => {
         render(<DownloadManager token={mockToken} />);
@@ -359,7 +360,7 @@ describe('DownloadManager', () => {
     });
 
     test('clears timer interval on unmount', () => {
-      const clearIntervalSpy = jest.spyOn(global, 'clearInterval');
+      const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
 
       const { unmount } = renderWithContext(<DownloadManager token={mockToken} />);
 

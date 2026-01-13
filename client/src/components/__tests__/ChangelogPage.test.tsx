@@ -2,10 +2,11 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import ChangelogPage from '../ChangelogPage';
 
 // Mock react-markdown (ESM-only module)
-jest.mock('react-markdown', () => ({
+vi.mock('react-markdown', () => ({
   __esModule: true,
   default: function MockReactMarkdown({ children }: { children: string }) {
     const React = require('react');
@@ -41,15 +42,17 @@ jest.mock('react-markdown', () => ({
 }));
 
 // Mock the useChangelog hook
-jest.mock('../../hooks/useChangelog');
+vi.mock('../../hooks/useChangelog', () => ({
+  useChangelog: vi.fn(),
+}));
 
-const { useChangelog } = require('../../hooks/useChangelog');
+import { useChangelog } from '../../hooks/useChangelog';
 
 describe('ChangelogPage', () => {
-  const mockRefetch = jest.fn();
+  const mockRefetch = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('renders loading state with spinner', () => {

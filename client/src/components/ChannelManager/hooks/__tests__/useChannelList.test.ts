@@ -3,14 +3,14 @@ import { useChannelList } from '../useChannelList';
 import type { Channel } from '../../../../types/Channel';
 
 // Mock axios
-jest.mock('axios', () => ({
-  get: jest.fn(),
+vi.mock('axios', () => ({
+  get: vi.fn(),
 }));
 
 const axios = require('axios');
 
 // Mock channelHelpers - use the actual implementation
-jest.mock('../../../../utils/channelHelpers');
+vi.mock('../../../../utils/channelHelpers', () => ({ ChannelHelpers: vi.fn() }));
 
 const { normalizeSubFolderKey } = require('../../../../utils/channelHelpers');
 
@@ -41,7 +41,7 @@ describe('useChannelList', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
 
     // Setup default mock implementation for normalizeSubFolderKey
     normalizeSubFolderKey.mockImplementation((value: string | null | undefined) => {

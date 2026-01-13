@@ -2,13 +2,14 @@ import React from 'react';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import { InfoTooltip } from '../InfoTooltip';
 import { renderWithProviders } from '../../../../test-utils';
 import useMediaQuery from '@mui/material/useMediaQuery';
 
 // Mock useMediaQuery to control mobile/desktop behavior
-jest.mock('@mui/material/useMediaQuery');
-const mockUseMediaQuery = useMediaQuery as jest.MockedFunction<typeof useMediaQuery>;
+vi.mock('@mui/material/useMediaQuery', () => vi.fn());
+const mockUseMediaQuery = useMediaQuery as anyedFunction<typeof useMediaQuery>;
 
 describe('InfoTooltip Component', () => {
   beforeEach(() => {
@@ -17,7 +18,7 @@ describe('InfoTooltip Component', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Desktop Behavior', () => {
@@ -52,7 +53,7 @@ describe('InfoTooltip Component', () => {
 
     test('does not call onMobileClick when clicked on desktop', async () => {
       const user = userEvent.setup();
-      const mockOnMobileClick = jest.fn();
+      const mockOnMobileClick = vi.fn();
 
       renderWithProviders(
         <InfoTooltip text="Test text" onMobileClick={mockOnMobileClick} />
@@ -84,7 +85,7 @@ describe('InfoTooltip Component', () => {
 
     test('calls onMobileClick with correct text when clicked', async () => {
       const user = userEvent.setup();
-      const mockOnMobileClick = jest.fn();
+      const mockOnMobileClick = vi.fn();
       const testText = 'Mobile tooltip text';
 
       renderWithProviders(
@@ -112,7 +113,7 @@ describe('InfoTooltip Component', () => {
 
     test('calls onMobileClick multiple times on multiple clicks', async () => {
       const user = userEvent.setup();
-      const mockOnMobileClick = jest.fn();
+      const mockOnMobileClick = vi.fn();
       const testText = 'Click me multiple times';
 
       renderWithProviders(
@@ -130,8 +131,8 @@ describe('InfoTooltip Component', () => {
 
     test('prevents default and stops propagation on click', async () => {
       const user = userEvent.setup();
-      const mockOnMobileClick = jest.fn();
-      const mockParentClick = jest.fn();
+      const mockOnMobileClick = vi.fn();
+      const mockParentClick = vi.fn();
 
       renderWithProviders(
         <div onClick={mockParentClick}>
@@ -185,7 +186,7 @@ describe('InfoTooltip Component', () => {
     test('handles click event on mobile with callback', async () => {
       const user = userEvent.setup();
       mockUseMediaQuery.mockReturnValue(true);
-      const mockCallback = jest.fn();
+      const mockCallback = vi.fn();
 
       renderWithProviders(
         <InfoTooltip text="Test text" onMobileClick={mockCallback} />
@@ -245,7 +246,7 @@ describe('InfoTooltip Component', () => {
     test('handles special characters in text', async () => {
       const user = userEvent.setup();
       mockUseMediaQuery.mockReturnValue(true);
-      const mockOnMobileClick = jest.fn();
+      const mockOnMobileClick = vi.fn();
       const specialText = 'Text with "quotes" & <symbols> and émojis 🎉';
 
       renderWithProviders(
@@ -261,7 +262,7 @@ describe('InfoTooltip Component', () => {
     test('handles newlines in text', async () => {
       const user = userEvent.setup();
       mockUseMediaQuery.mockReturnValue(true);
-      const mockOnMobileClick = jest.fn();
+      const mockOnMobileClick = vi.fn();
       const multilineText = 'Line 1\nLine 2\nLine 3';
 
       renderWithProviders(
@@ -282,7 +283,7 @@ describe('InfoTooltip Component', () => {
     test('handles numeric text content', async () => {
       const user = userEvent.setup();
       mockUseMediaQuery.mockReturnValue(true);
-      const mockOnMobileClick = jest.fn();
+      const mockOnMobileClick = vi.fn();
       const numericText = '123456789';
 
       renderWithProviders(
@@ -298,7 +299,7 @@ describe('InfoTooltip Component', () => {
     test('handles HTML-like text content', async () => {
       const user = userEvent.setup();
       mockUseMediaQuery.mockReturnValue(true);
-      const mockOnMobileClick = jest.fn();
+      const mockOnMobileClick = vi.fn();
       const htmlText = '<div>This is not HTML</div>';
 
       renderWithProviders(
@@ -329,8 +330,8 @@ describe('InfoTooltip Component', () => {
     test('multiple tooltips can have different callbacks', async () => {
       const user = userEvent.setup();
       mockUseMediaQuery.mockReturnValue(true);
-      const mockCallback1 = jest.fn();
-      const mockCallback2 = jest.fn();
+      const mockCallback1 = vi.fn();
+      const mockCallback2 = vi.fn();
 
       renderWithProviders(
         <>
@@ -352,7 +353,7 @@ describe('InfoTooltip Component', () => {
     test('tooltips work correctly when mixed with other components', async () => {
       const user = userEvent.setup();
       mockUseMediaQuery.mockReturnValue(true);
-      const mockCallback = jest.fn();
+      const mockCallback = vi.fn();
 
       renderWithProviders(
         <div>
@@ -383,7 +384,7 @@ describe('InfoTooltip Component', () => {
     test('callback receives exact text prop value', async () => {
       const user = userEvent.setup();
       mockUseMediaQuery.mockReturnValue(true);
-      const mockCallback = jest.fn();
+      const mockCallback = vi.fn();
       const exactText = 'Exact text value with spaces   and special chars: !@#$%';
 
       renderWithProviders(
@@ -399,7 +400,7 @@ describe('InfoTooltip Component', () => {
     test('callback is not called with modified text', async () => {
       const user = userEvent.setup();
       mockUseMediaQuery.mockReturnValue(true);
-      const mockCallback = jest.fn();
+      const mockCallback = vi.fn();
       const originalText = 'Original text';
 
       renderWithProviders(

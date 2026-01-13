@@ -2,15 +2,15 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { useVideoDeletion } from '../useVideoDeletion';
 
 // Mock axios
-jest.mock('axios', () => ({
-  delete: jest.fn()
+vi.mock('axios', () => ({
+  delete: vi.fn()
 }));
 
 const axios = require('axios');
 
 describe('useVideoDeletion', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Initial State', () => {

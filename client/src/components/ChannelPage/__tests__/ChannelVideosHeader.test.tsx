@@ -2,13 +2,14 @@ import React from 'react';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import ChannelVideosHeader from '../ChannelVideosHeader';
 import { ChannelVideo } from '../../../types/ChannelVideo';
 import { renderWithProviders } from '../../../test-utils';
 
 // Mock Material-UI hooks
-jest.mock('@mui/material/useMediaQuery');
+vi.mock('@mui/material/useMediaQuery', () => vi.fn());
 
 const mockVideos: ChannelVideo[] = [
   {
@@ -60,22 +61,22 @@ describe('ChannelVideosHeader Component', () => {
     paginatedVideos: [],
     autoDownloadsEnabled: false,
     selectedTab: 'videos',
-    onViewModeChange: jest.fn(),
-    onSearchChange: jest.fn(),
-    onHideDownloadedChange: jest.fn(),
-    onAutoDownloadChange: jest.fn(),
-    onRefreshClick: jest.fn(),
-    onDownloadClick: jest.fn(),
-    onSelectAll: jest.fn(),
-    onClearSelection: jest.fn(),
-    onDeleteClick: jest.fn(),
-    onBulkIgnoreClick: jest.fn(),
-    onInfoIconClick: jest.fn(),
+    onViewModeChange: vi.fn(),
+    onSearchChange: vi.fn(),
+    onHideDownloadedChange: vi.fn(),
+    onAutoDownloadChange: vi.fn(),
+    onRefreshClick: vi.fn(),
+    onDownloadClick: vi.fn(),
+    onSelectAll: vi.fn(),
+    onClearSelection: vi.fn(),
+    onDeleteClick: vi.fn(),
+    onBulkIgnoreClick: vi.fn(),
+    onInfoIconClick: vi.fn(),
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    (useMediaQuery as jest.Mock).mockReturnValue(false);
+    vi.clearAllMocks();
+    (useMediaQuery as any).mockReturnValue(false);
   });
 
   describe('Component Rendering', () => {
@@ -135,7 +136,7 @@ describe('ChannelVideosHeader Component', () => {
 
     test('calls onRefreshClick when refresh all button is clicked', async () => {
       const user = userEvent.setup();
-      const onRefreshClick = jest.fn();
+      const onRefreshClick = vi.fn();
 
       renderWithProviders(
         <ChannelVideosHeader {...defaultProps} onRefreshClick={onRefreshClick} />
@@ -197,7 +198,7 @@ describe('ChannelVideosHeader Component', () => {
 
     test('calls onAutoDownloadChange when toggled', async () => {
       const user = userEvent.setup();
-      const onAutoDownloadChange = jest.fn();
+      const onAutoDownloadChange = vi.fn();
 
       renderWithProviders(
         <ChannelVideosHeader
@@ -219,7 +220,7 @@ describe('ChannelVideosHeader Component', () => {
 
     test('info icons are clickable on mobile', async () => {
       const user = userEvent.setup();
-      const onInfoIconClick = jest.fn();
+      const onInfoIconClick = vi.fn();
 
       renderWithProviders(
         <ChannelVideosHeader
@@ -255,7 +256,7 @@ describe('ChannelVideosHeader Component', () => {
 
     test('calls onSearchChange when typing in search input', async () => {
       const user = userEvent.setup();
-      const onSearchChange = jest.fn();
+      const onSearchChange = vi.fn();
 
       renderWithProviders(
         <ChannelVideosHeader {...defaultProps} onSearchChange={onSearchChange} />
@@ -319,7 +320,7 @@ describe('ChannelVideosHeader Component', () => {
 
     test('calls onViewModeChange when view mode is clicked', async () => {
       const user = userEvent.setup();
-      const onViewModeChange = jest.fn();
+      const onViewModeChange = vi.fn();
 
       renderWithProviders(
         <ChannelVideosHeader
@@ -399,7 +400,7 @@ describe('ChannelVideosHeader Component', () => {
 
     test('calls onHideDownloadedChange when toggled', async () => {
       const user = userEvent.setup();
-      const onHideDownloadedChange = jest.fn();
+      const onHideDownloadedChange = vi.fn();
 
       renderWithProviders(
         <ChannelVideosHeader
@@ -473,7 +474,7 @@ describe('ChannelVideosHeader Component', () => {
 
     test('calls onDownloadClick when clicked', async () => {
       const user = userEvent.setup();
-      const onDownloadClick = jest.fn();
+      const onDownloadClick = vi.fn();
 
       renderWithProviders(
         <ChannelVideosHeader
@@ -550,7 +551,7 @@ describe('ChannelVideosHeader Component', () => {
 
     test('calls onSelectAll when clicked', async () => {
       const user = userEvent.setup();
-      const onSelectAll = jest.fn();
+      const onSelectAll = vi.fn();
 
       renderWithProviders(
         <ChannelVideosHeader
@@ -587,7 +588,7 @@ describe('ChannelVideosHeader Component', () => {
 
     test('calls onClearSelection when clicked', async () => {
       const user = userEvent.setup();
-      const onClearSelection = jest.fn();
+      const onClearSelection = vi.fn();
 
       renderWithProviders(
         <ChannelVideosHeader
@@ -635,7 +636,7 @@ describe('ChannelVideosHeader Component', () => {
 
     test('calls onBulkIgnoreClick when clicked', async () => {
       const user = userEvent.setup();
-      const onBulkIgnoreClick = jest.fn();
+      const onBulkIgnoreClick = vi.fn();
 
       renderWithProviders(
         <ChannelVideosHeader
@@ -704,7 +705,7 @@ describe('ChannelVideosHeader Component', () => {
 
     test('calls onDeleteClick when clicked', async () => {
       const user = userEvent.setup();
-      const onDeleteClick = jest.fn();
+      const onDeleteClick = vi.fn();
 
       renderWithProviders(
         <ChannelVideosHeader

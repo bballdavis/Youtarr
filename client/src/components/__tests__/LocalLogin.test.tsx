@@ -2,11 +2,12 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import LocalLogin from '../LocalLogin';
 
 // Mock axios
-jest.mock('axios', () => ({
-  post: jest.fn()
+vi.mock('axios', () => ({
+  post: vi.fn()
 }));
 
 const axios = require('axios');
@@ -17,10 +18,10 @@ window.location = { href: '' } as any;
 
 // Mock localStorage
 const localStorageMock = {
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
-  clear: jest.fn(),
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
 };
 Object.defineProperty(window, 'localStorage', {
   value: localStorageMock,
@@ -28,10 +29,10 @@ Object.defineProperty(window, 'localStorage', {
 });
 
 describe('LocalLogin Component', () => {
-  const mockSetToken = jest.fn();
+  const mockSetToken = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     window.location.href = '';
   });
 

@@ -1,7 +1,8 @@
 import '@testing-library/jest-dom';
 import { vi } from 'vitest';
 
-// Alias jest to vi for compatibility with legacy tests
+// Create a jest alias that works with Vitest
+// This allows all jest.* calls to work transparently
 (globalThis as any).jest = vi;
 
 // Mock matchMedia for MUI/JSDOM
@@ -18,3 +19,4 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: vi.fn(),
   })),
 });
+

@@ -2,24 +2,25 @@ import React from 'react';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import { AccountSecuritySection } from '../AccountSecuritySection';
 import { renderWithProviders } from '../../../../test-utils';
 
 // Mock axios
-jest.mock('axios', () => ({
-  post: jest.fn(),
+vi.mock('axios', () => ({
+  post: vi.fn(),
 }));
 
 // Mock the usePasswordChange hook
-jest.mock('../../hooks/usePasswordChange');
+vi.mock('../../hooks/usePasswordChange', () => ({ UsePasswordChange: vi.fn() }));
 
 const mockUsePasswordChange = require('../../hooks/usePasswordChange');
 
 describe('AccountSecuritySection Component', () => {
-  const mockSetSnackbar = jest.fn();
-  const mockSetShowPasswordChange = jest.fn();
-  const mockHandlePasswordFieldChange = jest.fn();
-  const mockHandlePasswordSubmit = jest.fn();
+  const mockSetSnackbar = vi.fn();
+  const mockSetShowPasswordChange = vi.fn();
+  const mockHandlePasswordFieldChange = vi.fn();
+  const mockHandlePasswordSubmit = vi.fn();
 
   const defaultProps = {
     token: 'test-token-123',
@@ -39,7 +40,7 @@ describe('AccountSecuritySection Component', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   beforeEach(() => {
@@ -497,7 +498,7 @@ describe('AccountSecuritySection Component', () => {
     });
 
     test('passes setSnackbar to usePasswordChange hook', () => {
-      const customSetSnackbar = jest.fn();
+      const customSetSnackbar = vi.fn();
       renderWithProviders(<AccountSecuritySection {...defaultProps} setSnackbar={customSetSnackbar} />);
 
       expect(mockUsePasswordChange.usePasswordChange).toHaveBeenCalledWith({

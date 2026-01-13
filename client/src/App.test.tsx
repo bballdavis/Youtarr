@@ -2,21 +2,22 @@ import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import App from './App';
 import { useMediaQuery } from '@mui/material';
 
 // Mock axios before any imports that use it
-jest.mock('axios', () => ({
-  get: jest.fn(),
-  post: jest.fn(),
+vi.mock('axios', () => ({
+  get: vi.fn(),
+  post: vi.fn(),
   interceptors: {
     request: {
-      use: jest.fn(),
-      eject: jest.fn(),
+      use: vi.fn(),
+      eject: vi.fn(),
     },
     response: {
       use: jest.fn(() => 0), // Return mock interceptor ID
-      eject: jest.fn(),
+      eject: vi.fn(),
     },
   },
 }));
@@ -24,34 +25,34 @@ jest.mock('axios', () => ({
 const axios = require('axios');
 
 // Mock fetch
-global.fetch = jest.fn();
+global.fetch = vi.fn();
 
 // Mock components
-jest.mock('./components/Configuration', () => {
+vi.mock('./components/Configuration', () => {
   return function Configuration({ token }: { token: string }) {
     return <div data-testid="configuration-page">Configuration Component - Token: {token}</div>;
   };
 });
 
-jest.mock('./components/ChannelManager', () => {
+vi.mock('./components/ChannelManager', () => {
   return function ChannelManager({ token }: { token: string }) {
     return <div data-testid="channel-manager-page">Channel Manager Component - Token: {token}</div>;
   };
 });
 
-jest.mock('./components/DownloadManager', () => {
+vi.mock('./components/DownloadManager', () => {
   return function DownloadManager({ token }: { token: string }) {
     return <div data-testid="download-manager-page">Download Manager Component - Token: {token}</div>;
   };
 });
 
-jest.mock('./components/VideosPage', () => {
+vi.mock('./components/VideosPage', () => {
   return function VideosPage({ token }: { token: string }) {
     return <div data-testid="videos-page">Videos Page Component - Token: {token}</div>;
   };
 });
 
-jest.mock('./components/LocalLogin', () => {
+vi.mock('./components/LocalLogin', () => {
   return function LocalLogin({ setToken }: { setToken: (token: string | null) => void }) {
     return (
       <div data-testid="login-page">
@@ -63,7 +64,7 @@ jest.mock('./components/LocalLogin', () => {
   };
 });
 
-jest.mock('./components/InitialSetup', () => {
+vi.mock('./components/InitialSetup', () => {
   return function InitialSetup({ onSetupComplete }: { onSetupComplete: (token: string) => void }) {
     return (
       <div data-testid="setup-page">
@@ -75,31 +76,31 @@ jest.mock('./components/InitialSetup', () => {
   };
 });
 
-jest.mock('./components/ChannelPage', () => {
+vi.mock('./components/ChannelPage', () => {
   return function ChannelPage({ token }: { token: string }) {
     return <div data-testid="channel-page">Channel Page Component - Token: {token}</div>;
   };
 });
 
-jest.mock('./components/StorageStatus', () => {
+vi.mock('./components/StorageStatus', () => {
   return function StorageStatus({ token }: { token: string | null }) {
     return <div data-testid="storage-status">Storage Status - Token: {token}</div>;
   };
 });
 
-jest.mock('./components/ChangelogPage', () => {
+vi.mock('./components/ChangelogPage', () => {
   return function ChangelogPage() {
     return <div data-testid="changelog-page">Changelog Page Component</div>;
   };
 });
 
-jest.mock('./components/ErrorBoundary', () => {
+vi.mock('./components/ErrorBoundary', () => {
   return function ErrorBoundary({ children }: { children: React.ReactNode; fallbackMessage?: string }) {
     return <>{children}</>;
   };
 });
 
-jest.mock('./components/DatabaseErrorOverlay', () => {
+vi.mock('./components/DatabaseErrorOverlay', () => {
   return function DatabaseErrorOverlay({
     errors,
     onRetry,
@@ -135,17 +136,17 @@ window.location = {
   host: 'localhost',
   hostname: 'localhost',
   port: '',
-  replace: jest.fn(),
-  reload: jest.fn(),
-  assign: jest.fn()
+  replace: vi.fn(),
+  reload: vi.fn(),
+  assign: vi.fn()
 } as any;
 
 // Mock localStorage
 const localStorageMock = {
-  getItem: jest.fn(),
-  setItem: jest.fn(),
-  removeItem: jest.fn(),
-  clear: jest.fn(),
+  getItem: vi.fn(),
+  setItem: vi.fn(),
+  removeItem: vi.fn(),
+  clear: vi.fn(),
 };
 Object.defineProperty(window, 'localStorage', {
   value: localStorageMock,
@@ -155,35 +156,35 @@ Object.defineProperty(window, 'localStorage', {
 // Mock matchMedia for responsive testing
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
-  value: jest.fn().mockImplementation(query => ({
+  value: vi.fn().mockImplementation(query => ({
     matches: false,
     media: query,
     onchange: null,
-    addListener: jest.fn(),
-    removeListener: jest.fn(),
-    addEventListener: jest.fn(),
-    removeEventListener: jest.fn(),
-    dispatchEvent: jest.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
   })),
 });
 
 // Mock MUI's useTheme and useMediaQuery hooks
-jest.mock('@mui/material/styles', () => ({
-  ...jest.requireActual('@mui/material/styles'),
+vi.mock('@mui/material/styles', () => ({
+  ...vi.importActual('@mui/material/styles'),
   useTheme: () => ({
     breakpoints: {
       down: jest.fn(() => 'sm'),
-      up: jest.fn(),
-      between: jest.fn(),
+      up: vi.fn(),
+      between: vi.fn(),
       values: { xs: 0, sm: 600, md: 960, lg: 1280, xl: 1920 }
     },
     palette: {},
-    spacing: jest.fn()
+    spacing: vi.fn()
   })
 }));
 
-jest.mock('@mui/material', () => ({
-  ...jest.requireActual('@mui/material'),
+vi.mock('@mui/material', () => ({
+  ...vi.importActual('@mui/material'),
   useMediaQuery: jest.fn(() => false) // Default to desktop view
 }));
 
@@ -212,7 +213,7 @@ describe('App Component', () => {
       if (url === '/auth/validate') {
         return Promise.resolve({
           ok: true,
-          json: jest.fn().mockResolvedValue({}),
+          json: vi.fn().mockResolvedValue({}),
         });
       }
       if (url === '/getconfig') {
@@ -224,17 +225,17 @@ describe('App Component', () => {
       // Default fallback
       return Promise.resolve({
         ok: true,
-        json: jest.fn().mockResolvedValue({})
+        json: vi.fn().mockResolvedValue({})
       });
     };
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     window.location.href = 'http://localhost/';
     window.location.pathname = '/';
     localStorageMock.getItem.mockReturnValue(null);
-    (global.fetch as jest.Mock).mockImplementation(createFetchMock());
+    (global.fetch as any).mockImplementation(createFetchMock());
     axios.get.mockResolvedValue({ data: { version: 'v1.0.0' } });
   });
 
@@ -308,7 +309,7 @@ describe('App Component', () => {
 
   test('removes invalid auth token', async () => {
     localStorageMock.getItem.mockReturnValue('invalid-token');
-    (global.fetch as jest.Mock).mockImplementation(createFetchMock({
+    (global.fetch as any).mockImplementation(createFetchMock({
       '/auth/validate': {
         ok: false, // Invalid token
       }
@@ -354,7 +355,7 @@ describe('App Component', () => {
 
   test('shows warning when output directory is in /tmp', async () => {
     localStorageMock.getItem.mockReturnValue('test-token');
-    (global.fetch as jest.Mock).mockImplementation(createFetchMock({
+    (global.fetch as any).mockImplementation(createFetchMock({
       '/getconfig': {
         ok: true,
         json: async () => ({ youtubeOutputDirectory: '/tmp/videos' }),
@@ -369,7 +370,7 @@ describe('App Component', () => {
   });
 
   test('handles platform managed authentication', async () => {
-    (global.fetch as jest.Mock).mockImplementation(createFetchMock({
+    (global.fetch as any).mockImplementation(createFetchMock({
       '/setup/status': {
         ok: true,
         json: async () => ({
@@ -390,7 +391,7 @@ describe('App Component', () => {
 
   test('displays ElfHosted branding when platform is elfhosted', async () => {
     localStorageMock.getItem.mockReturnValue('test-token');
-    (global.fetch as jest.Mock).mockImplementation(createFetchMock({
+    (global.fetch as any).mockImplementation(createFetchMock({
       '/getconfig': {
         ok: true,
         json: async () => ({
@@ -424,7 +425,7 @@ describe('App Component', () => {
 
   test('shows mobile menu button on mobile devices', async () => {
     // Mock mobile view
-    (useMediaQuery as jest.Mock).mockReturnValue(true);
+    (useMediaQuery as any).mockReturnValue(true);
 
     render(<App />);
 
@@ -449,7 +450,7 @@ describe('App Component', () => {
 
   test('handles auth validation failure gracefully', async () => {
     localStorageMock.getItem.mockReturnValue('test-token');
-    (global.fetch as jest.Mock).mockImplementation((url) => {
+    (global.fetch as any).mockImplementation((url) => {
       if (url === '/api/db-status') {
         return Promise.resolve({
           ok: true,
@@ -467,7 +468,7 @@ describe('App Component', () => {
       }
       return Promise.resolve({
         ok: true,
-        json: jest.fn().mockResolvedValue({})
+        json: vi.fn().mockResolvedValue({})
       });
     });
 
@@ -481,7 +482,7 @@ describe('App Component', () => {
   test('does not show version warning for elfhosted platform', async () => {
     axios.get.mockResolvedValue({ data: { version: 'v2.0.0' } });
     localStorageMock.getItem.mockReturnValue('test-token');
-    (global.fetch as jest.Mock).mockImplementation(createFetchMock({
+    (global.fetch as any).mockImplementation(createFetchMock({
       '/getconfig': {
         ok: true,
         json: async () => ({
@@ -512,7 +513,7 @@ describe('App Component', () => {
 
   test('displays loading state while checking setup', () => {
     // Don't resolve the fetch promise immediately
-    (global.fetch as jest.Mock).mockImplementation(() => new Promise(() => {}));
+    (global.fetch as any).mockImplementation(() => new Promise(() => {}));
 
     render(<App />);
 
@@ -522,7 +523,7 @@ describe('App Component', () => {
   test('closes tmp warning snackbar when dismissed', async () => {
     const user = userEvent.setup();
     localStorageMock.getItem.mockReturnValue('test-token');
-    (global.fetch as jest.Mock).mockImplementation(createFetchMock({
+    (global.fetch as any).mockImplementation(createFetchMock({
       '/getconfig': {
         ok: true,
         json: async () => ({ youtubeOutputDirectory: '/tmp/videos' }),
@@ -568,7 +569,7 @@ describe('App Component', () => {
     });
 
     test('shows overlay when database has errors', async () => {
-      (global.fetch as jest.Mock).mockImplementation(createFetchMock({
+      (global.fetch as any).mockImplementation(createFetchMock({
         '/api/db-status': {
           ok: true,
           json: async () => ({
@@ -590,7 +591,7 @@ describe('App Component', () => {
     });
 
     test('extracts errors correctly from response', async () => {
-      (global.fetch as jest.Mock).mockImplementation(createFetchMock({
+      (global.fetch as any).mockImplementation(createFetchMock({
         '/api/db-status': {
           ok: true,
           json: async () => ({
@@ -610,7 +611,7 @@ describe('App Component', () => {
     });
 
     test('shows unknown error when errors array is missing', async () => {
-      (global.fetch as jest.Mock).mockImplementation(createFetchMock({
+      (global.fetch as any).mockImplementation(createFetchMock({
         '/api/db-status': {
           ok: true,
           json: async () => ({
@@ -631,7 +632,7 @@ describe('App Component', () => {
 
     test('retry button calls window.location.reload', async () => {
       const user = userEvent.setup();
-      (global.fetch as jest.Mock).mockImplementation(createFetchMock({
+      (global.fetch as any).mockImplementation(createFetchMock({
         '/api/db-status': {
           ok: true,
           json: async () => ({
@@ -656,7 +657,7 @@ describe('App Component', () => {
     });
 
     test('gracefully handles fetch failure by assuming healthy database', async () => {
-      (global.fetch as jest.Mock).mockImplementation((url) => {
+      (global.fetch as any).mockImplementation((url) => {
         if (url === '/api/db-status') {
           return Promise.reject(new Error('Network error'));
         }
@@ -668,7 +669,7 @@ describe('App Component', () => {
         }
         return Promise.resolve({
           ok: true,
-          json: jest.fn().mockResolvedValue({})
+          json: vi.fn().mockResolvedValue({})
         });
       });
 
@@ -683,7 +684,7 @@ describe('App Component', () => {
 
     test('shows overlay when status is not healthy (including checking)', async () => {
       // Current implementation treats any non-"healthy" status as an error
-      (global.fetch as jest.Mock).mockImplementation(createFetchMock({
+      (global.fetch as any).mockImplementation(createFetchMock({
         '/api/db-status': {
           ok: true,
           json: async () => ({
@@ -707,7 +708,7 @@ describe('App Component', () => {
     test('starts polling when database is in error state', async () => {
       jest.useFakeTimers();
       try {
-        (global.fetch as jest.Mock).mockImplementation(createFetchMock({
+        (global.fetch as any).mockImplementation(createFetchMock({
           '/api/db-status': {
             ok: true,
             json: async () => ({
@@ -745,7 +746,7 @@ describe('App Component', () => {
       try {
         let callCount = 0;
 
-        (global.fetch as jest.Mock).mockImplementation((url) => {
+        (global.fetch as any).mockImplementation((url) => {
           if (url === '/api/db-status') {
             callCount++;
             if (callCount === 1) {
@@ -773,7 +774,7 @@ describe('App Component', () => {
           }
           return Promise.resolve({
             ok: true,
-            json: jest.fn().mockResolvedValue({})
+            json: vi.fn().mockResolvedValue({})
           });
         });
 
@@ -814,7 +815,7 @@ describe('App Component', () => {
     test('countdown updates during polling', async () => {
       jest.useFakeTimers();
       try {
-        (global.fetch as jest.Mock).mockImplementation(createFetchMock({
+        (global.fetch as any).mockImplementation(createFetchMock({
           '/api/db-status': {
             ok: true,
             json: async () => ({

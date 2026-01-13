@@ -46,6 +46,13 @@ vi.mock('../chips', () => {
         onClick: (e: any) => onRegexClick(e, titleFilterRegex),
       }, `Title Filter: ${titleFilterRegex}`);
     },
+    RatingBadge: ({ rating }: any) => {
+      if (!rating) return null;
+      return React.createElement('div', {
+        'data-testid': 'rating-badge',
+        'data-rating': rating,
+      }, `Rating: ${rating}`);
+    },
   };
 });
 
@@ -67,14 +74,14 @@ describe('ChannelCard Component', () => {
     channel: mockChannel,
     isMobile: false,
     globalPreferredResolution: '1080',
-    onNavigate: jest.fn(),
-    onDelete: jest.fn(),
-    onRegexClick: jest.fn(),
+    onNavigate: vi.fn(),
+    onDelete: vi.fn(),
+    onRegexClick: vi.fn(),
     isPendingAddition: false,
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Component Rendering', () => {
@@ -227,7 +234,7 @@ describe('ChannelCard Component', () => {
 
     test('allows navigation when isPendingAddition is false', async () => {
       const user = userEvent.setup();
-      const onNavigate = jest.fn();
+      const onNavigate = vi.fn();
 
       renderWithProviders(
         <ChannelCard {...defaultProps} onNavigate={onNavigate} isPendingAddition={false} />
@@ -243,7 +250,7 @@ describe('ChannelCard Component', () => {
   describe('User Interactions', () => {
     test('calls onNavigate when card is clicked', async () => {
       const user = userEvent.setup();
-      const onNavigate = jest.fn();
+      const onNavigate = vi.fn();
 
       renderWithProviders(<ChannelCard {...defaultProps} onNavigate={onNavigate} />);
 
@@ -255,7 +262,7 @@ describe('ChannelCard Component', () => {
 
     test('calls onDelete when delete button is clicked', async () => {
       const user = userEvent.setup();
-      const onDelete = jest.fn();
+      const onDelete = vi.fn();
 
       renderWithProviders(<ChannelCard {...defaultProps} onDelete={onDelete} />);
 
@@ -267,8 +274,8 @@ describe('ChannelCard Component', () => {
 
     test('delete button click stops propagation and does not trigger navigation', async () => {
       const user = userEvent.setup();
-      const onDelete = jest.fn();
-      const onNavigate = jest.fn();
+      const onDelete = vi.fn();
+      const onNavigate = vi.fn();
 
       renderWithProviders(
         <ChannelCard {...defaultProps} onDelete={onDelete} onNavigate={onNavigate} />
@@ -283,7 +290,7 @@ describe('ChannelCard Component', () => {
 
     test('calls onRegexClick when title filter chip is clicked', async () => {
       const user = userEvent.setup();
-      const onRegexClick = jest.fn();
+      const onRegexClick = vi.fn();
       const channelWithFilter = {
         ...mockChannel,
         title_filter_regex: '^\\[Official\\]',

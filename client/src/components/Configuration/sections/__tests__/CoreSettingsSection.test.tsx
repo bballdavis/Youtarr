@@ -88,15 +88,15 @@ const createSectionProps = (
   config: createConfig(),
   deploymentEnvironment: createDeploymentEnvironment(),
   isPlatformManaged: createPlatformManagedState(),
-  onConfigChange: jest.fn(),
-  onMobileTooltipClick: jest.fn(),
+  onConfigChange: vi.fn(),
+  onMobileTooltipClick: vi.fn(),
   token: 'test-token',
   ...overrides,
 });
 
 describe('CoreSettingsSection Component', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Component Rendering', () => {
@@ -196,7 +196,7 @@ describe('CoreSettingsSection Component', () => {
 
     test('calls onConfigChange when checkbox is toggled', async () => {
       const user = userEvent.setup();
-      const onConfigChange = jest.fn();
+      const onConfigChange = vi.fn();
       const props = createSectionProps({
         config: createConfig({ channelAutoDownload: false }),
         onConfigChange
@@ -256,7 +256,7 @@ describe('CoreSettingsSection Component', () => {
 
     test('calls onConfigChange when frequency is changed', async () => {
       const user = userEvent.setup();
-      const onConfigChange = jest.fn();
+      const onConfigChange = vi.fn();
       const props = createSectionProps({
         config: createConfig({ channelAutoDownload: true, channelDownloadFrequency: '0 */6 * * *' }),
         onConfigChange
@@ -310,7 +310,7 @@ describe('CoreSettingsSection Component', () => {
 
     test('calls onConfigChange when value is changed', async () => {
       const user = userEvent.setup();
-      const onConfigChange = jest.fn();
+      const onConfigChange = vi.fn();
       const props = createSectionProps({
         config: createConfig({ channelFilesToDownload: 3 }),
         onConfigChange
@@ -389,7 +389,7 @@ describe('CoreSettingsSection Component', () => {
 
     test('calls onConfigChange when resolution is changed', async () => {
       const user = userEvent.setup();
-      const onConfigChange = jest.fn();
+      const onConfigChange = vi.fn();
       const props = createSectionProps({
         config: createConfig({ preferredResolution: '1080' }),
         onConfigChange
@@ -440,7 +440,7 @@ describe('CoreSettingsSection Component', () => {
 
     test('calls onConfigChange when codec is changed', async () => {
       const user = userEvent.setup();
-      const onConfigChange = jest.fn();
+      const onConfigChange = vi.fn();
       const props = createSectionProps({
         config: createConfig({ videoCodec: 'default' }),
         onConfigChange
@@ -494,7 +494,7 @@ describe('CoreSettingsSection Component', () => {
 
     test('calls onConfigChange when checkbox is toggled', async () => {
       const user = userEvent.setup();
-      const onConfigChange = jest.fn();
+      const onConfigChange = vi.fn();
       const props = createSectionProps({
         config: createConfig({ useTmpForDownloads: false }),
         onConfigChange
@@ -571,7 +571,7 @@ describe('CoreSettingsSection Component', () => {
 
     test('calls onConfigChange when checkbox is toggled', async () => {
       const user = userEvent.setup();
-      const onConfigChange = jest.fn();
+      const onConfigChange = vi.fn();
       const props = createSectionProps({
         config: createConfig({ subtitlesEnabled: false }),
         onConfigChange
@@ -613,7 +613,7 @@ describe('CoreSettingsSection Component', () => {
 
     test('calls onConfigChange when subtitle language changes', async () => {
       const user = userEvent.setup();
-      const onConfigChange = jest.fn();
+      const onConfigChange = vi.fn();
       const props = createSectionProps({
         config: createConfig({ subtitlesEnabled: true, subtitleLanguage: 'en' }),
         onConfigChange
@@ -635,7 +635,7 @@ describe('CoreSettingsSection Component', () => {
 
   describe('InfoTooltip Integration', () => {
     test('calls onMobileTooltipClick when provided', () => {
-      const onMobileTooltipClick = jest.fn();
+      const onMobileTooltipClick = vi.fn();
       const props = createSectionProps({ onMobileTooltipClick });
       renderWithProviders(<CoreSettingsSection {...props} />);
       // InfoTooltip components are present with onMobileTooltipClick prop
@@ -692,7 +692,7 @@ describe('CoreSettingsSection Component', () => {
 
     test('handles multiple configuration changes', async () => {
       const user = userEvent.setup();
-      const onConfigChange = jest.fn();
+      const onConfigChange = vi.fn();
       const props = createSectionProps({ onConfigChange });
       renderWithProviders(<CoreSettingsSection {...props} />);
 
@@ -727,7 +727,7 @@ describe('CoreSettingsSection Component', () => {
 
     test('handles unknown cron expression in frequency', () => {
       // Suppress console warnings for this test since MUI warns about out-of-range values
-      const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const props = createSectionProps({
         config: createConfig({ channelDownloadFrequency: '* * * * *' })
@@ -816,7 +816,7 @@ describe('CoreSettingsSection Component', () => {
     let mockFetch: jest.SpyInstance;
 
     beforeEach(() => {
-      mockFetch = jest.spyOn(global, 'fetch');
+      mockFetch = vi.spyOn(global, 'fetch');
     });
 
     afterEach(() => {
@@ -852,7 +852,7 @@ describe('CoreSettingsSection Component', () => {
       // Resolve the promise to clean up
       resolvePromise!({
         ok: true,
-        json: jest.fn().mockResolvedValue({ count: 0, channelNames: [] })
+        json: vi.fn().mockResolvedValue({ count: 0, channelNames: [] })
       } as unknown as Response);
     });
 
@@ -860,7 +860,7 @@ describe('CoreSettingsSection Component', () => {
       const user = userEvent.setup();
       mockFetch.mockResolvedValue({
         ok: true,
-        json: jest.fn().mockResolvedValue({ count: 0, channelNames: [] })
+        json: vi.fn().mockResolvedValue({ count: 0, channelNames: [] })
       });
 
       const props = createSectionProps({
@@ -878,7 +878,7 @@ describe('CoreSettingsSection Component', () => {
       const user = userEvent.setup();
       mockFetch.mockResolvedValue({
         ok: true,
-        json: jest.fn().mockResolvedValue({
+        json: vi.fn().mockResolvedValue({
           count: 3,
           channelNames: ['Channel A', 'Channel B', 'Channel C']
         })
@@ -899,7 +899,7 @@ describe('CoreSettingsSection Component', () => {
       const user = userEvent.setup();
       mockFetch.mockResolvedValue({
         ok: true,
-        json: jest.fn().mockResolvedValue({
+        json: vi.fn().mockResolvedValue({
           count: 1,
           channelNames: ['Only Channel']
         })
@@ -919,7 +919,7 @@ describe('CoreSettingsSection Component', () => {
       const user = userEvent.setup();
       mockFetch.mockResolvedValue({
         ok: true,
-        json: jest.fn().mockResolvedValue({
+        json: vi.fn().mockResolvedValue({
           count: 2,
           channelNames: ['Channel A', 'Channel B']
         })
@@ -959,10 +959,10 @@ describe('CoreSettingsSection Component', () => {
 
     test('calls onConfigChange with new subfolder on confirm', async () => {
       const user = userEvent.setup();
-      const onConfigChange = jest.fn();
+      const onConfigChange = vi.fn();
       mockFetch.mockResolvedValue({
         ok: true,
-        json: jest.fn().mockResolvedValue({ count: 0, channelNames: [] })
+        json: vi.fn().mockResolvedValue({ count: 0, channelNames: [] })
       });
 
       const props = createSectionProps({
@@ -985,10 +985,10 @@ describe('CoreSettingsSection Component', () => {
 
     test('closes dialog on cancel without calling onConfigChange', async () => {
       const user = userEvent.setup();
-      const onConfigChange = jest.fn();
+      const onConfigChange = vi.fn();
       mockFetch.mockResolvedValue({
         ok: true,
-        json: jest.fn().mockResolvedValue({ count: 0, channelNames: [] })
+        json: vi.fn().mockResolvedValue({ count: 0, channelNames: [] })
       });
 
       const props = createSectionProps({
@@ -1015,7 +1015,7 @@ describe('CoreSettingsSection Component', () => {
 
     test('handles fetch error gracefully', async () => {
       const user = userEvent.setup();
-      const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       mockFetch.mockRejectedValue(new Error('Network error'));
 
       const props = createSectionProps({

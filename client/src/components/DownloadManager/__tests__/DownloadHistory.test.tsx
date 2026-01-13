@@ -2,17 +2,18 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import DownloadHistory from '../DownloadHistory';
 import { Job } from '../../../types/Job';
 import { VideoData } from '../../../types/VideoData';
 
 // Mock react-swipeable
-jest.mock('react-swipeable', () => ({
+vi.mock('react-swipeable', () => ({
   useSwipeable: jest.fn(() => ({})),
 }));
 
 // Mock formatDuration utility
-jest.mock('../../../utils', () => ({
+vi.mock('../../../utils', () => ({
   formatDuration: jest.fn((duration: number) => {
     const minutes = Math.floor(duration / 60);
     const seconds = duration % 60;
@@ -21,8 +22,8 @@ jest.mock('../../../utils', () => ({
 }));
 
 describe('DownloadHistory', () => {
-  const mockHandleExpandCell = jest.fn();
-  const mockSetAnchorEl = jest.fn();
+  const mockHandleExpandCell = vi.fn();
+  const mockSetAnchorEl = vi.fn();
 
   const defaultProps = {
     jobs: [],
@@ -92,7 +93,7 @@ describe('DownloadHistory', () => {
   ];
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('renders with title and no jobs message when jobs array is empty', () => {

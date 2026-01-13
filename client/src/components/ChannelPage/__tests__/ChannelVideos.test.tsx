@@ -2,15 +2,16 @@ import React from 'react';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import ChannelVideos from '../ChannelVideos';
 import { ChannelVideo } from '../../../types/ChannelVideo';
 import { renderWithProviders, createMockWebSocketContext } from '../../../test-utils';
 
 // Mock Material-UI hooks
-jest.mock('@mui/material/useMediaQuery');
-jest.mock('@mui/material/styles', () => ({
-  ...jest.requireActual('@mui/material/styles'),
+vi.mock('@mui/material/useMediaQuery', () => vi.fn());
+vi.mock('@mui/material/styles', () => ({
+  ...vi.importActual('@mui/material/styles'),
   useTheme: () => ({
     breakpoints: { down: () => false },
     zIndex: { fab: 1050 },
@@ -18,21 +19,21 @@ jest.mock('@mui/material/styles', () => ({
 }));
 
 // Mock react-router-dom
-const mockNavigate = jest.fn();
+const mockNavigate = vi.fn();
 const mockParams = { channel_id: 'UC123456' };
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual('react-router-dom'),
+vi.mock('react-router-dom', () => ({
+  ...vi.importActual('react-router-dom'),
   useParams: () => mockParams,
   useNavigate: () => mockNavigate,
 }));
 
 // Mock react-swipeable
-jest.mock('react-swipeable', () => ({
+vi.mock('react-swipeable', () => ({
   useSwipeable: () => ({}),
 }));
 
 // Mock child components
-jest.mock('../VideoCard', () => ({
+vi.mock('../VideoCard', () => ({
   __esModule: true,
   default: function MockVideoCard({ video }: any) {
     const React = require('react');
@@ -42,7 +43,7 @@ jest.mock('../VideoCard', () => ({
   }
 }));
 
-jest.mock('../VideoListItem', () => ({
+vi.mock('../VideoListItem', () => ({
   __esModule: true,
   default: function MockVideoListItem({ video }: any) {
     const React = require('react');
@@ -52,7 +53,7 @@ jest.mock('../VideoListItem', () => ({
   }
 }));
 
-jest.mock('../VideoTableView', () => ({
+vi.mock('../VideoTableView', () => ({
   __esModule: true,
   default: function MockVideoTableView({ videos }: any) {
     const React = require('react');
@@ -62,7 +63,7 @@ jest.mock('../VideoTableView', () => ({
   }
 }));
 
-jest.mock('../ChannelVideosHeader', () => ({
+vi.mock('../ChannelVideosHeader', () => ({
   __esModule: true,
   default: function MockChannelVideosHeader(props: any) {
     const React = require('react');
@@ -73,7 +74,7 @@ jest.mock('../ChannelVideosHeader', () => ({
   }
 }));
 
-jest.mock('../ChannelVideosDialogs', () => ({
+vi.mock('../ChannelVideosDialogs', () => ({
   __esModule: true,
   default: function MockChannelVideosDialogs(props: any) {
     const React = require('react');
@@ -88,34 +89,34 @@ jest.mock('../ChannelVideosDialogs', () => ({
 }));
 
 // Mock custom hooks
-const mockRefetchVideos = jest.fn();
-const mockRefreshVideos = jest.fn();
-const mockClearError = jest.fn();
-const mockTriggerDownloads = jest.fn();
-const mockDeleteVideosByYoutubeIds = jest.fn();
+const mockRefetchVideos = vi.fn();
+const mockRefreshVideos = vi.fn();
+const mockClearError = vi.fn();
+const mockTriggerDownloads = vi.fn();
+const mockDeleteVideosByYoutubeIds = vi.fn();
 
-jest.mock('../hooks/useChannelVideos', () => ({
-  useChannelVideos: jest.fn(),
+vi.mock('../hooks/useChannelVideos', () => ({
+  useChannelVideos: vi.fn(),
 }));
 
-jest.mock('../hooks/useRefreshChannelVideos', () => ({
-  useRefreshChannelVideos: jest.fn(),
+vi.mock('../hooks/useRefreshChannelVideos', () => ({
+  useRefreshChannelVideos: vi.fn(),
 }));
 
-jest.mock('../../../hooks/useConfig', () => ({
-  useConfig: jest.fn(),
+vi.mock('../../../hooks/useConfig', () => ({
+  useConfig: vi.fn(),
 }));
 
-jest.mock('../../../hooks/useTriggerDownloads', () => ({
-  useTriggerDownloads: jest.fn(),
+vi.mock('../../../hooks/useTriggerDownloads', () => ({
+  useTriggerDownloads: vi.fn(),
 }));
 
-jest.mock('../../shared/useVideoDeletion', () => ({
-  useVideoDeletion: jest.fn(),
+vi.mock('../../shared/useVideoDeletion', () => ({
+  useVideoDeletion: vi.fn(),
 }));
 
 // Mock fetch
-const mockFetch = jest.fn();
+const mockFetch = vi.fn();
 global.fetch = mockFetch as any;
 
 const { useChannelVideos } = require('../hooks/useChannelVideos');
@@ -170,9 +171,9 @@ describe('ChannelVideos Component', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockFetch.mockReset();
-    (useMediaQuery as jest.Mock).mockReturnValue(false);
+    (useMediaQuery as any).mockReturnValue(false);
     mockNavigate.mockClear();
 
     // Default mock responses
@@ -208,7 +209,7 @@ describe('ChannelVideos Component', () => {
 
     mockFetch.mockResolvedValue({
       ok: true,
-      json: jest.fn().mockResolvedValue({ availableTabs: ['videos'] }),
+      json: vi.fn().mockResolvedValue({ availableTabs: ['videos'] }),
     });
   });
 
@@ -290,7 +291,7 @@ describe('ChannelVideos Component', () => {
       // Resolve the fetch with multiple tabs
       resolveTabsFetch!({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce({ availableTabs: ['videos', 'shorts'] }),
+        json: vi.fn().mockResolvedValueOnce({ availableTabs: ['videos', 'shorts'] }),
       });
 
       // Wait for tabs to appear after loading
@@ -303,7 +304,7 @@ describe('ChannelVideos Component', () => {
     test('fetches available tabs on mount', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce({ availableTabs: ['videos', 'shorts', 'streams'] }),
+        json: vi.fn().mockResolvedValueOnce({ availableTabs: ['videos', 'shorts', 'streams'] }),
       });
 
       renderChannelVideos();
@@ -321,7 +322,7 @@ describe('ChannelVideos Component', () => {
     test('displays tabs when multiple tabs are available', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce({ availableTabs: ['videos', 'shorts', 'streams'] }),
+        json: vi.fn().mockResolvedValueOnce({ availableTabs: ['videos', 'shorts', 'streams'] }),
       });
 
       renderChannelVideos();
@@ -343,7 +344,7 @@ describe('ChannelVideos Component', () => {
       const user = userEvent.setup();
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce({ availableTabs: ['videos', 'shorts'] }),
+        json: vi.fn().mockResolvedValueOnce({ availableTabs: ['videos', 'shorts'] }),
       });
 
       renderChannelVideos();
@@ -368,7 +369,7 @@ describe('ChannelVideos Component', () => {
       const user = userEvent.setup();
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce({ availableTabs: ['videos', 'shorts'] }),
+        json: vi.fn().mockResolvedValueOnce({ availableTabs: ['videos', 'shorts'] }),
       });
 
       useChannelVideos.mockReturnValue({
@@ -397,7 +398,7 @@ describe('ChannelVideos Component', () => {
 
   describe('View Modes', () => {
     test('renders in list view on mobile by default', () => {
-      (useMediaQuery as jest.Mock).mockReturnValue(true);
+      (useMediaQuery as any).mockReturnValue(true);
 
       useChannelVideos.mockReturnValue({
         videos: mockVideos,
@@ -436,7 +437,7 @@ describe('ChannelVideos Component', () => {
 
   describe('Error Handling', () => {
     test('handles tab fetch error gracefully', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
@@ -477,7 +478,7 @@ describe('ChannelVideos Component', () => {
     test('handles empty tabs array from server', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce({ availableTabs: [] }),
+        json: vi.fn().mockResolvedValueOnce({ availableTabs: [] }),
       });
 
       renderChannelVideos();
@@ -501,7 +502,7 @@ describe('ChannelVideos Component', () => {
     test('initializes tab auto-download status from prop', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce({ availableTabs: ['videos', 'shorts', 'streams'] }),
+        json: vi.fn().mockResolvedValueOnce({ availableTabs: ['videos', 'shorts', 'streams'] }),
       });
 
       renderChannelVideos({ channelAutoDownloadTabs: 'video,short' });
@@ -671,7 +672,7 @@ describe('ChannelVideos Component', () => {
 
   describe('Mobile Features', () => {
     beforeEach(() => {
-      (useMediaQuery as jest.Mock).mockReturnValue(true);
+      (useMediaQuery as any).mockReturnValue(true);
     });
 
     test('uses mobile page size', () => {
@@ -735,7 +736,7 @@ describe('ChannelVideos Component', () => {
       // Mock the ignore endpoint
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce({ success: true }),
+        json: vi.fn().mockResolvedValueOnce({ success: true }),
       });
 
       renderChannelVideos();
@@ -764,7 +765,7 @@ describe('ChannelVideos Component', () => {
       // Mock the unignore endpoint
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce({ success: true }),
+        json: vi.fn().mockResolvedValueOnce({ success: true }),
       });
 
       renderChannelVideos();
@@ -790,7 +791,7 @@ describe('ChannelVideos Component', () => {
       // Mock the bulk ignore endpoint
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: jest.fn().mockResolvedValueOnce({
+        json: vi.fn().mockResolvedValueOnce({
           message: 'Successfully ignored 2 videos',
           success: true
         }),
@@ -828,7 +829,7 @@ describe('ChannelVideos Component', () => {
     });
 
     test('handleBulkIgnore handles API errors gracefully', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       useChannelVideos.mockReturnValue({
         videos: mockVideos,
@@ -856,7 +857,7 @@ describe('ChannelVideos Component', () => {
     });
 
     test('toggleIgnore handles API errors gracefully', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       useChannelVideos.mockReturnValue({
         videos: [mockVideos[0]],

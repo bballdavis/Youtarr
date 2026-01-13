@@ -2,18 +2,19 @@ import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import DownloadNew from '../DownloadNew';
 
-const mockFetch = jest.fn();
+const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
 // Mock useConfig hook
-const mockUseConfig = jest.fn();
-jest.mock('../../../hooks/useConfig', () => ({
+const mockUseConfig = vi.fn();
+vi.mock('../../../hooks/useConfig', () => ({
   useConfig: (token: string | null) => mockUseConfig(token),
 }));
 
-jest.mock('../ManualDownload/ManualDownload', () => ({
+vi.mock('../ManualDownload/ManualDownload', () => ({
   __esModule: true,
   default: function MockManualDownload({ onStartDownload, token, defaultResolution }: any) {
     const React = require('react');
@@ -31,7 +32,7 @@ jest.mock('../ManualDownload/ManualDownload', () => ({
   }
 }));
 
-jest.mock('../ManualDownload/DownloadSettingsDialog', () => ({
+vi.mock('../ManualDownload/DownloadSettingsDialog', () => ({
   __esModule: true,
   default: function MockDownloadSettingsDialog({ open, onClose, onConfirm, defaultResolution, defaultVideoCount, mode }: any) {
     const React = require('react');
@@ -56,7 +57,7 @@ jest.mock('../ManualDownload/DownloadSettingsDialog', () => ({
   }
 }));
 
-jest.mock('../../ErrorBoundary', () => ({
+vi.mock('../../ErrorBoundary', () => ({
   __esModule: true,
   default: function MockErrorBoundary({ children }: any) {
     return children;
@@ -64,8 +65,8 @@ jest.mock('../../ErrorBoundary', () => ({
 }));
 
 describe('DownloadNew', () => {
-  const mockSetVideoUrls = jest.fn();
-  const mockFetchRunningJobs = jest.fn();
+  const mockSetVideoUrls = vi.fn();
+  const mockFetchRunningJobs = vi.fn();
   const mockDownloadInitiatedRef = { current: false };
   const mockToken = 'test-token';
 
@@ -78,7 +79,7 @@ describe('DownloadNew', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockDownloadInitiatedRef.current = false;
     jest.useFakeTimers();
 
@@ -100,9 +101,9 @@ describe('DownloadNew', () => {
       },
       loading: false,
       error: null,
-      refetch: jest.fn(),
-      setConfig: jest.fn(),
-      setInitialConfig: jest.fn(),
+      refetch: vi.fn(),
+      setConfig: vi.fn(),
+      setInitialConfig: vi.fn(),
     });
   });
 
@@ -158,9 +159,9 @@ describe('DownloadNew', () => {
       },
       loading: false,
       error: null,
-      refetch: jest.fn(),
-      setConfig: jest.fn(),
-      setInitialConfig: jest.fn(),
+      refetch: vi.fn(),
+      setConfig: vi.fn(),
+      setInitialConfig: vi.fn(),
     });
 
     render(<DownloadNew {...defaultProps} />);
@@ -190,9 +191,9 @@ describe('DownloadNew', () => {
       },
       loading: false,
       error: new Error('Network error'),
-      refetch: jest.fn(),
-      setConfig: jest.fn(),
-      setInitialConfig: jest.fn(),
+      refetch: vi.fn(),
+      setConfig: vi.fn(),
+      setInitialConfig: vi.fn(),
     });
 
     render(<DownloadNew {...defaultProps} />);
@@ -228,7 +229,7 @@ describe('DownloadNew', () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: jest.fn().mockResolvedValueOnce({}),
+      json: vi.fn().mockResolvedValueOnce({}),
     });
 
     render(<DownloadNew {...defaultProps} />);
@@ -268,7 +269,7 @@ describe('DownloadNew', () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: jest.fn().mockResolvedValueOnce({}),
+      json: vi.fn().mockResolvedValueOnce({}),
     });
 
     render(<DownloadNew {...defaultProps} />);
@@ -296,13 +297,13 @@ describe('DownloadNew', () => {
 
   test('shows alert when channel download already running', async () => {
     const user = userEvent.setup({ delay: null });
-    const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
 
     // Mock the fetch to return 400 status for the channel download endpoint
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 400,
-      json: jest.fn().mockResolvedValueOnce({}),
+      json: vi.fn().mockResolvedValueOnce({}),
     });
 
     render(<DownloadNew {...defaultProps} />);
@@ -350,7 +351,7 @@ describe('DownloadNew', () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: jest.fn().mockResolvedValueOnce({}),
+      json: vi.fn().mockResolvedValueOnce({}),
     });
 
     render(<DownloadNew {...defaultProps} />);
@@ -385,7 +386,7 @@ describe('DownloadNew', () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: jest.fn().mockResolvedValueOnce({}),
+      json: vi.fn().mockResolvedValueOnce({}),
     });
 
     render(<DownloadNew {...defaultProps} />);
@@ -410,7 +411,7 @@ describe('DownloadNew', () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       status: 200,
-      json: jest.fn().mockResolvedValueOnce({}),
+      json: vi.fn().mockResolvedValueOnce({}),
     });
 
     render(<DownloadNew {...defaultProps} token={null} />);
@@ -452,9 +453,9 @@ describe('DownloadNew', () => {
       },
       loading: false,
       error: null,
-      refetch: jest.fn(),
-      setConfig: jest.fn(),
-      setInitialConfig: jest.fn(),
+      refetch: vi.fn(),
+      setConfig: vi.fn(),
+      setInitialConfig: vi.fn(),
     });
 
     const user = userEvent.setup({ delay: null });
@@ -507,9 +508,9 @@ describe('DownloadNew', () => {
       },
       loading: false,
       error: null,
-      refetch: jest.fn(),
-      setConfig: jest.fn(),
-      setInitialConfig: jest.fn(),
+      refetch: vi.fn(),
+      setConfig: vi.fn(),
+      setInitialConfig: vi.fn(),
     });
 
     render(<DownloadNew {...defaultProps} />);

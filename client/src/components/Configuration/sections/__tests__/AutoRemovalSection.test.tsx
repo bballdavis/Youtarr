@@ -2,18 +2,19 @@ import React from 'react';
 import { screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import { AutoRemovalSection } from '../AutoRemovalSection';
 import { renderWithProviders } from '../../../../test-utils';
 import { ConfigState, AutoRemovalDryRunResult } from '../../types';
 import { DEFAULT_CONFIG } from '../../../../config/configSchema';
 
-jest.mock('../../hooks/useAutoRemovalDryRun');
+vi.mock('../../hooks/useAutoRemovalDryRun', () => ({ UseAutoRemovalDryRun: vi.fn() }));
 
 const mockUseAutoRemovalDryRun = require('../../hooks/useAutoRemovalDryRun') as {
-  useAutoRemovalDryRun: jest.Mock;
+  useAutoRemovalDryRun: any;
 };
 
-const mockRunDryRun = jest.fn();
+const mockRunDryRun = vi.fn();
 
 const createConfig = (overrides: Partial<ConfigState> = {}): ConfigState => ({
   ...DEFAULT_CONFIG,
@@ -26,8 +27,8 @@ const createSectionProps = (
   token: 'test-token',
   config: createConfig(),
   storageAvailable: true,
-  onConfigChange: jest.fn(),
-  onMobileTooltipClick: jest.fn(),
+  onConfigChange: vi.fn(),
+  onMobileTooltipClick: vi.fn(),
   ...overrides,
 });
 
@@ -84,7 +85,7 @@ const createDryRunResult = (
 
 describe('AutoRemovalSection', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockRunDryRun.mockReset();
     mockUseAutoRemovalDryRun.useAutoRemovalDryRun.mockReturnValue({
       runDryRun: mockRunDryRun,

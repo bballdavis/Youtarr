@@ -1,20 +1,24 @@
 import { renderHook, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import { usePasswordChange } from '../usePasswordChange';
 
 // Mock axios
-jest.mock('axios', () => ({
-  post: jest.fn(),
+vi.mock('axios', () => ({
+  default: {
+    post: vi.fn(),
+  },
 }));
 
 const axios = require('axios');
+const mockedPost = axios.post;
 
 describe('usePasswordChange', () => {
   const mockToken = 'test-token-123';
-  const mockSetSnackbar = jest.fn();
+  const mockSetSnackbar = vi.fn();
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Hook Initialization', () => {
@@ -169,7 +173,7 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'different-password');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
@@ -182,7 +186,7 @@ describe('usePasswordChange', () => {
         message: 'Passwords do not match',
         severity: 'error',
       });
-      expect(axios.post).not.toHaveBeenCalled();
+      expect(mockedPost).not.toHaveBeenCalled();
     });
 
     test('shows error when password is less than 8 characters', async () => {
@@ -199,7 +203,7 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'short');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
@@ -212,11 +216,11 @@ describe('usePasswordChange', () => {
         message: 'Password must be at least 8 characters',
         severity: 'error',
       });
-      expect(axios.post).not.toHaveBeenCalled();
+      expect(mockedPost).not.toHaveBeenCalled();
     });
 
     test('validates password length exactly at 8 characters', async () => {
-      axios.post.mockResolvedValueOnce({
+      mockedPost.mockResolvedValueOnce({
         data: { success: true },
       });
 
@@ -233,14 +237,14 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'exactly8');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
       });
 
       await waitFor(() => {
-        expect(axios.post).toHaveBeenCalledTimes(1);
+        expect(mockedPost).toHaveBeenCalledTimes(1);
       });
     });
 
@@ -258,7 +262,7 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', '7chars7');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
@@ -269,13 +273,13 @@ describe('usePasswordChange', () => {
         message: 'Password must be at least 8 characters',
         severity: 'error',
       });
-      expect(axios.post).not.toHaveBeenCalled();
+      expect(mockedPost).not.toHaveBeenCalled();
     });
   });
 
   describe('Successful Password Change', () => {
     test('submits password change with correct parameters', async () => {
-      axios.post.mockResolvedValueOnce({
+      mockedPost.mockResolvedValueOnce({
         data: { success: true },
       });
 
@@ -292,15 +296,15 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'new-password-456');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
       });
 
       expect(mockEvent.preventDefault).toHaveBeenCalledTimes(1);
-      expect(axios.post).toHaveBeenCalledTimes(1);
-      expect(axios.post).toHaveBeenCalledWith(
+      expect(mockedPost).toHaveBeenCalledTimes(1);
+      expect(mockedPost).toHaveBeenCalledWith(
         '/auth/change-password',
         {
           currentPassword: 'old-password-123',
@@ -315,7 +319,7 @@ describe('usePasswordChange', () => {
     });
 
     test('uses empty string for token when null', async () => {
-      axios.post.mockResolvedValueOnce({
+      mockedPost.mockResolvedValueOnce({
         data: { success: true },
       });
 
@@ -332,20 +336,20 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'new-password-456');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
       });
 
-      const callArgs = axios.post.mock.calls[0];
+      const callArgs = mockedPost.mock.calls[0];
       expect(callArgs[2]?.headers).toEqual({
         'x-access-token': '',
       });
     });
 
     test('displays success snackbar on successful password change', async () => {
-      axios.post.mockResolvedValueOnce({
+      mockedPost.mockResolvedValueOnce({
         data: { success: true },
       });
 
@@ -362,7 +366,7 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'new-password-123');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
@@ -380,7 +384,7 @@ describe('usePasswordChange', () => {
     });
 
     test('hides password change form on success', async () => {
-      axios.post.mockResolvedValueOnce({
+      mockedPost.mockResolvedValueOnce({
         data: { success: true },
       });
 
@@ -403,7 +407,7 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'new-password-123');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
@@ -415,7 +419,7 @@ describe('usePasswordChange', () => {
     });
 
     test('clears all password fields on success', async () => {
-      axios.post.mockResolvedValueOnce({
+      mockedPost.mockResolvedValueOnce({
         data: { success: true },
       });
 
@@ -436,7 +440,7 @@ describe('usePasswordChange', () => {
       expect(result.current.newPassword).toBe('new-password-123');
       expect(result.current.confirmNewPassword).toBe('new-password-123');
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
@@ -450,7 +454,7 @@ describe('usePasswordChange', () => {
     });
 
     test('handles successful response even when success is not explicitly true', async () => {
-      axios.post.mockResolvedValueOnce({
+      mockedPost.mockResolvedValueOnce({
         data: {},
       });
 
@@ -467,14 +471,14 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'new-password-123');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
       });
 
       await waitFor(() => {
-        expect(axios.post).toHaveBeenCalledTimes(1);
+        expect(mockedPost).toHaveBeenCalledTimes(1);
       });
 
       // Should not show success snackbar or clear fields if success is not true
@@ -486,7 +490,7 @@ describe('usePasswordChange', () => {
 
   describe('Error Handling', () => {
     test('displays error from server response', async () => {
-      axios.post.mockRejectedValueOnce({
+      mockedPost.mockRejectedValueOnce({
         response: {
           data: {
             error: 'Current password is incorrect',
@@ -507,7 +511,7 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'new-password-123');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
@@ -525,7 +529,7 @@ describe('usePasswordChange', () => {
     });
 
     test('displays generic error when no error message from server', async () => {
-      axios.post.mockRejectedValueOnce({
+      mockedPost.mockRejectedValueOnce({
         response: {
           data: {},
         },
@@ -544,7 +548,7 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'new-password-123');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
@@ -562,7 +566,7 @@ describe('usePasswordChange', () => {
     });
 
     test('handles network error', async () => {
-      axios.post.mockRejectedValueOnce(new Error('Network error'));
+      mockedPost.mockRejectedValueOnce(new Error('Network error'));
 
       const { result } = renderHook(() =>
         usePasswordChange({
@@ -577,7 +581,7 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'new-password-123');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
@@ -595,7 +599,7 @@ describe('usePasswordChange', () => {
     });
 
     test('does not clear fields on error', async () => {
-      axios.post.mockRejectedValueOnce({
+      mockedPost.mockRejectedValueOnce({
         response: {
           data: {
             error: 'Server error',
@@ -616,7 +620,7 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'new-password-123');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
@@ -632,7 +636,7 @@ describe('usePasswordChange', () => {
     });
 
     test('does not hide form on error', async () => {
-      axios.post.mockRejectedValueOnce({
+      mockedPost.mockRejectedValueOnce({
         response: {
           data: {
             error: 'Server error',
@@ -657,7 +661,7 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'new-password-123');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
@@ -671,7 +675,7 @@ describe('usePasswordChange', () => {
     });
 
     test('handles 401 Unauthorized error', async () => {
-      axios.post.mockRejectedValueOnce({
+      mockedPost.mockRejectedValueOnce({
         response: {
           status: 401,
           data: {
@@ -693,7 +697,7 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'new-password-123');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
@@ -709,7 +713,7 @@ describe('usePasswordChange', () => {
     });
 
     test('handles 403 Forbidden error', async () => {
-      axios.post.mockRejectedValueOnce({
+      mockedPost.mockRejectedValueOnce({
         response: {
           status: 403,
           data: {
@@ -731,7 +735,7 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'new-password-123');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
@@ -747,7 +751,7 @@ describe('usePasswordChange', () => {
     });
 
     test('handles 500 Internal Server Error', async () => {
-      axios.post.mockRejectedValueOnce({
+      mockedPost.mockRejectedValueOnce({
         response: {
           status: 500,
           data: {
@@ -769,7 +773,7 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'new-password-123');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
@@ -844,7 +848,7 @@ describe('usePasswordChange', () => {
     });
 
     test('handlePasswordSubmit updates when setSnackbar changes', () => {
-      const newSetSnackbar = jest.fn();
+      const newSetSnackbar = vi.fn();
 
       const { result, rerender } = renderHook(
         ({ setSnackbar }) =>
@@ -865,7 +869,7 @@ describe('usePasswordChange', () => {
     });
 
     test('can submit password change multiple times', async () => {
-      axios.post
+      mockedPost
         .mockResolvedValueOnce({
           data: { success: true },
         })
@@ -887,14 +891,14 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'new-password-1');
       });
 
-      const mockEvent1 = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent1 = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent1);
       });
 
       await waitFor(() => {
-        expect(axios.post).toHaveBeenCalledTimes(1);
+        expect(mockedPost).toHaveBeenCalledTimes(1);
       });
 
       // Second submission
@@ -904,14 +908,14 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'new-password-2');
       });
 
-      const mockEvent2 = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent2 = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent2);
       });
 
       await waitFor(() => {
-        expect(axios.post).toHaveBeenCalledTimes(2);
+        expect(mockedPost).toHaveBeenCalledTimes(2);
       });
 
       expect(mockSetSnackbar).toHaveBeenCalledTimes(2);
@@ -927,7 +931,7 @@ describe('usePasswordChange', () => {
         })
       );
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
@@ -938,11 +942,11 @@ describe('usePasswordChange', () => {
         message: 'Password must be at least 8 characters',
         severity: 'error',
       });
-      expect(axios.post).not.toHaveBeenCalled();
+      expect(mockedPost).not.toHaveBeenCalled();
     });
 
     test('handles whitespace in passwords', async () => {
-      axios.post.mockResolvedValueOnce({
+      mockedPost.mockResolvedValueOnce({
         data: { success: true },
       });
 
@@ -959,17 +963,17 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'new password 123');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
       });
 
       await waitFor(() => {
-        expect(axios.post).toHaveBeenCalledTimes(1);
+        expect(mockedPost).toHaveBeenCalledTimes(1);
       });
 
-      expect(axios.post).toHaveBeenCalledWith(
+      expect(mockedPost).toHaveBeenCalledWith(
         '/auth/change-password',
         {
           currentPassword: 'old password',
@@ -980,7 +984,7 @@ describe('usePasswordChange', () => {
     });
 
     test('handles special characters in passwords', async () => {
-      axios.post.mockResolvedValueOnce({
+      mockedPost.mockResolvedValueOnce({
         data: { success: true },
       });
 
@@ -997,17 +1001,17 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'new!@#$%^&*()');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
       });
 
       await waitFor(() => {
-        expect(axios.post).toHaveBeenCalledTimes(1);
+        expect(mockedPost).toHaveBeenCalledTimes(1);
       });
 
-      expect(axios.post).toHaveBeenCalledWith(
+      expect(mockedPost).toHaveBeenCalledWith(
         '/auth/change-password',
         {
           currentPassword: 'old!@#$%^&*()',
@@ -1018,7 +1022,7 @@ describe('usePasswordChange', () => {
     });
 
     test('handles very long passwords', async () => {
-      axios.post.mockResolvedValueOnce({
+      mockedPost.mockResolvedValueOnce({
         data: { success: true },
       });
 
@@ -1037,17 +1041,17 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', longPassword);
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
       });
 
       await waitFor(() => {
-        expect(axios.post).toHaveBeenCalledTimes(1);
+        expect(mockedPost).toHaveBeenCalledTimes(1);
       });
 
-      expect(axios.post).toHaveBeenCalledWith(
+      expect(mockedPost).toHaveBeenCalledWith(
         '/auth/change-password',
         {
           currentPassword: 'old-password',
@@ -1058,7 +1062,7 @@ describe('usePasswordChange', () => {
     });
 
     test('handles unicode characters in passwords', async () => {
-      axios.post.mockResolvedValueOnce({
+      mockedPost.mockResolvedValueOnce({
         data: { success: true },
       });
 
@@ -1075,17 +1079,17 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'новый密码123');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
       });
 
       await waitFor(() => {
-        expect(axios.post).toHaveBeenCalledTimes(1);
+        expect(mockedPost).toHaveBeenCalledTimes(1);
       });
 
-      expect(axios.post).toHaveBeenCalledWith(
+      expect(mockedPost).toHaveBeenCalledWith(
         '/auth/change-password',
         {
           currentPassword: 'старый密码',
@@ -1109,7 +1113,7 @@ describe('usePasswordChange', () => {
         result.current.handlePasswordFieldChange('confirm', 'newpassword123');
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
@@ -1120,17 +1124,17 @@ describe('usePasswordChange', () => {
         message: 'Passwords do not match',
         severity: 'error',
       });
-      expect(axios.post).not.toHaveBeenCalled();
+      expect(mockedPost).not.toHaveBeenCalled();
     });
   });
 
   describe('Callback Dependencies', () => {
     test('includes all dependencies in useCallback for handlePasswordSubmit', async () => {
-      axios.post.mockResolvedValueOnce({
+      mockedPost.mockResolvedValueOnce({
         data: { success: true },
       });
 
-      const newSetSnackbar = jest.fn();
+      const newSetSnackbar = vi.fn();
       const newToken = 'new-token-456';
 
       const { result, rerender } = renderHook(
@@ -1154,7 +1158,7 @@ describe('usePasswordChange', () => {
         setSnackbar: newSetSnackbar,
       });
 
-      const mockEvent = { preventDefault: jest.fn() } as unknown as React.FormEvent;
+      const mockEvent = { preventDefault: vi.fn() } as unknown as React.FormEvent;
 
       await act(async () => {
         await result.current.handlePasswordSubmit(mockEvent);
@@ -1172,7 +1176,7 @@ describe('usePasswordChange', () => {
 
       expect(mockSetSnackbar).not.toHaveBeenCalled();
 
-      const callArgs = axios.post.mock.calls[0];
+      const callArgs = mockedPost.mock.calls[0];
       expect(callArgs[2]?.headers).toEqual({
         'x-access-token': newToken,
       });

@@ -62,6 +62,17 @@ vi.mock('../chips', () => {
         'Title Filter'
       );
     },
+    RatingBadge: ({ rating }: any) => {
+      if (!rating) return null;
+      return React.createElement(
+        'div',
+        {
+          'data-testid': 'rating-badge',
+          'data-rating': rating,
+        },
+        'Rating'
+      );
+    },
   };
 });
 
@@ -83,14 +94,14 @@ describe('ChannelListRow', () => {
     channel: mockChannel,
     isMobile: false,
     globalPreferredResolution: '1080',
-    onNavigate: jest.fn(),
-    onDelete: jest.fn(),
-    onRegexClick: jest.fn(),
+    onNavigate: vi.fn(),
+    onDelete: vi.fn(),
+    onRegexClick: vi.fn(),
     isPendingAddition: false,
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Rendering', () => {
@@ -130,7 +141,7 @@ describe('ChannelListRow', () => {
   describe('Interactions', () => {
     test('calls onNavigate when header is clicked on desktop', async () => {
       const user = userEvent.setup();
-      const onNavigate = jest.fn();
+      const onNavigate = vi.fn();
 
       renderWithProviders(<ChannelListRow {...defaultProps} onNavigate={onNavigate} />);
 
@@ -141,7 +152,7 @@ describe('ChannelListRow', () => {
 
     test('does not navigate and shows pending chip when addition is pending', async () => {
       const user = userEvent.setup();
-      const onNavigate = jest.fn();
+      const onNavigate = vi.fn();
 
       renderWithProviders(
         <ChannelListRow
@@ -159,7 +170,7 @@ describe('ChannelListRow', () => {
 
     test('calls onDelete when delete button is clicked', async () => {
       const user = userEvent.setup();
-      const onDelete = jest.fn();
+      const onDelete = vi.fn();
 
       renderWithProviders(<ChannelListRow {...defaultProps} onDelete={onDelete} />);
 
@@ -171,7 +182,7 @@ describe('ChannelListRow', () => {
 
     test('calls onRegexClick when title filter chip is clicked', async () => {
       const user = userEvent.setup();
-      const onRegexClick = jest.fn();
+      const onRegexClick = vi.fn();
       const channelWithFilter = { ...mockChannel, title_filter_regex: '^test' };
 
       renderWithProviders(
@@ -192,7 +203,7 @@ describe('ChannelListRow', () => {
   describe('Mobile layout', () => {
     test('renders filter chips and handles regex click on mobile', async () => {
       const user = userEvent.setup();
-      const onRegexClick = jest.fn();
+      const onRegexClick = vi.fn();
       const channelWithFilters = {
         ...mockChannel,
         min_duration: 300,

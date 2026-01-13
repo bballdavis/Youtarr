@@ -2,16 +2,17 @@ import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import DownloadProgress, { formatEta } from '../DownloadProgress';
 import WebSocketContext from '../../../contexts/WebSocketContext';
 
-const mockNavigate = jest.fn();
-jest.mock('react-router-dom', () => ({
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', () => ({
   useNavigate: () => mockNavigate,
 }));
 
 // Mock TerminateJobDialog component
-jest.mock('../TerminateJobDialog', () => ({
+vi.mock('../TerminateJobDialog', () => ({
   __esModule: true,
   default: function MockTerminateJobDialog(props: any) {
     const React = require('react');
@@ -25,8 +26,8 @@ jest.mock('../TerminateJobDialog', () => ({
 }));
 
 describe('DownloadProgress', () => {
-  const mockSubscribe = jest.fn();
-  const mockUnsubscribe = jest.fn();
+  const mockSubscribe = vi.fn();
+  const mockUnsubscribe = vi.fn();
   const mockDownloadProgressRef = { current: { index: null, message: '' } };
   const mockDownloadInitiatedRef = { current: false };
 
@@ -47,7 +48,7 @@ describe('DownloadProgress', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('renders with initial state showing no download activity', () => {
@@ -1905,7 +1906,7 @@ describe('DownloadProgress', () => {
 
   describe('terminate button', () => {
     beforeEach(() => {
-      global.fetch = jest.fn();
+      global.fetch = vi.fn();
     });
 
     afterEach(() => {
@@ -2141,11 +2142,11 @@ describe('DownloadProgress', () => {
 
     test('dialog has correct props passed when opened', async () => {
       const user = userEvent.setup();
-      const mockFetch = global.fetch as jest.Mock;
+      const mockFetch = global.fetch as any;
       mockFetch.mockResolvedValueOnce({
         ok: true,
         status: 200,
-        json: jest.fn().mockResolvedValueOnce({ success: true }),
+        json: vi.fn().mockResolvedValueOnce({ success: true }),
       });
 
       renderWithContext(
@@ -2189,13 +2190,13 @@ describe('DownloadProgress', () => {
     });
 
     test('handles API error when terminating job', async () => {
-      const mockFetch = global.fetch as jest.Mock;
-      const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
+      const mockFetch = global.fetch as any;
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
 
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 500,
-        json: jest.fn().mockResolvedValueOnce({ error: 'Internal server error' }),
+        json: vi.fn().mockResolvedValueOnce({ error: 'Internal server error' }),
       });
 
       renderWithContext(
@@ -2237,9 +2238,9 @@ describe('DownloadProgress', () => {
     });
 
     test('handles network error when terminating job', async () => {
-      const mockFetch = global.fetch as jest.Mock;
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-      const alertSpy = jest.spyOn(window, 'alert').mockImplementation(() => {});
+      const mockFetch = global.fetch as any;
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
 
       mockFetch.mockRejectedValueOnce(new Error('Network error'));
 

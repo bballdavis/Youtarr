@@ -2,12 +2,13 @@ import React from 'react';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import VideoListItem from '../VideoListItem';
 import { ChannelVideo } from '../../../types/ChannelVideo';
 import { renderWithProviders } from '../../../test-utils';
 
 // Mock StillLiveDot component
-jest.mock('../StillLiveDot', () => ({
+vi.mock('../StillLiveDot', () => ({
   __esModule: true,
   default: function MockStillLiveDot(props: { isMobile?: boolean; onMobileClick?: (message: string) => void }) {
     const React = require('react');
@@ -31,13 +32,13 @@ describe('VideoListItem Component', () => {
     video: mockVideo,
     checkedBoxes: [],
     selectedForDeletion: [],
-    onCheckChange: jest.fn(),
-    onToggleDeletion: jest.fn(),
-    onToggleIgnore: jest.fn(),
+    onCheckChange: vi.fn(),
+    onToggleDeletion: vi.fn(),
+    onToggleIgnore: vi.fn(),
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Component Rendering', () => {
@@ -196,7 +197,7 @@ describe('VideoListItem Component', () => {
     });
 
     test('passes onMobileTooltip to StillLiveDot component', () => {
-      const onMobileTooltip = jest.fn();
+      const onMobileTooltip = vi.fn();
       const liveVideo = { ...mockVideo, live_status: 'is_live' };
 
       renderWithProviders(
@@ -257,7 +258,7 @@ describe('VideoListItem Component', () => {
 
     test('calls onCheckChange when checkbox is clicked', async () => {
       const user = userEvent.setup();
-      const onCheckChange = jest.fn();
+      const onCheckChange = vi.fn();
 
       renderWithProviders(
         <VideoListItem {...defaultProps} onCheckChange={onCheckChange} />
@@ -272,7 +273,7 @@ describe('VideoListItem Component', () => {
 
     test('calls onCheckChange with false when checked checkbox is clicked', async () => {
       const user = userEvent.setup();
-      const onCheckChange = jest.fn();
+      const onCheckChange = vi.fn();
 
       renderWithProviders(
         <VideoListItem
@@ -290,7 +291,7 @@ describe('VideoListItem Component', () => {
 
     test('checkbox click stops propagation', async () => {
       const user = userEvent.setup();
-      const onCheckChange = jest.fn();
+      const onCheckChange = vi.fn();
 
       renderWithProviders(
         <VideoListItem {...defaultProps} onCheckChange={onCheckChange} />
@@ -307,7 +308,7 @@ describe('VideoListItem Component', () => {
   describe('Card Click for Selection', () => {
     test('clicking card toggles selection for selectable videos', async () => {
       const user = userEvent.setup();
-      const onCheckChange = jest.fn();
+      const onCheckChange = vi.fn();
 
       renderWithProviders(
         <VideoListItem {...defaultProps} onCheckChange={onCheckChange} />
@@ -321,7 +322,7 @@ describe('VideoListItem Component', () => {
 
     test('clicking card toggles selection for ignored videos', async () => {
       const user = userEvent.setup();
-      const onCheckChange = jest.fn();
+      const onCheckChange = vi.fn();
       const ignoredVideo = { ...mockVideo, ignored: true };
 
       renderWithProviders(
@@ -336,7 +337,7 @@ describe('VideoListItem Component', () => {
 
     test('clicking card does not select downloaded videos', async () => {
       const user = userEvent.setup();
-      const onCheckChange = jest.fn();
+      const onCheckChange = vi.fn();
       const downloadedVideo = { ...mockVideo, added: true, removed: false };
 
       renderWithProviders(
@@ -351,7 +352,7 @@ describe('VideoListItem Component', () => {
 
     test('clicking card does not select still live videos', async () => {
       const user = userEvent.setup();
-      const onCheckChange = jest.fn();
+      const onCheckChange = vi.fn();
       const liveVideo = { ...mockVideo, live_status: 'is_live' };
 
       renderWithProviders(
@@ -366,7 +367,7 @@ describe('VideoListItem Component', () => {
 
     test('clicking card does not select members only videos', async () => {
       const user = userEvent.setup();
-      const onCheckChange = jest.fn();
+      const onCheckChange = vi.fn();
       const membersOnlyVideo = { ...mockVideo, availability: 'subscriber_only' };
 
       renderWithProviders(
@@ -381,7 +382,7 @@ describe('VideoListItem Component', () => {
 
     test('clicking card toggles from checked to unchecked', async () => {
       const user = userEvent.setup();
-      const onCheckChange = jest.fn();
+      const onCheckChange = vi.fn();
 
       renderWithProviders(
         <VideoListItem
@@ -418,7 +419,7 @@ describe('VideoListItem Component', () => {
 
     test('calls onToggleDeletion when delete button is clicked', async () => {
       const user = userEvent.setup();
-      const onToggleDeletion = jest.fn();
+      const onToggleDeletion = vi.fn();
       const downloadedVideo = { ...mockVideo, added: true, removed: false };
 
       renderWithProviders(
@@ -438,8 +439,8 @@ describe('VideoListItem Component', () => {
 
     test('delete button click stops propagation', async () => {
       const user = userEvent.setup();
-      const onToggleDeletion = jest.fn();
-      const onCheckChange = jest.fn();
+      const onToggleDeletion = vi.fn();
+      const onCheckChange = vi.fn();
       const downloadedVideo = { ...mockVideo, added: true, removed: false };
 
       renderWithProviders(
@@ -496,7 +497,7 @@ describe('VideoListItem Component', () => {
 
     test('calls onToggleIgnore when ignore button is clicked', async () => {
       const user = userEvent.setup();
-      const onToggleIgnore = jest.fn();
+      const onToggleIgnore = vi.fn();
 
       renderWithProviders(
         <VideoListItem
@@ -514,7 +515,7 @@ describe('VideoListItem Component', () => {
 
     test('calls onToggleIgnore when unignore button is clicked', async () => {
       const user = userEvent.setup();
-      const onToggleIgnore = jest.fn();
+      const onToggleIgnore = vi.fn();
       const ignoredVideo = { ...mockVideo, ignored: true };
 
       renderWithProviders(
@@ -534,8 +535,8 @@ describe('VideoListItem Component', () => {
 
     test('ignore button click stops propagation', async () => {
       const user = userEvent.setup();
-      const onToggleIgnore = jest.fn();
-      const onCheckChange = jest.fn();
+      const onToggleIgnore = vi.fn();
+      const onCheckChange = vi.fn();
 
       renderWithProviders(
         <VideoListItem

@@ -3,8 +3,8 @@ import { useStorageStatus } from '../useStorageStatus';
 import type { StorageData } from '../useStorageStatus';
 
 // Mock axios
-jest.mock('axios', () => ({
-  get: jest.fn(),
+vi.mock('axios', () => ({
+  get: vi.fn(),
 }));
 
 const axios = require('axios');
@@ -19,7 +19,7 @@ describe('useStorageStatus', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     jest.useFakeTimers();
   });
 
@@ -220,7 +220,7 @@ describe('useStorageStatus', () => {
 
   describe('Error Handling', () => {
     test('handles network errors', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const networkError = new Error('Network error');
 
       axios.get.mockRejectedValueOnce(networkError);
@@ -242,7 +242,7 @@ describe('useStorageStatus', () => {
     });
 
     test('handles API errors', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const apiError = new Error('Internal server error');
 
       axios.get.mockRejectedValueOnce(apiError);
@@ -260,7 +260,7 @@ describe('useStorageStatus', () => {
     });
 
     test('sets available to false on error in checkOnly mode', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       axios.get.mockRejectedValueOnce(new Error('Fetch failed'));
 
@@ -279,7 +279,7 @@ describe('useStorageStatus', () => {
     });
 
     test('clears previous error on successful refetch', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       // First call fails
       axios.get.mockRejectedValueOnce(new Error('First error'));
@@ -602,7 +602,7 @@ describe('useStorageStatus', () => {
     });
 
     test('sets loading to false after failed fetch', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       axios.get.mockRejectedValueOnce(new Error('Fetch error'));
 
@@ -732,7 +732,7 @@ describe('useStorageStatus', () => {
     });
 
     test('handles checkOnly with poll and errors', async () => {
-      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       axios.get.mockRejectedValue(new Error('Storage unavailable'));
 

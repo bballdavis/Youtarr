@@ -2,11 +2,12 @@ import React from 'react';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import ChannelVideosDialogs, { ChannelVideosDialogsProps } from '../ChannelVideosDialogs';
 import { renderWithProviders } from '../../../test-utils';
 
 // Mock child components
-jest.mock('../../DownloadManager/ManualDownload/DownloadSettingsDialog', () => ({
+vi.mock('../../DownloadManager/ManualDownload/DownloadSettingsDialog', () => ({
   __esModule: true,
   default: function MockDownloadSettingsDialog(props: any) {
     const React = require('react');
@@ -26,7 +27,7 @@ jest.mock('../../DownloadManager/ManualDownload/DownloadSettingsDialog', () => (
   }
 }));
 
-jest.mock('../../shared/DeleteVideosDialog', () => ({
+vi.mock('../../shared/DeleteVideosDialog', () => ({
   __esModule: true,
   default: function MockDeleteVideosDialog(props: any) {
     const React = require('react');
@@ -55,20 +56,20 @@ describe('ChannelVideosDialogs Component', () => {
     selectedTab: 'videos',
     tabLabel: 'Videos',
     token: null,
-    onDownloadDialogClose: jest.fn(),
-    onDownloadConfirm: jest.fn(),
-    onRefreshCancel: jest.fn(),
-    onRefreshConfirm: jest.fn(),
-    onDeleteCancel: jest.fn(),
-    onDeleteConfirm: jest.fn(),
-    onFetchAllErrorClose: jest.fn(),
-    onMobileTooltipClose: jest.fn(),
-    onSuccessMessageClose: jest.fn(),
-    onErrorMessageClose: jest.fn(),
+    onDownloadDialogClose: vi.fn(),
+    onDownloadConfirm: vi.fn(),
+    onRefreshCancel: vi.fn(),
+    onRefreshConfirm: vi.fn(),
+    onDeleteCancel: vi.fn(),
+    onDeleteConfirm: vi.fn(),
+    onFetchAllErrorClose: vi.fn(),
+    onMobileTooltipClose: vi.fn(),
+    onSuccessMessageClose: vi.fn(),
+    onErrorMessageClose: vi.fn(),
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Component Rendering', () => {
@@ -193,7 +194,7 @@ describe('ChannelVideosDialogs Component', () => {
 
     test('calls onRefreshCancel when Cancel is clicked', async () => {
       const user = userEvent.setup();
-      const onRefreshCancel = jest.fn();
+      const onRefreshCancel = vi.fn();
 
       renderWithProviders(
         <ChannelVideosDialogs
@@ -211,7 +212,7 @@ describe('ChannelVideosDialogs Component', () => {
 
     test('calls onRefreshConfirm when Continue is clicked', async () => {
       const user = userEvent.setup();
-      const onRefreshConfirm = jest.fn();
+      const onRefreshConfirm = vi.fn();
 
       renderWithProviders(
         <ChannelVideosDialogs
@@ -228,7 +229,7 @@ describe('ChannelVideosDialogs Component', () => {
     });
 
     test('calls onRefreshCancel when dialog is closed by clicking backdrop', () => {
-      const onRefreshCancel = jest.fn();
+      const onRefreshCancel = vi.fn();
 
       renderWithProviders(
         <ChannelVideosDialogs
@@ -305,7 +306,7 @@ describe('ChannelVideosDialogs Component', () => {
 
     test('calls onFetchAllErrorClose when error snackbar is closed', async () => {
       const user = userEvent.setup();
-      const onFetchAllErrorClose = jest.fn();
+      const onFetchAllErrorClose = vi.fn();
 
       renderWithProviders(
         <ChannelVideosDialogs
@@ -334,7 +335,7 @@ describe('ChannelVideosDialogs Component', () => {
 
     test('calls onMobileTooltipClose when tooltip is closed', async () => {
       const user = userEvent.setup();
-      const onMobileTooltipClose = jest.fn();
+      const onMobileTooltipClose = vi.fn();
 
       renderWithProviders(
         <ChannelVideosDialogs
@@ -363,7 +364,7 @@ describe('ChannelVideosDialogs Component', () => {
 
     test('calls onSuccessMessageClose when success snackbar is closed', async () => {
       const user = userEvent.setup();
-      const onSuccessMessageClose = jest.fn();
+      const onSuccessMessageClose = vi.fn();
 
       renderWithProviders(
         <ChannelVideosDialogs
@@ -392,7 +393,7 @@ describe('ChannelVideosDialogs Component', () => {
 
     test('calls onErrorMessageClose when error message snackbar is closed', async () => {
       const user = userEvent.setup();
-      const onErrorMessageClose = jest.fn();
+      const onErrorMessageClose = vi.fn();
 
       renderWithProviders(
         <ChannelVideosDialogs

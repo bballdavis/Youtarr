@@ -2,12 +2,13 @@ import React from 'react';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import VideoTableView from '../VideoTableView';
 import { ChannelVideo } from '../../../types/ChannelVideo';
 import { renderWithProviders } from '../../../test-utils';
 
 // Mock StillLiveDot component
-jest.mock('../StillLiveDot', () => ({
+vi.mock('../StillLiveDot', () => ({
   __esModule: true,
   default: function MockStillLiveDot(props: { isMobile?: boolean; onMobileClick?: (message: string) => void }) {
     const React = require('react');
@@ -34,16 +35,16 @@ describe('VideoTableView Component', () => {
     selectedForDeletion: [],
     sortBy: 'date' as const,
     sortOrder: 'desc' as const,
-    onCheckChange: jest.fn(),
-    onSelectAll: jest.fn(),
-    onClearSelection: jest.fn(),
-    onSortChange: jest.fn(),
-    onToggleDeletion: jest.fn(),
-    onToggleIgnore: jest.fn(),
+    onCheckChange: vi.fn(),
+    onSelectAll: vi.fn(),
+    onClearSelection: vi.fn(),
+    onSortChange: vi.fn(),
+    onToggleDeletion: vi.fn(),
+    onToggleIgnore: vi.fn(),
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Component Rendering', () => {
@@ -243,7 +244,7 @@ describe('VideoTableView Component', () => {
     });
 
     test('passes onMobileTooltip to StillLiveDot component', () => {
-      const onMobileTooltip = jest.fn();
+      const onMobileTooltip = vi.fn();
       const liveVideo = { ...mockVideo, live_status: 'is_live' };
 
       renderWithProviders(
@@ -304,7 +305,7 @@ describe('VideoTableView Component', () => {
 
     test('calls onSelectAll when header checkbox is clicked while unchecked', async () => {
       const user = userEvent.setup();
-      const onSelectAll = jest.fn();
+      const onSelectAll = vi.fn();
 
       renderWithProviders(
         <VideoTableView {...defaultProps} onSelectAll={onSelectAll} />
@@ -319,7 +320,7 @@ describe('VideoTableView Component', () => {
 
     test('calls onClearSelection when header checkbox is clicked while checked', async () => {
       const user = userEvent.setup();
-      const onClearSelection = jest.fn();
+      const onClearSelection = vi.fn();
 
       renderWithProviders(
         <VideoTableView
@@ -395,7 +396,7 @@ describe('VideoTableView Component', () => {
 
     test('calls onCheckChange when checkbox is clicked', async () => {
       const user = userEvent.setup();
-      const onCheckChange = jest.fn();
+      const onCheckChange = vi.fn();
 
       renderWithProviders(
         <VideoTableView {...defaultProps} onCheckChange={onCheckChange} />
@@ -411,7 +412,7 @@ describe('VideoTableView Component', () => {
 
     test('calls onCheckChange with false when checked checkbox is clicked', async () => {
       const user = userEvent.setup();
-      const onCheckChange = jest.fn();
+      const onCheckChange = vi.fn();
 
       renderWithProviders(
         <VideoTableView
@@ -449,7 +450,7 @@ describe('VideoTableView Component', () => {
 
     test('calls onToggleDeletion when delete button is clicked', async () => {
       const user = userEvent.setup();
-      const onToggleDeletion = jest.fn();
+      const onToggleDeletion = vi.fn();
       const downloadedVideo = { ...mockVideo, added: true, removed: false };
 
       renderWithProviders(
@@ -469,8 +470,8 @@ describe('VideoTableView Component', () => {
 
     test('delete button click stops propagation', async () => {
       const user = userEvent.setup();
-      const onToggleDeletion = jest.fn();
-      const onCheckChange = jest.fn();
+      const onToggleDeletion = vi.fn();
+      const onCheckChange = vi.fn();
       const downloadedVideo = { ...mockVideo, added: true, removed: false };
 
       renderWithProviders(
@@ -527,7 +528,7 @@ describe('VideoTableView Component', () => {
 
     test('calls onToggleIgnore when ignore button is clicked', async () => {
       const user = userEvent.setup();
-      const onToggleIgnore = jest.fn();
+      const onToggleIgnore = vi.fn();
 
       renderWithProviders(
         <VideoTableView
@@ -544,7 +545,7 @@ describe('VideoTableView Component', () => {
 
     test('calls onToggleIgnore when unignore button is clicked', async () => {
       const user = userEvent.setup();
-      const onToggleIgnore = jest.fn();
+      const onToggleIgnore = vi.fn();
       const ignoredVideo = { ...mockVideo, ignored: true };
 
       renderWithProviders(
@@ -563,8 +564,8 @@ describe('VideoTableView Component', () => {
 
     test('ignore button click stops propagation', async () => {
       const user = userEvent.setup();
-      const onToggleIgnore = jest.fn();
-      const onCheckChange = jest.fn();
+      const onToggleIgnore = vi.fn();
+      const onCheckChange = vi.fn();
 
       renderWithProviders(
         <VideoTableView
@@ -711,7 +712,7 @@ describe('VideoTableView Component', () => {
 
     test('calls onSortChange when title header is clicked', async () => {
       const user = userEvent.setup();
-      const onSortChange = jest.fn();
+      const onSortChange = vi.fn();
 
       renderWithProviders(
         <VideoTableView {...defaultProps} onSortChange={onSortChange} />
@@ -725,7 +726,7 @@ describe('VideoTableView Component', () => {
 
     test('calls onSortChange when published header is clicked', async () => {
       const user = userEvent.setup();
-      const onSortChange = jest.fn();
+      const onSortChange = vi.fn();
 
       renderWithProviders(
         <VideoTableView {...defaultProps} onSortChange={onSortChange} />
@@ -739,7 +740,7 @@ describe('VideoTableView Component', () => {
 
     test('calls onSortChange when duration header is clicked', async () => {
       const user = userEvent.setup();
-      const onSortChange = jest.fn();
+      const onSortChange = vi.fn();
 
       renderWithProviders(
         <VideoTableView {...defaultProps} onSortChange={onSortChange} />
@@ -753,7 +754,7 @@ describe('VideoTableView Component', () => {
 
     test('calls onSortChange when size header is clicked', async () => {
       const user = userEvent.setup();
-      const onSortChange = jest.fn();
+      const onSortChange = vi.fn();
 
       renderWithProviders(
         <VideoTableView {...defaultProps} onSortChange={onSortChange} />

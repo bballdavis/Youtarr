@@ -2,83 +2,84 @@ import React from 'react';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import Configuration from '../Configuration';
 import { renderWithProviders } from '../../test-utils';
 import { DEFAULT_CONFIG } from '../../config/configSchema';
 import { ConfigState } from '../Configuration/types';
 
 // Mock all section components
-jest.mock('../Configuration/sections/CoreSettingsSection', () => ({
+vi.mock('../Configuration/sections/CoreSettingsSection', () => ({
   CoreSettingsSection: function MockCoreSettingsSection(props: any) {
     const React = require('react');
     return React.createElement('div', { 'data-testid': 'core-settings-section' }, 'CoreSettingsSection');
   }
 }));
 
-jest.mock('../Configuration/sections/PlexIntegrationSection', () => ({
+vi.mock('../Configuration/sections/PlexIntegrationSection', () => ({
   PlexIntegrationSection: function MockPlexIntegrationSection(props: any) {
     const React = require('react');
     return React.createElement('div', { 'data-testid': 'plex-integration-section' }, 'PlexIntegrationSection');
   }
 }));
 
-jest.mock('../Configuration/sections/SponsorBlockSection', () => ({
+vi.mock('../Configuration/sections/SponsorBlockSection', () => ({
   SponsorBlockSection: function MockSponsorBlockSection(props: any) {
     const React = require('react');
     return React.createElement('div', { 'data-testid': 'sponsorblock-section' }, 'SponsorBlockSection');
   }
 }));
 
-jest.mock('../Configuration/sections/KodiCompatibilitySection', () => ({
+vi.mock('../Configuration/sections/KodiCompatibilitySection', () => ({
   KodiCompatibilitySection: function MockKodiCompatibilitySection(props: any) {
     const React = require('react');
     return React.createElement('div', { 'data-testid': 'kodi-compatibility-section' }, 'KodiCompatibilitySection');
   }
 }));
 
-jest.mock('../Configuration/sections/CookieConfigSection', () => ({
+vi.mock('../Configuration/sections/CookieConfigSection', () => ({
   CookieConfigSection: function MockCookieConfigSection(props: any) {
     const React = require('react');
     return React.createElement('div', { 'data-testid': 'cookie-config-section' }, 'CookieConfigSection');
   }
 }));
 
-jest.mock('../Configuration/sections/NotificationsSection', () => ({
+vi.mock('../Configuration/sections/NotificationsSection', () => ({
   NotificationsSection: function MockNotificationsSection(props: any) {
     const React = require('react');
     return React.createElement('div', { 'data-testid': 'notifications-section' }, 'NotificationsSection');
   }
 }));
 
-jest.mock('../Configuration/sections/DownloadPerformanceSection', () => ({
+vi.mock('../Configuration/sections/DownloadPerformanceSection', () => ({
   DownloadPerformanceSection: function MockDownloadPerformanceSection(props: any) {
     const React = require('react');
     return React.createElement('div', { 'data-testid': 'download-performance-section' }, 'DownloadPerformanceSection');
   }
 }));
 
-jest.mock('../Configuration/sections/AdvancedSettingsSection', () => ({
+vi.mock('../Configuration/sections/AdvancedSettingsSection', () => ({
   AdvancedSettingsSection: function MockAdvancedSettingsSection(props: any) {
     const React = require('react');
     return React.createElement('div', { 'data-testid': 'advanced-settings-section' }, 'AdvancedSettingsSection');
   }
 }));
 
-jest.mock('../Configuration/sections/AutoRemovalSection', () => ({
+vi.mock('../Configuration/sections/AutoRemovalSection', () => ({
   AutoRemovalSection: function MockAutoRemovalSection(props: any) {
     const React = require('react');
     return React.createElement('div', { 'data-testid': 'auto-removal-section' }, 'AutoRemovalSection');
   }
 }));
 
-jest.mock('../Configuration/sections/AccountSecuritySection', () => ({
+vi.mock('../Configuration/sections/AccountSecuritySection', () => ({
   AccountSecuritySection: function MockAccountSecuritySection(props: any) {
     const React = require('react');
     return React.createElement('div', { 'data-testid': 'account-security-section' }, 'AccountSecuritySection');
   }
 }));
 
-jest.mock('../Configuration/sections/SaveBar', () => ({
+vi.mock('../Configuration/sections/SaveBar', () => ({
   SaveBar: function MockSaveBar(props: any) {
     const React = require('react');
     return React.createElement('div', { 'data-testid': 'save-bar' },
@@ -92,7 +93,7 @@ jest.mock('../Configuration/sections/SaveBar', () => ({
 }));
 
 // Mock PlexLibrarySelector
-jest.mock('../PlexLibrarySelector', () => ({
+vi.mock('../PlexLibrarySelector', () => ({
   __esModule: true,
   default: function MockPlexLibrarySelector(props: any) {
     const React = require('react');
@@ -103,7 +104,7 @@ jest.mock('../PlexLibrarySelector', () => ({
 }));
 
 // Mock PlexAuthDialog
-jest.mock('../PlexAuthDialog', () => ({
+vi.mock('../PlexAuthDialog', () => ({
   __esModule: true,
   default: function MockPlexAuthDialog(props: any) {
     const React = require('react');
@@ -114,7 +115,7 @@ jest.mock('../PlexAuthDialog', () => ({
 }));
 
 // Mock ConfigurationSkeleton
-jest.mock('../Configuration/common/ConfigurationSkeleton', () => ({
+vi.mock('../Configuration/common/ConfigurationSkeleton', () => ({
   __esModule: true,
   default: function MockConfigurationSkeleton() {
     const React = require('react');
@@ -123,21 +124,21 @@ jest.mock('../Configuration/common/ConfigurationSkeleton', () => ({
 }));
 
 // Mock custom hooks
-const mockUseConfig = jest.fn();
-const mockUsePlexConnection = jest.fn();
-const mockUseConfigSave = jest.fn();
-const mockUseStorageStatus = jest.fn();
+const mockUseConfig = vi.fn();
+const mockUsePlexConnection = vi.fn();
+const mockUseConfigSave = vi.fn();
+const mockUseStorageStatus = vi.fn();
 
-jest.mock('../../hooks/useConfig', () => ({
+vi.mock('../../hooks/useConfig', () => ({
   useConfig: (...args: any[]) => mockUseConfig(...args)
 }));
 
-jest.mock('../Configuration/hooks', () => ({
+vi.mock('../Configuration/hooks', () => ({
   usePlexConnection: (...args: any[]) => mockUsePlexConnection(...args),
   useConfigSave: (...args: any[]) => mockUseConfigSave(...args)
 }));
 
-jest.mock('../../hooks/useStorageStatus', () => ({
+vi.mock('../../hooks/useStorageStatus', () => ({
   useStorageStatus: (...args: any[]) => mockUseStorageStatus(...args)
 }));
 
@@ -161,28 +162,28 @@ const createMockUseConfig = (overrides: any = {}) => ({
     isWsl: false,
   },
   loading: false,
-  setConfig: jest.fn(),
-  setInitialConfig: jest.fn(),
+  setConfig: vi.fn(),
+  setInitialConfig: vi.fn(),
   ...overrides,
 });
 
 const createMockUsePlexConnection = (overrides: any = {}) => ({
   plexConnectionStatus: 'not_tested',
-  setPlexConnectionStatus: jest.fn(),
+  setPlexConnectionStatus: vi.fn(),
   openPlexLibrarySelector: false,
   openPlexAuthDialog: false,
-  setOpenPlexAuthDialog: jest.fn(),
-  checkPlexConnection: jest.fn(),
-  testPlexConnection: jest.fn(),
-  openLibrarySelector: jest.fn(),
-  closeLibrarySelector: jest.fn(),
-  setLibraryId: jest.fn(),
-  handlePlexAuthSuccess: jest.fn(),
+  setOpenPlexAuthDialog: vi.fn(),
+  checkPlexConnection: vi.fn(),
+  testPlexConnection: vi.fn(),
+  openLibrarySelector: vi.fn(),
+  closeLibrarySelector: vi.fn(),
+  setLibraryId: vi.fn(),
+  handlePlexAuthSuccess: vi.fn(),
   ...overrides,
 });
 
 const createMockUseConfigSave = (overrides: any = {}) => ({
-  saveConfig: jest.fn(),
+  saveConfig: vi.fn(),
   ...overrides,
 });
 
@@ -195,7 +196,7 @@ const createMockUseStorageStatus = (overrides: any = {}) => ({
 
 describe('Configuration Component', () => {
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
     mockUseConfig.mockReturnValue(createMockUseConfig());
     mockUsePlexConnection.mockReturnValue(createMockUsePlexConnection());
     mockUseConfigSave.mockReturnValue(createMockUseConfigSave());
@@ -267,8 +268,8 @@ describe('Configuration Component', () => {
     });
 
     test('initializes usePlexConnection with correct params', () => {
-      const setConfig = jest.fn();
-      const setInitialConfig = jest.fn();
+      const setConfig = vi.fn();
+      const setInitialConfig = vi.fn();
       mockUseConfig.mockReturnValue(createMockUseConfig({ setConfig, setInitialConfig }));
 
       renderWithProviders(<Configuration token="test-token" />);
@@ -284,8 +285,8 @@ describe('Configuration Component', () => {
     });
 
     test('initializes useConfigSave with correct params', () => {
-      const setInitialConfig = jest.fn();
-      const checkPlexConnection = jest.fn();
+      const setInitialConfig = vi.fn();
+      const checkPlexConnection = vi.fn();
       mockUseConfig.mockReturnValue(createMockUseConfig({ setInitialConfig }));
       mockUsePlexConnection.mockReturnValue(createMockUsePlexConnection({ checkPlexConnection }));
 
@@ -404,7 +405,7 @@ describe('Configuration Component', () => {
 
     test('calls saveConfig when save is confirmed', async () => {
       const user = userEvent.setup();
-      const saveConfig = jest.fn();
+      const saveConfig = vi.fn();
       mockUseConfigSave.mockReturnValue(createMockUseConfigSave({ saveConfig }));
 
       renderWithProviders(<Configuration token="test-token" />);
@@ -439,7 +440,7 @@ describe('Configuration Component', () => {
   describe('Validation', () => {
     describe('Auto-Removal Validation', () => {
       test('prevents save when auto-removal enabled without thresholds', () => {
-        const saveConfig = jest.fn();
+        const saveConfig = vi.fn();
         mockUseConfigSave.mockReturnValue(createMockUseConfigSave({ saveConfig }));
         mockUseConfig.mockReturnValue(createMockUseConfig({
           config: createConfig({
@@ -459,7 +460,7 @@ describe('Configuration Component', () => {
       });
 
     test('prevents save from confirmation dialog when auto-removal enabled without thresholds', async () => {
-      const saveConfig = jest.fn();
+      const saveConfig = vi.fn();
       mockUseConfigSave.mockReturnValue(createMockUseConfigSave({ saveConfig }));
       mockUseConfig.mockReturnValue(createMockUseConfig({
         config: createConfig({
@@ -479,7 +480,7 @@ describe('Configuration Component', () => {
 
     test('allows save when auto-removal enabled with free space threshold', async () => {
       const user = userEvent.setup();
-      const saveConfig = jest.fn();
+      const saveConfig = vi.fn();
       mockUseConfigSave.mockReturnValue(createMockUseConfigSave({ saveConfig }));
       mockUseConfig.mockReturnValue(createMockUseConfig({
         config: createConfig({
@@ -504,7 +505,7 @@ describe('Configuration Component', () => {
 
     test('allows save when auto-removal enabled with video age threshold', async () => {
       const user = userEvent.setup();
-      const saveConfig = jest.fn();
+      const saveConfig = vi.fn();
       mockUseConfigSave.mockReturnValue(createMockUseConfigSave({ saveConfig }));
       mockUseConfig.mockReturnValue(createMockUseConfig({
         config: createConfig({
@@ -529,7 +530,7 @@ describe('Configuration Component', () => {
 
     test('allows save when auto-removal disabled without thresholds', async () => {
       const user = userEvent.setup();
-      const saveConfig = jest.fn();
+      const saveConfig = vi.fn();
       mockUseConfigSave.mockReturnValue(createMockUseConfigSave({ saveConfig }));
       mockUseConfig.mockReturnValue(createMockUseConfig({
         config: createConfig({
@@ -555,7 +556,7 @@ describe('Configuration Component', () => {
 
     describe('Proxy Validation', () => {
       test('prevents save when proxy URL is invalid', () => {
-        const saveConfig = jest.fn();
+        const saveConfig = vi.fn();
         mockUseConfigSave.mockReturnValue(createMockUseConfigSave({ saveConfig }));
         mockUseConfig.mockReturnValue(createMockUseConfig({
           config: createConfig({
@@ -574,7 +575,7 @@ describe('Configuration Component', () => {
 
       test('allows save when proxy URL is valid HTTP', async () => {
         const user = userEvent.setup();
-        const saveConfig = jest.fn();
+        const saveConfig = vi.fn();
         mockUseConfigSave.mockReturnValue(createMockUseConfigSave({ saveConfig }));
         mockUseConfig.mockReturnValue(createMockUseConfig({
           config: createConfig({
@@ -597,7 +598,7 @@ describe('Configuration Component', () => {
 
       test('allows save when proxy URL is valid SOCKS5 with authentication', async () => {
         const user = userEvent.setup();
-        const saveConfig = jest.fn();
+        const saveConfig = vi.fn();
         mockUseConfigSave.mockReturnValue(createMockUseConfigSave({ saveConfig }));
         mockUseConfig.mockReturnValue(createMockUseConfig({
           config: createConfig({
@@ -620,7 +621,7 @@ describe('Configuration Component', () => {
 
       test('allows save when proxy is empty', async () => {
         const user = userEvent.setup();
-        const saveConfig = jest.fn();
+        const saveConfig = vi.fn();
         mockUseConfigSave.mockReturnValue(createMockUseConfigSave({ saveConfig }));
         mockUseConfig.mockReturnValue(createMockUseConfig({
           config: createConfig({
@@ -643,7 +644,7 @@ describe('Configuration Component', () => {
 
       test('allows save when proxy is undefined', async () => {
         const user = userEvent.setup();
-        const saveConfig = jest.fn();
+        const saveConfig = vi.fn();
         mockUseConfigSave.mockReturnValue(createMockUseConfigSave({ saveConfig }));
         mockUseConfig.mockReturnValue(createMockUseConfig({
           config: createConfig({
@@ -665,7 +666,7 @@ describe('Configuration Component', () => {
       });
 
       test('prevents save when proxy URL has invalid protocol', () => {
-        const saveConfig = jest.fn();
+        const saveConfig = vi.fn();
         mockUseConfigSave.mockReturnValue(createMockUseConfigSave({ saveConfig }));
         mockUseConfig.mockReturnValue(createMockUseConfig({
           config: createConfig({
@@ -686,7 +687,7 @@ describe('Configuration Component', () => {
 
   describe('Plex Connection Status Management', () => {
     test('provides setPlexConnectionStatus function from hook', () => {
-      const setPlexConnectionStatus = jest.fn();
+      const setPlexConnectionStatus = vi.fn();
       mockUsePlexConnection.mockReturnValue(createMockUsePlexConnection({ setPlexConnectionStatus }));
 
       renderWithProviders(<Configuration token="test-token" />);
@@ -696,7 +697,7 @@ describe('Configuration Component', () => {
     });
 
     test('handleConfigChange is available for sections to update config', () => {
-      const setConfig = jest.fn();
+      const setConfig = vi.fn();
       mockUseConfig.mockReturnValue(createMockUseConfig({ setConfig }));
 
       renderWithProviders(<Configuration token="test-token" />);
@@ -798,7 +799,7 @@ describe('Configuration Component', () => {
   describe('Integration Tests', () => {
     test('complete save workflow: open dialog -> confirm -> save', async () => {
       const user = userEvent.setup();
-      const saveConfig = jest.fn();
+      const saveConfig = vi.fn();
       mockUseConfigSave.mockReturnValue(createMockUseConfigSave({ saveConfig }));
 
       renderWithProviders(<Configuration token="test-token" />);
@@ -827,7 +828,7 @@ describe('Configuration Component', () => {
 
     test('validation prevents save throughout workflow', async () => {
       const user = userEvent.setup();
-      const saveConfig = jest.fn();
+      const saveConfig = vi.fn();
       mockUseConfigSave.mockReturnValue(createMockUseConfigSave({ saveConfig }));
       mockUseConfig.mockReturnValue(createMockUseConfig({
         config: createConfig({

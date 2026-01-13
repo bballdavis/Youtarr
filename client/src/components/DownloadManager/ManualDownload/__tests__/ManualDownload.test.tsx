@@ -1,3 +1,17 @@
+import { vi } from 'vitest';
+
+// Mock axios BEFORE any imports that use it
+vi.mock('axios', () => ({
+  default: {
+    post: vi.fn(),
+    get: vi.fn(),
+    create: vi.fn(() => ({
+      post: vi.fn(),
+      get: vi.fn()
+    }))
+  }
+}));
+
 import React from 'react';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -5,19 +19,11 @@ import axios from 'axios';
 import ManualDownload from '../ManualDownload';
 import { ValidationResponse } from '../types';
 
-jest.mock('axios', () => ({
-  post: jest.fn(),
-  get: jest.fn(),
-  create: jest.fn(() => ({
-    post: jest.fn(),
-    get: jest.fn()
-  }))
-}));
+const mockedAxios = axios as any;
 
-const mockedAxios = axios as jest.Mocked<typeof axios>;
-
-jest.mock('../UrlInput', () => {
-  return function MockUrlInput({ onValidate, isValidating, disabled }: any) {
+vi.mock('../UrlInput', () => {
+  return {
+    default: function MockUrlInput({ onValidate, isValidating, disabled }: any) {
     return (
       <div data-testid="url-input">
         <button
@@ -29,11 +35,13 @@ jest.mock('../UrlInput', () => {
         </button>
       </div>
     );
+    }
   };
 });
 
-jest.mock('../VideoChip', () => {
-  return function MockVideoChip({ video, onDelete }: any) {
+vi.mock('../VideoChip', () => {
+  return {
+    default: function MockVideoChip({ video, onDelete }: any) {
     return (
       <div data-testid={`video-chip-${video.youtubeId}`}>
         <span>{video.videoTitle}</span>
@@ -45,11 +53,13 @@ jest.mock('../VideoChip', () => {
         </button>
       </div>
     );
+    }
   };
 });
 
-jest.mock('../DownloadSettingsDialog', () => {
-  return function MockDownloadSettingsDialog({ open, onClose, onConfirm }: any) {
+vi.mock('../DownloadSettingsDialog', () => {
+  return {
+    default: function MockDownloadSettingsDialog({ open, onClose, onConfirm }: any) {
     if (!open) return null;
     return (
       <div data-testid="download-settings-dialog">
@@ -64,11 +74,12 @@ jest.mock('../DownloadSettingsDialog', () => {
         </button>
       </div>
     );
+    }
   };
 });
 
 describe('ManualDownload', () => {
-  const mockOnStartDownload = jest.fn();
+  const mockOnStartDownload = vi.fn();
   const mockToken = 'test-token';
 
 
@@ -88,7 +99,7 @@ describe('ManualDownload', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   test('renders the component with initial state', () => {

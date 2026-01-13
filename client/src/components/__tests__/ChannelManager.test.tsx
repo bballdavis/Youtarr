@@ -2,15 +2,16 @@ import React from 'react';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import ChannelManager from '../ChannelManager';
 import { renderWithProviders, createMockWebSocketContext } from '../../test-utils';
 import { Channel } from '../../types/Channel';
 
 // Mock Material-UI hooks
-jest.mock('@mui/material/useMediaQuery');
-jest.mock('@mui/material/styles', () => ({
-  ...jest.requireActual('@mui/material/styles'),
+vi.mock('@mui/material/useMediaQuery', () => vi.fn());
+vi.mock('@mui/material/styles', () => ({
+  ...vi.importActual('@mui/material/styles'),
   useTheme: () => ({
     breakpoints: { down: () => false },
     zIndex: { snackbar: 1000, fab: 1050 },
@@ -18,33 +19,33 @@ jest.mock('@mui/material/styles', () => ({
 }));
 
 // Mock react-router-dom
-const mockNavigate = jest.fn();
-jest.mock('react-router-dom', () => ({
-  ...jest.requireActual('react-router-dom'),
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', () => ({
+  ...vi.importActual('react-router-dom'),
   useNavigate: () => mockNavigate,
 }));
 
 // Mock custom hooks
-const mockRefetchChannels = jest.fn();
-const mockAddChannel = jest.fn();
-const mockQueueChannelForDeletion = jest.fn();
-const mockUndoChanges = jest.fn();
-const mockSaveChanges = jest.fn();
+const mockRefetchChannels = vi.fn();
+const mockAddChannel = vi.fn();
+const mockQueueChannelForDeletion = vi.fn();
+const mockUndoChanges = vi.fn();
+const mockSaveChanges = vi.fn();
 
-jest.mock('../ChannelManager/hooks/useChannelList', () => ({
-  useChannelList: jest.fn(),
+vi.mock('../ChannelManager/hooks/useChannelList', () => ({
+  useChannelList: vi.fn(),
 }));
 
-jest.mock('../ChannelManager/hooks/useChannelMutations', () => ({
-  useChannelMutations: jest.fn(),
+vi.mock('../ChannelManager/hooks/useChannelMutations', () => ({
+  useChannelMutations: vi.fn(),
 }));
 
-jest.mock('../../hooks/useConfig', () => ({
-  useConfig: jest.fn(),
+vi.mock('../../hooks/useConfig', () => ({
+  useConfig: vi.fn(),
 }));
 
 // Mock child components
-jest.mock('../ChannelManager/components/ChannelCard', () => ({
+vi.mock('../ChannelManager/components/ChannelCard', () => ({
   __esModule: true,
   default: function MockChannelCard({ channel, onNavigate, onDelete, isPendingAddition }: any) {
     const React = require('react');
@@ -65,7 +66,7 @@ jest.mock('../ChannelManager/components/ChannelCard', () => ({
   }
 }));
 
-jest.mock('../ChannelManager/components/ChannelListRow', () => ({
+vi.mock('../ChannelManager/components/ChannelListRow', () => ({
   __esModule: true,
   default: function MockChannelListRow({ channel, onNavigate, onDelete, isPendingAddition }: any) {
     const React = require('react');
@@ -87,7 +88,7 @@ jest.mock('../ChannelManager/components/ChannelListRow', () => ({
   CHANNEL_LIST_DESKTOP_TEMPLATE: '2fr 1fr 1fr 1fr auto',
 }));
 
-jest.mock('../ChannelManager/components/PendingSaveBanner', () => ({
+vi.mock('../ChannelManager/components/PendingSaveBanner', () => ({
   __esModule: true,
   default: function MockPendingSaveBanner({ show }: any) {
     const React = require('react');
@@ -95,7 +96,7 @@ jest.mock('../ChannelManager/components/PendingSaveBanner', () => ({
   }
 }));
 
-jest.mock('../ChannelManager/HelpDialog', () => ({
+vi.mock('../ChannelManager/HelpDialog', () => ({
   __esModule: true,
   default: function MockHelpDialog({ open, onClose }: any) {
     const React = require('react');
@@ -141,8 +142,8 @@ describe('ChannelManager Component', () => {
   };
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    (useMediaQuery as jest.Mock).mockReturnValue(false);
+    vi.clearAllMocks();
+    (useMediaQuery as any).mockReturnValue(false);
     mockNavigate.mockClear();
 
     // Default mock responses
@@ -180,7 +181,7 @@ describe('ChannelManager Component', () => {
     });
 
     test('throws error when WebSocketContext is not provided', () => {
-      const spy = jest.spyOn(console, 'error').mockImplementation(() => {});
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       expect(() => {
         render(<ChannelManager token={mockToken} />);
@@ -277,7 +278,7 @@ describe('ChannelManager Component', () => {
     });
 
     test('does not render view mode toggle on mobile', () => {
-      (useMediaQuery as jest.Mock).mockReturnValue(true);
+      (useMediaQuery as any).mockReturnValue(true);
       renderChannelManager();
       expect(screen.queryByLabelText('List view')).not.toBeInTheDocument();
       expect(screen.queryByLabelText('Grid view')).not.toBeInTheDocument();
@@ -1152,7 +1153,7 @@ describe('ChannelManager Component', () => {
 
   describe('Responsive Behavior', () => {
     test('uses mobile page size on mobile', () => {
-      (useMediaQuery as jest.Mock).mockReturnValue(true);
+      (useMediaQuery as any).mockReturnValue(true);
       renderChannelManager();
 
       expect(useChannelList).toHaveBeenCalledWith(

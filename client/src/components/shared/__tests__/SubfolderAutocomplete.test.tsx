@@ -2,11 +2,12 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 import { SubfolderAutocomplete } from '../SubfolderAutocomplete';
 import { GLOBAL_DEFAULT_SENTINEL, ROOT_SENTINEL } from '../../../utils/channelHelpers';
 
 // Mock AddSubfolderDialog to simplify testing
-jest.mock('../AddSubfolderDialog', () => ({
+vi.mock('../AddSubfolderDialog', () => ({
   AddSubfolderDialog: function MockAddSubfolderDialog({
     open,
     onClose,
@@ -32,11 +33,11 @@ jest.mock('../AddSubfolderDialog', () => ({
 }));
 
 describe('SubfolderAutocomplete', () => {
-  const mockOnChange = jest.fn();
+  const mockOnChange = vi.fn();
   const defaultSubfolders = ['__Sports', '__Music', '__Tech'];
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   describe('Global Mode', () => {
