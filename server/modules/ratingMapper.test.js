@@ -3,7 +3,7 @@ const {
   mapAgeLimit,
   mapFromEntry,
   applyChannelDefault,
-} = require('../server/modules/ratingMapper');
+} = require('./ratingMapper');
 
 describe('ratingMapper', () => {
   describe('normalizeRating', () => {

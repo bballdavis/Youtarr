@@ -59,18 +59,18 @@ const AGE_LIMIT_HEURISTICS = {
  * @param {string} value - Rating value (optional if key contains both)
  * @returns {string|null} - Normalized rating (e.g., 'R', 'TV-14') or null if unable to map
  */
-function normalizeRating(key, value = null) {
+function normalizeRating(key) {
   if (!key) return null;
 
   const keyStr = String(key).toLowerCase().trim();
 
   // Try MPAA mappings (case-insensitive)
-  if (MPAA_MAP.hasOwnProperty(keyStr)) {
+  if (Object.prototype.hasOwnProperty.call(MPAA_MAP, keyStr)) {
     return MPAA_MAP[keyStr];
   }
 
   // Try TVPG mappings (case-insensitive)
-  if (TVPG_MAP.hasOwnProperty(keyStr)) {
+  if (Object.prototype.hasOwnProperty.call(TVPG_MAP, keyStr)) {
     return TVPG_MAP[keyStr];
   }
 
@@ -112,7 +112,7 @@ function mapAgeLimit(ageLimit) {
  * @param {string} priority - Rating priority order (default: 'mpaa,tvpg,age')
  * @returns {Object} - { normalized_rating: string|null, source: string, raw: Object }
  */
-function mapFromEntry(contentRating, ageLimit, priority = 'mpaa,tvpg,age') {
+function mapFromEntry(contentRating, ageLimit, priority = 'mpaa,tvpg,ytrating,age') {
   const result = {
     normalized_rating: null,
     source: null,

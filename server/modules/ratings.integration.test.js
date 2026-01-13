@@ -89,13 +89,6 @@ describe('Ratings Integration - Full Flow', () => {
 
   describe('Metadata for Plex Embedding', () => {
     it('should prepare ffmpeg metadata arguments with rating', () => {
-      const videoData = {
-        normalized_rating: 'R',
-        content_rating: { mpaaRating: 'mpaaR' },
-        rating_source: 'youtube:mpaaR',
-        age_limit: 18
-      };
-
       // Build expected ffmpeg args
       const expectedArgs = [
         '-metadata', 'rating=R',

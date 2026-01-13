@@ -16,8 +16,8 @@ describe('End-to-end Ratings Flow', () => {
     // Provide a lightweight fs mock for the modules we exercise
     const realFs = jest.requireActual('fs');
     jest.doMock('fs', () => ({
-      writeFileSync: jest.fn((p, d) => {}),
-      readFileSync: jest.fn((p) => ''),
+      writeFileSync: jest.fn(() => {}),
+      readFileSync: jest.fn(() => ''),
       existsSync: jest.fn(() => true),
       mkdtempSync: realFs.mkdtempSync,
       rmSync: jest.fn()

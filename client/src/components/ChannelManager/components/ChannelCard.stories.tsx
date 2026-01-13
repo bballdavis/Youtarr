@@ -1,9 +1,8 @@
 import React from 'react';
-import type { Meta, StoryObj } from '@storybook/react';
 import ChannelCard from './ChannelCard';
 import { Channel } from '../../../types/Channel';
 
-const meta: Meta<typeof ChannelCard> = {
+const meta = {
   title: 'Components/ChannelManager/ChannelCard',
   component: ChannelCard,
   tags: ['autodocs'],
@@ -15,7 +14,6 @@ const meta: Meta<typeof ChannelCard> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof ChannelCard>;
 
 const mockChannel: Channel = {
     channel_id: 'UC_x5XG1OV2P6uYZ5FSM9Ptw',
@@ -29,7 +27,7 @@ const mockChannel: Channel = {
     title_filter_regex: '',
 };
 
-export const Default: Story = {
+export const Default = {
   args: {
     channel: mockChannel,
     isMobile: false,
@@ -37,7 +35,7 @@ export const Default: Story = {
   },
 };
 
-export const Mobile: Story = {
+export const Mobile = {
   args: {
     channel: mockChannel,
     isMobile: true,
@@ -45,7 +43,7 @@ export const Mobile: Story = {
   },
 };
 
-export const PendingAddition: Story = {
+export const PendingAddition = {
   args: {
     channel: { ...mockChannel, channel_id: '' },
     isMobile: false,

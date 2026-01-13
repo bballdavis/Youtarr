@@ -130,7 +130,9 @@ describe('VideoValidationModule', () => {
           duration: 213,
           publishedAt: Math.floor(new Date('2009-10-25').getTime() / 1000),
           availability: 'public',
-          media_type: 'video'
+          media_type: 'video',
+          age_limit: null,
+          content_rating: null
         }
       });
     });

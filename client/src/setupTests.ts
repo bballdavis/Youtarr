@@ -2,7 +2,7 @@ import '@testing-library/jest-dom';
 import { vi } from 'vitest';
 
 // Alias jest to vi for compatibility with legacy tests
-globalThis.jest = vi;
+(globalThis as any).jest = vi;
 
 // Mock matchMedia for MUI/JSDOM
 Object.defineProperty(window, 'matchMedia', {

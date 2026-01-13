@@ -51,5 +51,14 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/setupTests.ts'], // Will rename existing setupTests if needed
     exclude: ['node_modules', 'dist', '.idea', '.git', '.cache'],
+    coverage: {
+      exclude: ['**/*.stories.*', '.storybook/**'],
+      reporter: ['text', 'json-summary', 'lcov'],
+      thresholds: {
+        global: {
+          lines: 70,
+        },
+      },
+    },
   },
 });

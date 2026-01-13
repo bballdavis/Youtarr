@@ -539,7 +539,6 @@ describe('VideoCard Component', () => {
         <VideoCard {...defaultProps} onHoverChange={onHoverChange} />
       );
 
-      // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
       const card = container.querySelector('.MuiCard-root');
       expect(card).toBeTruthy();
       if (card) {
@@ -555,13 +554,11 @@ describe('VideoCard Component', () => {
       const { container } = renderWithProviders(
         <VideoCard {...defaultProps} onHoverChange={onHoverChange} />
       );
-
-      // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
       const card = container.querySelector('.MuiCard-root');
       expect(card).toBeTruthy();
       if (card) {
         await user.hover(card);
-        await user.unhover(card);
+        await user.pointer([{target: card}, {target: document.body}]);
       }
       expect(onHoverChange).toHaveBeenCalledWith(null);
     });
@@ -667,7 +664,6 @@ describe('VideoCard Component', () => {
       const { container } = renderWithProviders(
         <VideoCard {...defaultProps} video={ignoredVideo} />
       );
-      // eslint-disable-next-line testing-library/no-container, testing-library/no-node-access
       const card = container.querySelector('.MuiCard-root');
       expect(card).toHaveStyle({ opacity: 0.7 });
     });
