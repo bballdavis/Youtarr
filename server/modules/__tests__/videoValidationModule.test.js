@@ -130,7 +130,9 @@ describe('VideoValidationModule', () => {
           duration: 213,
           publishedAt: Math.floor(new Date('2009-10-25').getTime() / 1000),
           availability: 'public',
-          media_type: 'video'
+          media_type: 'video',
+          content_rating: null,
+          age_limit: null
         }
       });
     });
@@ -178,6 +180,8 @@ describe('VideoValidationModule', () => {
       expect(result.metadata.publishedAt).toBe(null);
       expect(result.metadata.availability).toBe('public');
       expect(result.metadata.media_type).toBe('video');
+      expect(result.metadata.content_rating).toBe(null);
+      expect(result.metadata.age_limit).toBe(null);
     });
   });
 

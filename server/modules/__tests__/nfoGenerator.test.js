@@ -189,6 +189,28 @@ describe('NfoGenerator', () => {
       expect(nfoContent).toContain('<trailer>plugin://plugin.video.youtube/?action=play_video&amp;videoid=video123</trailer>');
     });
 
+    it('should include rating tags when normalized_rating is present', () => {
+      const jsonData = {
+        id: 'rated123',
+        title: 'Rated Video',
+        upload_date: '20231225',
+        uploader: 'Rated Channel',
+        duration: 120,
+        normalized_rating: 'PG-13',
+        rating_source: 'youtube:mpaaPg13'
+      };
+
+      const result = nfoGenerator.writeVideoNfoFile(mockVideoPath, jsonData);
+
+      expect(result).toBe(true);
+
+      const nfoContent = fs.writeFileSync.mock.calls[0][1];
+      expect(nfoContent).toContain('<mpaa>PG-13</mpaa>');
+      expect(nfoContent).toContain('<ratings>');
+      expect(nfoContent).toContain('<rating name="mpaa" max="10">PG-13</rating>');
+      expect(nfoContent).toContain('<rating name="source">youtube:mpaaPg13</rating>');
+    });
+
     it('should handle minimal metadata', () => {
       const jsonData = {
         title: 'Minimal Video'

@@ -1821,6 +1821,9 @@ describe('JobModule', () => {
         duration: 120,
         availability: 'public',
         media_type: 'video',
+        content_rating: null,
+        age_limit: null,
+        normalized_rating: null,
         ignored: false,
         ignored_at: null
       });
