@@ -294,7 +294,7 @@ function VideoCard({
                     sx={{ height: 20, fontSize: '0.7rem' }}
                   />
                 )}
-                <RatingBadge rating={video.normalized_rating} size="small" />
+                <RatingBadge rating={video.normalized_rating} size="small" variant="text" />
                 {isMobile && (
                   <Chip
                     icon={getStatusIcon(status)}

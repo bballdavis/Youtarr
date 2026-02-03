@@ -273,7 +273,7 @@ function VideoListItem({
                 }}
               />
             )}
-            <RatingBadge rating={video.normalized_rating} size="small" />
+            <RatingBadge rating={video.normalized_rating} size="small" variant="text" />
             <Chip
               icon={getStatusIcon(status)}
               label={getStatusLabel(status)}
