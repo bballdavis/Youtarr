@@ -133,13 +133,13 @@ describe('videoFileLocator', () => {
 
         // Mock channel directory contents
         fsPromises.readdir.mockImplementation((dir) => {
-          if (dir === path.join(baseOutputPath, channelName)) {
+          if (dir === path.posix.join(baseOutputPath, channelName)) {
             return Promise.resolve([
               { name: 'Some Video - abc123', isDirectory: () => true },
               { name: 'Other Video - xyz789', isDirectory: () => true }
             ]);
           }
-          if (dir === path.join(baseOutputPath, channelName, 'Some Video - abc123')) {
+          if (dir === path.posix.join(baseOutputPath, channelName, 'Some Video - abc123')) {
             return Promise.resolve([
               { name: 'video [abc123].mp4', isFile: () => true, isDirectory: () => false },
               { name: 'thumbnail.jpg', isFile: () => true, isDirectory: () => false }
@@ -158,7 +158,7 @@ describe('videoFileLocator', () => {
         });
 
         expect(result).toEqual({
-          path: path.join(baseOutputPath, channelName, 'Some Video - abc123', 'video [abc123].mp4'),
+          path: path.posix.join(baseOutputPath, channelName, 'Some Video - abc123', 'video [abc123].mp4'),
           stats: mockStats
         });
       });
@@ -212,12 +212,12 @@ describe('videoFileLocator', () => {
         fsPromises.access.mockResolvedValueOnce();
 
         fsPromises.readdir.mockImplementation((dir) => {
-          if (dir === path.join(baseOutputPath, channelName)) {
+          if (dir === path.posix.join(baseOutputPath, channelName)) {
             return Promise.resolve([
               { name: 'Video - abc123', isDirectory: () => true }
             ]);
           }
-          if (dir === path.join(baseOutputPath, channelName, 'Video - abc123')) {
+          if (dir === path.posix.join(baseOutputPath, channelName, 'Video - abc123')) {
             return Promise.resolve([
               { name: 'video [abc123].mkv', isFile: () => true, isDirectory: () => false },
               { name: 'video [abc123].mp4', isFile: () => true, isDirectory: () => false },
@@ -238,7 +238,7 @@ describe('videoFileLocator', () => {
 
         // Should prefer .mkv since it's first in alternativeExtensions
         expect(result.path).toBe(
-          path.join(baseOutputPath, channelName, 'Video - abc123', 'video [abc123].mkv')
+          path.posix.join(baseOutputPath, channelName, 'Video - abc123', 'video [abc123].mkv')
         );
       });
 
@@ -250,12 +250,12 @@ describe('videoFileLocator', () => {
         fsPromises.access.mockResolvedValueOnce();
 
         fsPromises.readdir.mockImplementation((dir) => {
-          if (dir === path.join(baseOutputPath, channelName)) {
+          if (dir === path.posix.join(baseOutputPath, channelName)) {
             return Promise.resolve([
               { name: 'Video - abc123', isDirectory: () => true }
             ]);
           }
-          if (dir === path.join(baseOutputPath, channelName, 'Video - abc123')) {
+          if (dir === path.posix.join(baseOutputPath, channelName, 'Video - abc123')) {
             return Promise.resolve([
               { name: 'video.mp4', isFile: () => true, isDirectory: () => false }, // No videoId in filename
               { name: 'thumbnail.jpg', isFile: () => true, isDirectory: () => false }
@@ -413,18 +413,18 @@ describe('videoFileLocator', () => {
         fsPromises.access.mockResolvedValueOnce();
 
         fsPromises.readdir.mockImplementation((dir) => {
-          if (dir === path.join(baseOutputPath, channelName)) {
+          if (dir === path.posix.join(baseOutputPath, channelName)) {
             return Promise.resolve([
               { name: 'Video Part 1 - abc123', isDirectory: () => true },
               { name: 'Video Part 2 - abc123', isDirectory: () => true }
             ]);
           }
-          if (dir === path.join(baseOutputPath, channelName, 'Video Part 1 - abc123')) {
+          if (dir === path.posix.join(baseOutputPath, channelName, 'Video Part 1 - abc123')) {
             return Promise.resolve([
               { name: 'video [abc123].mp4', isFile: () => true, isDirectory: () => false }
             ]);
           }
-          if (dir === path.join(baseOutputPath, channelName, 'Video Part 2 - abc123')) {
+          if (dir === path.posix.join(baseOutputPath, channelName, 'Video Part 2 - abc123')) {
             return Promise.resolve([
               { name: 'video [abc123].webm', isFile: () => true, isDirectory: () => false }
             ]);
@@ -444,7 +444,7 @@ describe('videoFileLocator', () => {
 
         // Should return the first matching file found
         expect(result.path).toBe(
-          path.join(baseOutputPath, channelName, 'Video Part 1 - abc123', 'video [abc123].mp4')
+          path.posix.join(baseOutputPath, channelName, 'Video Part 1 - abc123', 'video [abc123].mp4')
         );
       });
 
@@ -471,12 +471,12 @@ describe('videoFileLocator', () => {
 
         fsPromises.access.mockResolvedValueOnce();
         fsPromises.readdir.mockImplementation((dir) => {
-          if (dir === path.join(baseOutputPath, channelName)) {
+          if (dir === path.posix.join(baseOutputPath, channelName)) {
             return Promise.resolve([
               { name: 'Video - abc123', isDirectory: () => true }
             ]);
           }
-          if (dir === path.join(baseOutputPath, channelName, 'Video - abc123')) {
+          if (dir === path.posix.join(baseOutputPath, channelName, 'Video - abc123')) {
             return Promise.resolve([
               { name: 'video [abc123].mp4', isFile: () => true, isDirectory: () => false },
               { name: 'video2 [abc123].mp4', isFile: () => true, isDirectory: () => false }

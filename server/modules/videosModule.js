@@ -263,7 +263,7 @@ class VideosModule {
       const entries = await fs.readdir(dir, { withFileTypes: true });
 
       for (const entry of entries) {
-        const fullPath = path.join(dir, entry.name);
+        const fullPath = path.posix.join(dir, entry.name);
 
         if (entry.isDirectory()) {
           // Recursively scan subdirectories

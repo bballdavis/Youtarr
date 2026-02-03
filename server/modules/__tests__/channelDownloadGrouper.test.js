@@ -579,7 +579,7 @@ describe('ChannelDownloadGrouper', () => {
       const template = channelDownloadGrouper.buildOutputPathTemplate(null);
 
       // Template uses .NB for byte-based truncation to avoid path length issues with UTF-8
-      const expectedPath = path.join(
+      const expectedPath = path.posix.join(
         '/mock/youtube/output',
         '%(uploader,channel,uploader_id).80B',
         '%(uploader,channel,uploader_id).80B - %(title).76B - %(id)s',
@@ -593,7 +593,7 @@ describe('ChannelDownloadGrouper', () => {
       const template = channelDownloadGrouper.buildOutputPathTemplate('Tech');
 
       // Template uses .NB for byte-based truncation to avoid path length issues with UTF-8
-      const expectedPath = path.join(
+      const expectedPath = path.posix.join(
         '/mock/youtube/output',
         '__Tech',
         '%(uploader,channel,uploader_id).80B',
@@ -622,7 +622,7 @@ describe('ChannelDownloadGrouper', () => {
       const template = channelDownloadGrouper.buildThumbnailPathTemplate(null);
 
       // Template uses .NB for byte-based truncation to avoid path length issues with UTF-8
-      const expectedPath = path.join(
+      const expectedPath = path.posix.join(
         '/mock/youtube/output',
         '%(uploader,channel,uploader_id).80B',
         '%(uploader,channel,uploader_id).80B - %(title).76B - %(id)s',
@@ -636,7 +636,7 @@ describe('ChannelDownloadGrouper', () => {
       const template = channelDownloadGrouper.buildThumbnailPathTemplate('Tech');
 
       // Template uses .NB for byte-based truncation to avoid path length issues with UTF-8
-      const expectedPath = path.join(
+      const expectedPath = path.posix.join(
         '/mock/youtube/output',
         '__Tech',
         '%(uploader,channel,uploader_id).80B',

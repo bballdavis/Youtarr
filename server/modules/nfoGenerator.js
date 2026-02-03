@@ -79,7 +79,7 @@ class NfoGenerator {
         dir: parsedPath.dir,
         name: parsedPath.name,
         ext: '.nfo'
-      });
+      }).replace(/\\/g, '/');
 
       // Extract and prepare data
       const title = this.escapeXml(jsonData.fulltitle || jsonData.title || 'Unknown Title');

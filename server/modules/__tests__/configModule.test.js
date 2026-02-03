@@ -2,6 +2,7 @@ jest.mock('fs');
 jest.mock('uuid');
 jest.mock('../../logger');
 jest.mock('child_process');
+const path = require('path');
 
 describe('ConfigModule', () => {
   let ConfigModule;
@@ -473,7 +474,7 @@ describe('ConfigModule', () => {
 
       // Assert
       expect(fs.mkdirSync).toHaveBeenCalledWith(
-        expect.stringContaining('config/images'),
+        expect.stringContaining(path.join('config', 'images')),
         { recursive: true }
       );
     });
@@ -1161,7 +1162,7 @@ describe('ConfigModule', () => {
       const imagePath = ConfigModule.getImagePath();
 
       // Assert
-      expect(imagePath).toContain('config/images');
+      expect(imagePath).toContain(path.join('config', 'images'));
     });
 
     test('should return standard image path when DATA_PATH is not set', () => {
@@ -1177,7 +1178,7 @@ describe('ConfigModule', () => {
 
       // Assert
       expect(imagePath).toContain('server/images');
-      expect(imagePath).not.toContain('config/images');
+      expect(imagePath).not.toContain(path.join('config', 'images'));
     });
 
     test('should return platform jobs path when DATA_PATH is set', () => {
@@ -1192,7 +1193,7 @@ describe('ConfigModule', () => {
       const jobsPath = ConfigModule.getJobsPath();
 
       // Assert
-      expect(jobsPath).toContain('config/jobs');
+      expect(jobsPath).toContain(path.join('config', 'jobs'));
     });
 
     test('should return standard jobs path when DATA_PATH is not set', () => {
@@ -1208,7 +1209,7 @@ describe('ConfigModule', () => {
 
       // Assert
       expect(jobsPath).toContain('jobs');
-      expect(jobsPath).not.toContain('config/jobs');
+      expect(jobsPath).not.toContain(path.join('config', 'jobs'));
     });
   });
 

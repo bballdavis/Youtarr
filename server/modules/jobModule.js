@@ -17,8 +17,8 @@ const MAX_SAVE_RETRIES = 3;
 class JobModule {
   constructor() {
     this.jobsDir = configModule.getJobsPath();
-    this.jobsFilePath = path.join(this.jobsDir, 'jobs.json');
-    this.jobsFilePathOld = path.join(this.jobsDir, 'jobs.json.old');
+    this.jobsFilePath = path.posix.join(this.jobsDir, 'jobs.json');
+    this.jobsFilePathOld = path.posix.join(this.jobsDir, 'jobs.json.old');
     this.isSaving = false; // Locking mechanism to prevent multiple saves at the same time
     this.jobs = {}; // Initialize this.jobs as an empty object
 
@@ -93,7 +93,7 @@ class JobModule {
       for (const download of completedDownloads) {
         try {
           const youtubeId = download.youtube_id;
-          const infoJsonPath = path.join(this.jobsDir, 'info', `${youtubeId}.info.json`);
+          const infoJsonPath = path.posix.join(this.jobsDir, 'info', `${youtubeId}.info.json`);
 
           // Check if .info.json file exists
           let infoExists = false;
@@ -143,7 +143,7 @@ class JobModule {
             pushCandidate(path.normalize(download.file_path));
           }
 
-          const fallbackBasePath = path.join(
+          const fallbackBasePath = path.posix.join(
             configModule.directoryPath,
             preferredChannelName,
             `${preferredChannelName} - ${info.title} - ${info.id}`,
@@ -746,7 +746,7 @@ class JobModule {
   // Backfill Videos and channelvideos tables from complete.list and jobs info JSON
   async backfillFromCompleteList() {
     try {
-      const archivePath = path.join(__dirname, '../../config', 'complete.list');
+      const archivePath = path.posix.join(__dirname, '../../config', 'complete.list');
       let archiveContent;
       try {
         archiveContent = await fsPromises.readFile(archivePath, 'utf-8');
@@ -794,7 +794,7 @@ class JobModule {
 
       let processed = 0;
       for (const { id, needsVideo, needsChannelVideo } of capped) {
-        const infoPath = path.join(__dirname, `../../jobs/info/${id}.info.json`);
+        const infoPath = path.posix.join(__dirname, `../../jobs/info/${id}.info.json`);
 
         let info;
         try {
@@ -826,7 +826,7 @@ class JobModule {
           const preferredChannelName = info.uploader || info.channel || info.uploader_id || info.channel_id || 'Unknown Channel';
           const videoFolder = `${preferredChannelName} - ${info.title} - ${info.id}`;
           const videoFileName = `${preferredChannelName} - ${info.title}  [${info.id}].mp4`;
-          const fullPath = path.join(baseOutputPath, preferredChannelName, videoFolder, videoFileName);
+          const fullPath = path.posix.join(baseOutputPath, preferredChannelName, videoFolder, videoFileName);
 
           const payload = {
             youtubeId: info.id,

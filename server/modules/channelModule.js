@@ -849,12 +849,12 @@ class ChannelModule {
         const channelFolderName = channel.folder_name || channel.uploader;
         if (!channelFolderName) continue;
 
-        const channelFolderPath = path.join(outputDir, channelFolderName);
-        const channelPosterPath = path.join(channelFolderPath, 'poster.jpg');
+        const channelFolderPath = path.posix.join(outputDir, channelFolderName);
+        const channelPosterPath = path.posix.join(channelFolderPath, 'poster.jpg');
 
         // Check if channel folder exists and poster.jpg doesn't exist
         if (fs.existsSync(channelFolderPath) && !fs.existsSync(channelPosterPath)) {
-          const channelThumbPath = path.join(imageDir, `channelthumb-${channel.channel_id}.jpg`);
+          const channelThumbPath = path.posix.join(imageDir, `channelthumb-${channel.channel_id}.jpg`);
 
           if (fs.existsSync(channelThumbPath)) {
             try {

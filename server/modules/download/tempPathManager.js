@@ -45,7 +45,7 @@ class TempPathManager {
       return config.tmpFilePath || '/tmp/youtarr-downloads';
     }
     // Local temp directory in output path
-    return path.join(configModule.directoryPath, LOCAL_TEMP_DIR_NAME);
+    return path.posix.join(configModule.directoryPath, LOCAL_TEMP_DIR_NAME);
   }
 
   /**
@@ -94,8 +94,11 @@ class TempPathManager {
     // Get the relative path from temp base
     const relativePath = path.relative(tempBase, tempPath);
 
+    // Normalize to POSIX separators
+    const relativePathPosix = relativePath.replace(/\\/g, '/');
+
     // Join with final base to get final path
-    const finalPath = path.join(finalBase, relativePath);
+    const finalPath = path.posix.join(finalBase, relativePathPosix);
 
     return finalPath;
   }
@@ -113,8 +116,11 @@ class TempPathManager {
     // Get the relative path from final base
     const relativePath = path.relative(finalBase, finalPath);
 
+    // Normalize to POSIX separators
+    const relativePathPosix = relativePath.replace(/\\/g, '/');
+
     // Join with temp base to get temp path
-    const tempPath = path.join(tempBase, relativePath);
+    const tempPath = path.posix.join(tempBase, relativePathPosix);
 
     return tempPath;
   }

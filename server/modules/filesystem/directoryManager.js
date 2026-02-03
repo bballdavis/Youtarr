@@ -251,7 +251,7 @@ async function listSubdirectories(dirPath) {
 
   for (const entry of entries) {
     if (entry.isDirectory()) {
-      dirs.push(path.join(dirPath, entry.name));
+      dirs.push(path.posix.join(dirPath, entry.name));
     }
   }
 

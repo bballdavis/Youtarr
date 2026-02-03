@@ -400,6 +400,7 @@ describe('videoDownloadPostProcessFiles', () => {
     it('writes final path to _actual_filepath when temp downloads enabled', async () => {
       process.argv = ['node', 'script', tempVideoPath];
 
+      configModule.__setConfig({ tmpFilePath: '/tmp/youtarr-downloads' });
       tempPathManager.isEnabled.mockReturnValue(true);
       tempPathManager.isTempPath.mockReturnValue(true);
       tempPathManager.convertTempToFinal.mockImplementation((path) => path.replace('/tmp/youtarr-downloads', '/library'));
@@ -420,6 +421,7 @@ describe('videoDownloadPostProcessFiles', () => {
     it('successfully moves files from temp to final location', async () => {
       process.argv = ['node', 'script', tempVideoPath];
 
+      configModule.__setConfig({ tmpFilePath: '/tmp/youtarr-downloads' });
       tempPathManager.isEnabled.mockReturnValue(true);
       tempPathManager.isTempPath.mockReturnValue(true);
       tempPathManager.convertTempToFinal.mockImplementation((path) => path.replace('/tmp/youtarr-downloads', '/library'));
@@ -455,6 +457,7 @@ describe('videoDownloadPostProcessFiles', () => {
     it('exits with error when temp to final move fails', async () => {
       process.argv = ['node', 'script', tempVideoPath];
 
+      configModule.__setConfig({ tmpFilePath: '/tmp/youtarr-downloads' });
       tempPathManager.isEnabled.mockReturnValue(true);
       tempPathManager.isTempPath.mockReturnValue(true);
       tempPathManager.convertTempToFinal.mockImplementation((path) => path.replace('/tmp/youtarr-downloads', '/library'));
@@ -479,6 +482,7 @@ describe('videoDownloadPostProcessFiles', () => {
     it('exits with error when final file does not exist after move', async () => {
       process.argv = ['node', 'script', tempVideoPath];
 
+      configModule.__setConfig({ tmpFilePath: '/tmp/youtarr-downloads' });
       tempPathManager.isEnabled.mockReturnValue(true);
       tempPathManager.isTempPath.mockReturnValue(true);
       tempPathManager.convertTempToFinal.mockImplementation((path) => path.replace('/tmp/youtarr-downloads', '/library'));
@@ -503,6 +507,7 @@ describe('videoDownloadPostProcessFiles', () => {
     it('exits with error when fs.move throws exception', async () => {
       process.argv = ['node', 'script', tempVideoPath];
 
+      configModule.__setConfig({ tmpFilePath: '/tmp/youtarr-downloads' });
       tempPathManager.isEnabled.mockReturnValue(true);
       tempPathManager.isTempPath.mockReturnValue(true);
       tempPathManager.convertTempToFinal.mockImplementation((path) => path.replace('/tmp/youtarr-downloads', '/library'));
@@ -528,6 +533,7 @@ describe('videoDownloadPostProcessFiles', () => {
       process.argv = ['node', 'script', tempVideoPath];
       JobVideoDownload.update.mockResolvedValueOnce([1]);
 
+      configModule.__setConfig({ tmpFilePath: '/tmp/youtarr-downloads' });
       tempPathManager.isEnabled.mockReturnValue(true);
       tempPathManager.isTempPath.mockReturnValue(true);
       tempPathManager.convertTempToFinal.mockImplementation((path) => path.replace('/tmp/youtarr-downloads', '/library'));
@@ -567,6 +573,7 @@ describe('videoDownloadPostProcessFiles', () => {
       const tempVideoDir = '/tmp/youtarr-downloads/Channel/Video Title [abc123]';
       process.argv = ['node', 'script', tempVideoPath];
 
+      configModule.__setConfig({ tmpFilePath: '/tmp/youtarr-downloads' });
       Channel.findOne.mockResolvedValue({
         sub_folder: 'Entertainment',
         uploader: 'Channel'
@@ -608,6 +615,7 @@ describe('videoDownloadPostProcessFiles', () => {
       const tempVideoPath = '/tmp/youtarr-downloads/Channel/Video Title [abc123]/Video Title [abc123].mp4';
       process.argv = ['node', 'script', tempVideoPath];
 
+      configModule.__setConfig({ tmpFilePath: '/tmp/youtarr-downloads' });
       Channel.findOne.mockResolvedValue({
         sub_folder: 'Entertainment',
         uploader: 'Channel'
@@ -643,6 +651,7 @@ describe('videoDownloadPostProcessFiles', () => {
       const tempVideoDir = `/tmp/youtarr-downloads/${sanitizedChannelName}/Fred again . . - Video Title [abc123]`;
       process.argv = ['node', 'script', tempVideoPath];
 
+      configModule.__setConfig({ tmpFilePath: '/tmp/youtarr-downloads' });
       Channel.findOne.mockResolvedValue({
         sub_folder: 'Music',
         uploader: rawChannelName
@@ -693,6 +702,7 @@ describe('videoDownloadPostProcessFiles', () => {
       const tempVideoDir = `/tmp/youtarr-downloads/${sanitizedChannelName}/Video Title [abc123]`;
       process.argv = ['node', 'script', tempVideoPath];
 
+      configModule.__setConfig({ tmpFilePath: '/tmp/youtarr-downloads' });
       Channel.findOne.mockResolvedValue({
         sub_folder: 'Education',
         uploader: rawChannelName

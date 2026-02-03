@@ -43,7 +43,7 @@ async function gatherChannelDirectories(baseOutputPath, channelName) {
   const directories = [];
 
   if (channelName) {
-    const directChannelPath = path.join(baseOutputPath, channelName);
+    const directChannelPath = path.posix.join(baseOutputPath, channelName);
     if (await pathExists(directChannelPath)) {
       directories.push(directChannelPath);
     }
@@ -54,7 +54,7 @@ async function gatherChannelDirectories(baseOutputPath, channelName) {
       const entries = await fsPromises.readdir(baseOutputPath, { withFileTypes: true });
       for (const entry of entries) {
         if (entry.isDirectory()) {
-          directories.push(path.join(baseOutputPath, entry.name));
+          directories.push(path.posix.join(baseOutputPath, entry.name));
         }
       }
     } catch (err) {

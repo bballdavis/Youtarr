@@ -97,9 +97,9 @@ function resolveChannelFolderName(channel) {
 function buildChannelPath(baseDir, subfolder, channelFolderName) {
   if (subfolder) {
     const subfolderSegment = buildSubfolderSegment(subfolder);
-    return path.join(baseDir, subfolderSegment, channelFolderName);
+    return path.posix.join(baseDir, subfolderSegment, channelFolderName);
   }
-  return path.join(baseDir, channelFolderName);
+  return path.posix.join(baseDir, channelFolderName);
 }
 
 /**
@@ -112,7 +112,7 @@ function buildChannelPath(baseDir, subfolder, channelFolderName) {
  */
 function buildVideoPath(baseDir, subfolder, channelFolderName, videoFolderName) {
   const channelPath = buildChannelPath(baseDir, subfolder, channelFolderName);
-  return path.join(channelPath, videoFolderName);
+  return path.posix.join(channelPath, videoFolderName);
 }
 
 /**
@@ -124,9 +124,9 @@ function buildVideoPath(baseDir, subfolder, channelFolderName, videoFolderName) 
 function buildOutputTemplate(baseDir, subfolder) {
   if (subfolder) {
     const subfolderSegment = buildSubfolderSegment(subfolder);
-    return path.join(baseDir, subfolderSegment, CHANNEL_TEMPLATE, VIDEO_FOLDER_TEMPLATE, VIDEO_FILE_TEMPLATE);
+    return path.posix.join(baseDir, subfolderSegment, CHANNEL_TEMPLATE, VIDEO_FOLDER_TEMPLATE, VIDEO_FILE_TEMPLATE);
   }
-  return path.join(baseDir, CHANNEL_TEMPLATE, VIDEO_FOLDER_TEMPLATE, VIDEO_FILE_TEMPLATE);
+  return path.posix.join(baseDir, CHANNEL_TEMPLATE, VIDEO_FOLDER_TEMPLATE, VIDEO_FILE_TEMPLATE);
 }
 
 /**
@@ -138,9 +138,9 @@ function buildOutputTemplate(baseDir, subfolder) {
 function buildThumbnailTemplate(baseDir, subfolder) {
   if (subfolder) {
     const subfolderSegment = buildSubfolderSegment(subfolder);
-    return path.join(baseDir, subfolderSegment, CHANNEL_TEMPLATE, VIDEO_FOLDER_TEMPLATE, 'poster');
+    return path.posix.join(baseDir, subfolderSegment, CHANNEL_TEMPLATE, VIDEO_FOLDER_TEMPLATE, 'poster');
   }
-  return path.join(baseDir, CHANNEL_TEMPLATE, VIDEO_FOLDER_TEMPLATE, 'poster');
+  return path.posix.join(baseDir, CHANNEL_TEMPLATE, VIDEO_FOLDER_TEMPLATE, 'poster');
 }
 
 /**
