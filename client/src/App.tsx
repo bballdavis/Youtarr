@@ -99,7 +99,7 @@ function AppContent() {
   // Wrap selectedTheme with createTheme to ensure all default theme values
   // (like transitions.duration) are present and tests don't blow up when
   // Material-UI components read these fields.
-  const providedTheme = useMemo(() => createTheme(selectedTheme as any), [selectedTheme]);
+  const providedTheme = useMemo(() => createTheme({ ...selectedTheme }), [selectedTheme]);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
