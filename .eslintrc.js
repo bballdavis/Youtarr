@@ -31,8 +31,10 @@
   parserOptions: {
     ecmaVersion: "latest",
   },
-  plugins: ["react", "react-hooks", "@typescript-eslint"],
-  rules: {
-    "react/react-in-jsx-scope": "off",
+plugins: ["react", "react-hooks", "@typescript-eslint", "testing-library"],
+   rules: {
+     "react/react-in-jsx-scope": "off",
+     "react/no-unescaped-entities": "off",
+     "react/prop-types": "off",
   },
 };
