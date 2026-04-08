@@ -13,7 +13,7 @@ import {
   Alert,
   AlertTitle,
   Typography,
-} from '@mui/material';
+} from '../../ui';
 import { ConfigurationAccordion } from '../common/ConfigurationAccordion';
 import { InfoTooltip } from '../common/InfoTooltip';
 import { ConfigState } from '../types';
@@ -32,11 +32,16 @@ export const DownloadPerformanceSection: React.FC<DownloadPerformanceSectionProp
   return (
     <ConfigurationAccordion
       title="Download Performance Settings"
-      chipLabel={config.enableStallDetection ? "Stall Detection On" : "Stall Detection Off"}
-      chipColor={config.enableStallDetection ? "success" : "default"}
+      statusBanner={{
+        enabled: config.enableStallDetection !== false,
+        label: 'Enable Stall Detection',
+        onToggle: (enabled) => onConfigChange({ enableStallDetection: enabled }),
+        onText: 'Stall Detection On',
+        offText: 'Stall Detection Off',
+      }}
       defaultExpanded={false}
     >
-      <Alert severity="info" sx={{ mb: 2 }}>
+      <Alert severity="info" className="mb-4">
         <AlertTitle>Performance Optimization</AlertTitle>
         <Typography variant="body2">
           Configure download timeouts, retry attempts, and stall detection to handle slow or interrupted downloads automatically.
@@ -102,26 +107,6 @@ export const DownloadPerformanceSection: React.FC<DownloadPerformanceSectionProp
               Number of retry attempts for failed downloads
             </FormHelperText>
           </FormControl>
-        </Grid>
-
-        <Grid item xs={12}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={config.enableStallDetection !== false}
-                onChange={(e) => onConfigChange({ enableStallDetection: e.target.checked })}
-              />
-            }
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                Enable Stall Detection
-                <InfoTooltip
-                  text="Automatically detect and retry downloads that stall at slow speeds"
-                  onMobileClick={onMobileTooltipClick}
-                />
-              </Box>
-            }
-          />
         </Grid>
 
         {config.enableStallDetection && (

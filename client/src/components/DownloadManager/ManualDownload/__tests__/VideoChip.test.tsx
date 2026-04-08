@@ -119,7 +119,7 @@ describe('VideoChip', () => {
       render(<VideoChip video={video} onDelete={mockOnDelete} />);
 
       const chip = screen.getByRole('button', { name: /Test Video Title/i });
-      expect(chip).toHaveClass('MuiChip-colorWarning');
+      expect(chip).toHaveClass('chip-warning');
     });
 
     test('applies error color for members-only videos', () => {
@@ -127,14 +127,14 @@ describe('VideoChip', () => {
       render(<VideoChip video={video} onDelete={mockOnDelete} />);
 
       const chip = screen.getByRole('button', { name: /Test Video Title/i });
-      expect(chip).toHaveClass('MuiChip-colorError');
+      expect(chip).toHaveClass('chip-error');
     });
 
     test('applies default color for regular videos', () => {
       render(<VideoChip video={baseVideo} onDelete={mockOnDelete} />);
 
       const chip = screen.getByRole('button', { name: /Test Video Title/i });
-      expect(chip).toHaveClass('MuiChip-colorDefault');
+      expect(chip).toHaveClass('chip-default');
     });
 
     test('applies filled variant for downloaded videos', () => {
@@ -142,7 +142,7 @@ describe('VideoChip', () => {
       render(<VideoChip video={video} onDelete={mockOnDelete} />);
 
       const chip = screen.getByRole('button', { name: /Test Video Title/i });
-      expect(chip).toHaveClass('MuiChip-filled');
+      expect(chip).toHaveClass('chip-filled');
     });
 
     test('applies filled variant for members-only videos', () => {
@@ -150,14 +150,14 @@ describe('VideoChip', () => {
       render(<VideoChip video={video} onDelete={mockOnDelete} />);
 
       const chip = screen.getByRole('button', { name: /Test Video Title/i });
-      expect(chip).toHaveClass('MuiChip-filled');
+      expect(chip).toHaveClass('chip-filled');
     });
 
     test('applies filled variant for regular videos', () => {
       render(<VideoChip video={baseVideo} onDelete={mockOnDelete} />);
 
       const chip = screen.getByRole('button', { name: /Test Video Title/i });
-      expect(chip).toHaveClass('MuiChip-filled');
+      expect(chip).toHaveClass('chip-filled');
     });
   });
 
@@ -299,7 +299,7 @@ describe('VideoChip', () => {
       expect(screen.getByTestId('HistoryIcon')).toBeInTheDocument();
       expect(screen.getByTestId('LockIcon')).toBeInTheDocument();
       const chip = screen.getByRole('button', { name: /Test Video Title/i });
-      expect(chip).toHaveClass('MuiChip-colorWarning');
+      expect(chip).toHaveClass('chip-warning');
     });
 
     test('renders chip with full width', () => {
@@ -307,6 +307,72 @@ describe('VideoChip', () => {
 
       const chip = screen.getByRole('button', { name: /Test Video Title/i });
       expect(chip).toHaveStyle({ width: '100%' });
+    });
+  });
+
+  describe('Bulk Import Rendering', () => {
+    const bulkVideo: VideoInfo = {
+      youtubeId: 'dQw4w9WgXcQ',
+      url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      channelName: '',
+      videoTitle: '',
+      duration: 0,
+      publishedAt: 0,
+      isAlreadyDownloaded: false,
+      isMembersOnly: false,
+      isBulkImport: true,
+    };
+
+    test('renders video ID for bulk import chip', () => {
+      render(<VideoChip video={bulkVideo} onDelete={mockOnDelete} />);
+
+      expect(screen.getByText('dQw4w9WgXcQ')).toBeInTheDocument();
+    });
+
+    test('renders URL-only import label', () => {
+      render(<VideoChip video={bulkVideo} onDelete={mockOnDelete} />);
+
+      expect(screen.getByText('URL-only import')).toBeInTheDocument();
+    });
+
+    test('applies info color for bulk import chip', () => {
+      render(<VideoChip video={bulkVideo} onDelete={mockOnDelete} />);
+
+      const chip = screen.getByRole('button');
+      expect(chip).toHaveClass('chip-info');
+    });
+
+    test('shows full URL in tooltip for bulk import', async () => {
+      render(<VideoChip video={bulkVideo} onDelete={mockOnDelete} />);
+
+      const chip = screen.getByRole('button');
+      fireEvent.mouseOver(chip);
+
+      expect(await screen.findByRole('tooltip')).toHaveTextContent(
+        'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+      );
+    });
+
+    test('calls onDelete with youtubeId for bulk import chip', () => {
+      render(<VideoChip video={bulkVideo} onDelete={mockOnDelete} />);
+
+      const deleteIcon = screen.getByTestId('CloseIcon');
+      fireEvent.click(deleteIcon);
+
+      expect(mockOnDelete).toHaveBeenCalledWith('dQw4w9WgXcQ');
+    });
+
+    test('does not show duration, media type, or history icon for bulk import', () => {
+      render(<VideoChip video={bulkVideo} onDelete={mockOnDelete} />);
+
+      expect(screen.queryByText('0:00')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('HistoryIcon')).not.toBeInTheDocument();
+    });
+
+    test('renders link icon for bulk import chip', () => {
+      render(<VideoChip video={bulkVideo} onDelete={mockOnDelete} />);
+
+      expect(screen.getByTestId('LinkIcon')).toBeInTheDocument();
     });
   });
 });

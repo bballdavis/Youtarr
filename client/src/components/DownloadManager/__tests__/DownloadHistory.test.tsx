@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import DownloadHistory from '../DownloadHistory';
+import { useConfig } from '../../../hooks/useConfig';
 import { Job } from '../../../types/Job';
 import { VideoData } from '../../../types/VideoData';
 
@@ -19,6 +20,12 @@ jest.mock('../../../utils', () => ({
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   }),
 }));
+
+jest.mock('../../../hooks/useConfig', () => ({
+  useConfig: jest.fn(),
+}));
+
+const mockUseConfig = useConfig as jest.MockedFunction<typeof useConfig>;
 
 describe('DownloadHistory', () => {
   const mockHandleExpandCell = jest.fn();
@@ -93,6 +100,9 @@ describe('DownloadHistory', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseConfig.mockReturnValue({
+      config: { channelVideosHotLoad: false },
+    } as ReturnType<typeof useConfig>);
   });
 
   test('renders with title and no jobs message when jobs array is empty', () => {
@@ -241,7 +251,7 @@ describe('DownloadHistory', () => {
     expect(pagination).toBeInTheDocument();
 
     // Find and click page 2 button
-    const page2Button = screen.getByLabelText(/page 2/i);
+    const page2Button = screen.getByLabelText(/go to page 2/i);
     await user.click(page2Button);
 
     // Should now show remaining 3 jobs
@@ -254,9 +264,12 @@ describe('DownloadHistory', () => {
   test('handles mobile view', () => {
     render(<DownloadHistory {...defaultProps} jobs={sampleJobs} isMobile={true} />);
 
-    // Check that table cells are rendered (mobile affects styling, not structure)
-    const tableCells = screen.getAllByRole('cell');
-    expect(tableCells.length).toBeGreaterThan(0);
+    expect(screen.getByText('Download History')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Test Video 1' })).toBeInTheDocument();
+    expect(screen.getByText('Test Channel')).toBeInTheDocument();
+    expect(screen.getByText(/Date:/)).toBeInTheDocument();
+    expect(screen.getByText(/Source:/)).toBeInTheDocument();
+    expect(screen.getByText(/Status:/)).toBeInTheDocument();
   });
 
   test('formats time with AM/PM', () => {
@@ -328,7 +341,7 @@ describe('DownloadHistory', () => {
     render(<DownloadHistory {...defaultProps} jobs={manyJobs} />);
 
     // Navigate to page 2
-    const page2Button = screen.getByLabelText(/page 2/i);
+    const page2Button = screen.getByLabelText(/go to page 2/i);
     await user.click(page2Button);
 
     // Wait for page change

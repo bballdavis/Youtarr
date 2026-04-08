@@ -44,8 +44,9 @@ module.exports = {
       },
     ],
   },
+  maxWorkers: '30%',
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts', '<rootDir>/src/setupTests.ts'],
-  transformIgnorePatterns: ['/node_modules/(?!(@mui|@emotion)\\/)/'],
+  transformIgnorePatterns: ['/node_modules/(?!@emotion\\/)/'],
   testPathIgnorePatterns: [
     '<rootDir>/node_modules/',
     '<rootDir>/dist/',

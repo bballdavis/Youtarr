@@ -2,7 +2,7 @@ const { Video } = require('../models');
 const fs = require('fs').promises;
 const path = require('path');
 const logger = require('../logger');
-const { isVideoDirectory } = require('./filesystem');
+const { isVideoDirectory, cleanupEmptyChannelDirectory, cleanupEmptyParents, isSubfolderDir, listSubdirectories } = require('./filesystem');
 
 class VideoDeletionModule {
   constructor() {}
@@ -35,6 +35,38 @@ class VideoDeletionModule {
       fileSize: parseInt(video.fileSize) || 0,
       timeCreated: video.timeCreated
     };
+  }
+
+  /**
+   * Attempt to clean up an empty channel directory after video deletion
+   * Best-effort: errors are logged as warnings and do not propagate
+   * @param {string} filePath - The deleted video's file path
+   * @param {boolean} flat - Whether the video used flat directory structure
+   * @private
+   */
+  async _tryCleanupChannelDirectory(filePath, flat) {
+    try {
+      const configModule = require('./configModule');
+      const baseDir = configModule.directoryPath;
+
+      // Derive channel directory:
+      //   Nested: grandparent of filePath (filePath -> videoDir -> channelDir)
+      //   Flat: parent of filePath (filePath -> channelDir)
+      const channelDir = flat
+        ? path.dirname(filePath)
+        : path.dirname(path.dirname(filePath));
+
+      const removed = await cleanupEmptyChannelDirectory(channelDir, baseDir, {
+        includeIgnorableFiles: true
+      });
+
+      if (removed) {
+        // Clean up empty subfolder parent (e.g., /base/__subfolder/ now empty)
+        await cleanupEmptyParents(path.dirname(channelDir), baseDir);
+      }
+    } catch (error) {
+      logger.warn({ err: error, filePath }, 'Error during channel directory cleanup (non-fatal)');
+    }
   }
 
   /**
@@ -136,6 +168,9 @@ class VideoDeletionModule {
 
       // Mark video as removed in database
       await video.update({ removed: true });
+
+      // Best-effort cleanup of empty channel directory
+      await this._tryCleanupChannelDirectory(video.filePath, flat);
 
       return {
         success: true,
@@ -320,6 +355,72 @@ ${excludeClause}        ORDER BY timeCreated ASC
       logger.error({ err: error }, 'Error getting oldest videos');
       return [];
     }
+  }
+
+  /**
+   * Scan the output directory for orphan empty channel directories and remove them.
+   * Unlike _tryCleanupChannelDirectory (which only runs after a video deletion), this
+   * proactively finds directories that are already empty (or contain only ignorable files
+   * like poster.jpg) and cleans them up. Handles both root-level and subfolder-level channels.
+   * @returns {Promise<{removed: string[], errors: string[]}>}
+   */
+  async cleanupOrphanDirectories() {
+    const configModule = require('./configModule');
+    const baseDir = configModule.directoryPath;
+    const removed = [];
+    const errors = [];
+
+    if (!baseDir) {
+      logger.debug('[Orphan Cleanup] No output directory configured, skipping');
+      return { removed, errors };
+    }
+
+    try {
+      const topLevelDirs = await listSubdirectories(baseDir);
+
+      for (const dir of topLevelDirs) {
+        const dirName = path.basename(dir);
+
+        if (isSubfolderDir(dirName)) {
+          // Subfolder directory (e.g., __Music) — check its children as channel dirs
+          try {
+            const channelDirs = await listSubdirectories(dir);
+            for (const channelDir of channelDirs) {
+              const wasRemoved = await cleanupEmptyChannelDirectory(channelDir, baseDir, {
+                includeIgnorableFiles: true
+              });
+              if (wasRemoved) {
+                removed.push(channelDir);
+              }
+            }
+            // Clean up the subfolder itself if it's now empty
+            await cleanupEmptyParents(dir, baseDir);
+          } catch (dirError) {
+            logger.warn({ err: dirError, dir }, '[Orphan Cleanup] Error processing subfolder directory');
+            errors.push(dirError.message);
+          }
+        } else {
+          // Root-level channel directory
+          const wasRemoved = await cleanupEmptyChannelDirectory(dir, baseDir, {
+            includeIgnorableFiles: true
+          });
+          if (wasRemoved) {
+            removed.push(dir);
+          }
+        }
+      }
+
+      if (removed.length > 0) {
+        logger.info({ count: removed.length, directories: removed }, '[Orphan Cleanup] Removed empty channel directories');
+      } else {
+        logger.debug('[Orphan Cleanup] No orphan directories found');
+      }
+    } catch (error) {
+      logger.error({ err: error }, '[Orphan Cleanup] Error scanning for orphan directories');
+      errors.push(error.message);
+    }
+
+    return { removed, errors };
   }
 
   /**

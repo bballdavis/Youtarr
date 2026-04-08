@@ -1,20 +1,13 @@
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
-import useMediaQuery from '@mui/material/useMediaQuery';
+import useMediaQuery from '../../../hooks/useMediaQuery';
 import ChannelVideos from '../ChannelVideos';
 import { ChannelVideo } from '../../../types/ChannelVideo';
 import { renderWithProviders, createMockWebSocketContext } from '../../../test-utils';
 
-// Mock Material-UI hooks
-jest.mock('@mui/material/useMediaQuery');
-jest.mock('@mui/material/styles', () => ({
-  ...jest.requireActual('@mui/material/styles'),
-  useTheme: () => ({
-    breakpoints: { down: () => false },
-    zIndex: { fab: 1050 },
-  }),
-}));
+// Mock custom hooks
+jest.mock('../../../hooks/useMediaQuery');
 
 // Mock react-router-dom
 const mockNavigate = jest.fn();
@@ -518,7 +511,7 @@ describe('ChannelVideos Component', () => {
       renderChannelVideos();
 
       // Initially called with null tabType until tabs are loaded
-      expect(useChannelVideos).toHaveBeenCalledWith({
+      expect(useChannelVideos).toHaveBeenCalledWith(expect.objectContaining({
         channelId: 'UC123456',
         page: 1,
         pageSize: 16, // Desktop default
@@ -532,7 +525,10 @@ describe('ChannelVideos Component', () => {
         maxDuration: null,
         dateFrom: null,
         dateTo: null,
-      });
+        maxRating: '',
+        append: false,
+        resetKey: expect.any(String),
+      }));
     });
 
     test('calls useRefreshChannelVideos hook with correct parameters', () => {
@@ -668,7 +664,6 @@ describe('ChannelVideos Component', () => {
       renderChannelVideos();
 
       expect(screen.getByText('Loading and fetching/indexing new videos for this channel tab...')).toBeInTheDocument();
-      // Skeletons are MUI components, hard to test directly
     });
   });
 

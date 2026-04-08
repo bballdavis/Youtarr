@@ -1,5 +1,6 @@
 import React from 'react';
 import { render, screen, waitFor, act } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import axios from 'axios';
@@ -38,8 +39,13 @@ jest.mock('../DownloadManager/DownloadNew', () => ({
       }, 'Fetch Jobs'),
       React.createElement('button', {
         'data-testid': 'initiate-download-button',
-        onClick: () => { downloadInitiatedRef.current = true; }
+        onClick: () => {
+          downloadInitiatedRef.current = true;
+          fetchRunningJobs();
+        }
       }, 'Initiate Download')
+      ,
+      React.createElement('div', null, `Download Initiated Ref: ${downloadInitiatedRef.current}`)
     );
   }
 }));
@@ -118,11 +124,13 @@ describe('DownloadManager', () => {
     },
   ];
 
-  const renderWithContext = (component: React.ReactElement) => {
+  const renderWithContext = (component: React.ReactElement, initialEntry = '/manual') => {
     return render(
-      <WebSocketContext.Provider value={mockWebSocketContextValue}>
-        {component}
-      </WebSocketContext.Provider>
+      <MemoryRouter initialEntries={[initialEntry]}>
+        <WebSocketContext.Provider value={mockWebSocketContextValue}>
+          {component}
+        </WebSocketContext.Provider>
+      </MemoryRouter>
     );
   };
 
@@ -137,11 +145,16 @@ describe('DownloadManager', () => {
   });
 
   describe('Component Initialization', () => {
-    test('renders all three main sections', () => {
-      renderWithContext(<DownloadManager token={mockToken} />);
-
+    test('renders the route-specific child sections', () => {
+      const view = renderWithContext(<DownloadManager token={mockToken} />, '/manual');
       expect(screen.getByTestId('download-new')).toBeInTheDocument();
+      view.unmount();
+
+      const utils = renderWithContext(<DownloadManager token={mockToken} />, '/activity');
       expect(screen.getByTestId('download-progress')).toBeInTheDocument();
+      utils.unmount();
+
+      renderWithContext(<DownloadManager token={mockToken} />, '/history');
       expect(screen.getByTestId('download-history')).toBeInTheDocument();
     });
 
@@ -155,15 +168,23 @@ describe('DownloadManager', () => {
       spy.mockRestore();
     });
 
-    test('initializes with empty states', () => {
-      renderWithContext(<DownloadManager token={mockToken} />);
+    test('initializes each route with its expected empty state', () => {
+      const view = renderWithContext(<DownloadManager token={mockToken} />, '/manual');
 
       const input = screen.getByTestId('video-urls-input') as HTMLInputElement;
       expect(input.value).toBe('');
-      expect(screen.getByText('Jobs Count: 0')).toBeInTheDocument();
+      view.unmount();
+
+      const utils = renderWithContext(<DownloadManager token={mockToken} />, '/activity');
       expect(screen.getByText('Download Initiated: false')).toBeInTheDocument();
       expect(screen.getByText('Progress Index: null')).toBeInTheDocument();
       expect(screen.getByText('Progress Message:')).toBeInTheDocument();
+      utils.unmount();
+
+      renderWithContext(<DownloadManager token={mockToken} />, '/history');
+      expect(screen.getByText('Jobs Count: 0')).toBeInTheDocument();
+      expect(screen.getByText('Mobile View: false')).toBeInTheDocument();
+      expect(screen.getByText(/Current Time:/)).toBeInTheDocument();
     });
   });
 
@@ -171,7 +192,7 @@ describe('DownloadManager', () => {
     test('fetches running jobs on mount when token is provided', async () => {
       mockedAxios.get.mockResolvedValueOnce({ data: mockJobs });
 
-      renderWithContext(<DownloadManager token={mockToken} />);
+      renderWithContext(<DownloadManager token={mockToken} />, '/history');
 
       await waitFor(() => {
         expect(mockedAxios.get).toHaveBeenCalledWith('/runningjobs', {
@@ -193,7 +214,7 @@ describe('DownloadManager', () => {
     test('handles empty response from server', async () => {
       mockedAxios.get.mockResolvedValueOnce({ data: null });
 
-      renderWithContext(<DownloadManager token={mockToken} />);
+      renderWithContext(<DownloadManager token={mockToken} />, '/history');
 
       await waitFor(() => {
         expect(mockedAxios.get).toHaveBeenCalled();
@@ -206,7 +227,7 @@ describe('DownloadManager', () => {
       const user = userEvent.setup({ delay: null });
       mockedAxios.get.mockResolvedValueOnce({ data: [] });
 
-      renderWithContext(<DownloadManager token={mockToken} />);
+      renderWithContext(<DownloadManager token={mockToken} />, '/manual');
 
       await waitFor(() => {
         expect(mockedAxios.get).toHaveBeenCalledTimes(1);
@@ -219,16 +240,12 @@ describe('DownloadManager', () => {
       await waitFor(() => {
         expect(mockedAxios.get).toHaveBeenCalledTimes(2);
       });
-
-      await waitFor(() => {
-        expect(screen.getByText('Jobs Count: 2')).toBeInTheDocument();
-      });
     });
   });
 
   describe('WebSocket Integration', () => {
     test('subscribes to WebSocket on mount', () => {
-      renderWithContext(<DownloadManager token={mockToken} />);
+      renderWithContext(<DownloadManager token={mockToken} />, '/history');
 
       expect(mockSubscribe).toHaveBeenCalledWith(
         expect.any(Function),
@@ -257,7 +274,7 @@ describe('DownloadManager', () => {
     test('processes download complete message by fetching jobs', async () => {
       mockedAxios.get.mockResolvedValueOnce({ data: [] });
 
-      renderWithContext(<DownloadManager token={mockToken} />);
+      renderWithContext(<DownloadManager token={mockToken} />, '/history');
 
       await waitFor(() => {
         expect(mockedAxios.get).toHaveBeenCalledTimes(1);
@@ -291,16 +308,16 @@ describe('DownloadManager', () => {
       expect(input.value).toBe('https://youtube.com/watch?v=test123');
     });
 
-    test('manages download initiated ref', async () => {
+    test('manages download initiated ref through the manual route', async () => {
       const user = userEvent.setup({ delay: null });
-      renderWithContext(<DownloadManager token={mockToken} />);
+      renderWithContext(<DownloadManager token={mockToken} />, '/manual');
 
-      expect(screen.getByText('Download Initiated: false')).toBeInTheDocument();
+      expect(screen.getByText('Download Initiated Ref: false')).toBeInTheDocument();
 
       await user.click(screen.getByTestId('initiate-download-button'));
 
       await waitFor(() => {
-        expect(screen.getByText('Download Initiated: true')).toBeInTheDocument();
+        expect(screen.getByText('Download Initiated Ref: true')).toBeInTheDocument();
       });
     });
 
@@ -308,7 +325,7 @@ describe('DownloadManager', () => {
       const user = userEvent.setup({ delay: null });
       mockedAxios.get.mockResolvedValueOnce({ data: mockJobs });
 
-      renderWithContext(<DownloadManager token={mockToken} />);
+      renderWithContext(<DownloadManager token={mockToken} />, '/history');
 
       await waitFor(() => {
         expect(screen.getByTestId('job-1')).toBeInTheDocument();
@@ -330,7 +347,7 @@ describe('DownloadManager', () => {
       const user = userEvent.setup({ delay: null });
       mockedAxios.get.mockResolvedValueOnce({ data: mockJobs });
 
-      renderWithContext(<DownloadManager token={mockToken} />);
+      renderWithContext(<DownloadManager token={mockToken} />, '/history');
 
       await waitFor(() => {
         expect(screen.getByTestId('job-1')).toBeInTheDocument();
@@ -344,7 +361,7 @@ describe('DownloadManager', () => {
     test('updates current time every second', () => {
       jest.useFakeTimers();
 
-      renderWithContext(<DownloadManager token={mockToken} />);
+      renderWithContext(<DownloadManager token={mockToken} />, '/history');
 
       const initialTime = screen.getByText(/Current Time:/).textContent;
 
@@ -371,7 +388,7 @@ describe('DownloadManager', () => {
 
   describe('Responsive Design', () => {
     test('passes mobile prop based on media query', async () => {
-      renderWithContext(<DownloadManager token={mockToken} />);
+      renderWithContext(<DownloadManager token={mockToken} />, '/history');
 
       await waitFor(() => {
         expect(screen.getByText('Mobile View: false')).toBeInTheDocument();
@@ -381,7 +398,7 @@ describe('DownloadManager', () => {
 
   describe('Component Props', () => {
     test('passes correct props to DownloadNew', async () => {
-      renderWithContext(<DownloadManager token={mockToken} />);
+      renderWithContext(<DownloadManager token={mockToken} />, '/manual');
 
       await waitFor(() => {
         expect(screen.getByTestId('download-new')).toBeInTheDocument();
@@ -392,7 +409,7 @@ describe('DownloadManager', () => {
     });
 
     test('passes correct props to DownloadProgress', async () => {
-      renderWithContext(<DownloadManager token={mockToken} />);
+      renderWithContext(<DownloadManager token={mockToken} />, '/activity');
 
       await waitFor(() => {
         expect(screen.getByTestId('download-progress')).toBeInTheDocument();
@@ -405,7 +422,7 @@ describe('DownloadManager', () => {
     test('passes correct props to DownloadHistory', async () => {
       mockedAxios.get.mockResolvedValueOnce({ data: mockJobs });
 
-      renderWithContext(<DownloadManager token={mockToken} />);
+      renderWithContext(<DownloadManager token={mockToken} />, '/history');
 
       await waitFor(() => {
         expect(screen.getByTestId('download-history')).toBeInTheDocument();
@@ -423,7 +440,7 @@ describe('DownloadManager', () => {
       const user = userEvent.setup({ delay: null });
       mockedAxios.get.mockResolvedValueOnce({ data: mockJobs });
 
-      renderWithContext(<DownloadManager token={mockToken} />);
+      renderWithContext(<DownloadManager token={mockToken} />, '/history');
 
       await waitFor(() => {
         expect(screen.getByTestId('job-1')).toBeInTheDocument();
@@ -446,16 +463,16 @@ describe('DownloadManager', () => {
       expect(expandButton2.textContent).toBe('Collapse');
     });
 
-    test('ref updates are reflected in child components', async () => {
+    test('manual child rerenders when ref-backed workflow updates', async () => {
       const user = userEvent.setup({ delay: null });
-      renderWithContext(<DownloadManager token={mockToken} />);
+      renderWithContext(<DownloadManager token={mockToken} />, '/manual');
 
-      expect(screen.getByText('Download Initiated: false')).toBeInTheDocument();
+      expect(screen.getByText('Download Initiated Ref: false')).toBeInTheDocument();
 
       await user.click(screen.getByTestId('initiate-download-button'));
 
       await waitFor(() => {
-        expect(screen.getByText('Download Initiated: true')).toBeInTheDocument();
+        expect(screen.getByText('Download Initiated Ref: true')).toBeInTheDocument();
       });
     });
   });

@@ -25,15 +25,11 @@ jest.mock('../../utils', () => ({
   })
 }));
 
-jest.mock('@mui/material/useMediaQuery');
-
-jest.mock('@mui/material/styles', () => ({
-  ...jest.requireActual('@mui/material/styles'),
-  useTheme: () => ({
-    breakpoints: {
-      down: (breakpoint: string) => false
-    }
-  })
+jest.mock('../../hooks/useMediaQuery');
+jest.mock('../../hooks/useConfig', () => ({
+  useConfig: jest.fn(() => ({
+    config: { channelVideosHotLoad: false },
+  })),
 }));
 
 jest.mock('../shared/DeleteVideosDialog', () => ({
@@ -121,14 +117,14 @@ const setupUser = () => userEvent.setup({ delay: null });
 
 describe('VideosPage Component', () => {
   const mockToken = 'test-token';
-  const useMediaQuery = require('@mui/material/useMediaQuery');
+  const { useMediaQuery } = require('../../hooks/useMediaQuery');
   const { useVideoDeletion } = require('../shared/useVideoDeletion');
 
   const mockDeleteVideos = jest.fn();
 
   beforeEach(() => {
     jest.clearAllMocks();
-    useMediaQuery.default.mockReturnValue(false);
+    (useMediaQuery as jest.Mock).mockReturnValue(false);
 
     // Mock useVideoDeletion to return a mock function
     useVideoDeletion.mockReturnValue({
@@ -146,7 +142,7 @@ describe('VideosPage Component', () => {
       render(<VideosPage token={mockToken} />);
 
       await waitFor(() => {
-        expect(screen.getByText(/Downloaded Videos/)).toBeInTheDocument();
+        expect(screen.getByText(/Library/)).toBeInTheDocument();
       });
 
       await waitFor(() => {
@@ -386,7 +382,7 @@ describe('VideosPage Component', () => {
 
   describe('Mobile View', () => {
     beforeEach(() => {
-      useMediaQuery.default.mockReturnValue(true);
+      (useMediaQuery as jest.Mock).mockReturnValue(true);
     });
 
     test('renders mobile layout without table headers', async () => {
@@ -525,7 +521,7 @@ describe('VideosPage Component', () => {
 
       // Check file size display in format indicator chip (1GB formatted)
       expect(screen.getByText('1.0GB')).toBeInTheDocument();
-      expect(screen.getByTestId('MovieOutlinedIcon')).toBeInTheDocument();
+      expect(screen.getByTestId('StorageIcon')).toBeInTheDocument();
     });
 
     test('displays missing file status for removed videos', async () => {
@@ -555,7 +551,7 @@ describe('VideosPage Component', () => {
       render(<VideosPage token={mockToken} />);
 
       await waitFor(() => {
-        expect(screen.getByText(/Downloaded Videos \(42 total\)/)).toBeInTheDocument();
+        expect(screen.getByText(/Library \(42 total\)/)).toBeInTheDocument();
       });
     });
 
@@ -622,7 +618,7 @@ describe('VideosPage Component', () => {
         expect(screen.getByText('Failed to load videos. Please try refreshing the page. If this error persists, the Youtarr backend may be down.')).toBeInTheDocument();
       });
 
-      expect(screen.getByText(/Downloaded Videos/)).toBeInTheDocument();
+      expect(screen.getByText(/Library/)).toBeInTheDocument();
       expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to fetch videos:', expect.any(Error));
 
       consoleErrorSpy.mockRestore();
@@ -947,12 +943,12 @@ describe('VideosPage Component', () => {
       });
     });
 
-    describe('Mobile View - FAB Deletion', () => {
+    describe('Mobile View - Bottom Action Bar', () => {
       beforeEach(() => {
-        useMediaQuery.default.mockReturnValue(true);
+        (useMediaQuery as jest.Mock).mockReturnValue(true);
       });
 
-      test('shows delete icon on video thumbnails in mobile view', async () => {
+      test('shows selection checkboxes on downloaded video thumbnails in mobile view', async () => {
         const videosWithFiles = mockVideos.filter(v => v.fileSize);
         axios.get.mockResolvedValueOnce({ data: mockPaginatedResponse(videosWithFiles) });
 
@@ -962,12 +958,11 @@ describe('VideosPage Component', () => {
           expect(screen.getByText('How to Code')).toBeInTheDocument();
         });
 
-        // Should have delete icons for videos with fileSize
-        const deleteIcons = screen.getAllByTestId('DeleteIcon');
-        expect(deleteIcons.length).toBeGreaterThan(0);
+        expect(screen.getByRole('checkbox', { name: /Select How to Code/i })).toBeInTheDocument();
+        expect(screen.getByRole('checkbox', { name: /Select Game Review/i })).toBeInTheDocument();
       });
 
-      test('toggles video selection when delete icon is clicked in mobile', async () => {
+      test('toggles video selection when thumbnail checkbox is clicked in mobile', async () => {
         const user = setupUser();
         axios.get.mockResolvedValueOnce({ data: mockPaginatedResponse([mockVideos[0]]) });
 
@@ -977,20 +972,17 @@ describe('VideosPage Component', () => {
           expect(screen.getByText('How to Code')).toBeInTheDocument();
         });
 
-        const deleteIcons = screen.getAllByTestId('DeleteIcon');
-        const thumbnailDeleteIcon = deleteIcons[0];
+        const selectionCheckbox = screen.getByRole('checkbox', { name: /Select How to Code/i });
 
-        // Click to select
-        await user.click(thumbnailDeleteIcon);
+        await user.click(selectionCheckbox);
 
-        // FAB should appear with badge - there should now be more delete icons
         await waitFor(() => {
-          const iconsAfterClick = screen.getAllByTestId('DeleteIcon');
-          expect(iconsAfterClick.length).toBeGreaterThanOrEqual(deleteIcons.length);
+          expect(screen.getByText(/1 video selected/i)).toBeInTheDocument();
         });
+        expect(screen.getByRole('button', { name: /^Delete$/i })).toBeInTheDocument();
       });
 
-      test('shows FAB with badge when videos are selected for deletion in mobile', async () => {
+      test('shows bottom action bar when videos are selected in mobile', async () => {
         const user = setupUser();
         axios.get.mockResolvedValueOnce({ data: mockPaginatedResponse(mockVideos.slice(0, 2)) });
 
@@ -1000,14 +992,14 @@ describe('VideosPage Component', () => {
           expect(screen.getByText('How to Code')).toBeInTheDocument();
         });
 
-        // Select first video via delete icon
-        const deleteIcons = screen.getAllByTestId('DeleteIcon');
-        await user.click(deleteIcons[0]);
+        await user.click(screen.getByRole('checkbox', { name: /Select How to Code/i }));
 
-        // Should show FAB (checking for presence in DOM)
         await waitFor(() => {
-          expect(deleteIcons.length).toBeGreaterThan(0);
+          expect(screen.getByText(/1 video selected/i)).toBeInTheDocument();
         });
+        expect(screen.getByRole('button', { name: /^Rating$/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /^Delete$/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /^Clear$/i })).toBeInTheDocument();
       });
     });
 

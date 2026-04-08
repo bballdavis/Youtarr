@@ -1,0 +1,248 @@
+:root {
+  --action-bar-gap: 8px;
+  --action-bar-gap-compact: 6px;
+  --action-bar-padding-y: 8px;
+  --action-bar-padding-x: 0px;
+
+  /* Chip & rating shadows (tokenizable per-theme) */
+  --chip-shadow: none;
+  --chip-shadow-hover: var(--chip-shadow-hover, var(--shadow-hard-hover));
+  --rating-chip-border: var(--channel-meta-chip-border);
+  --rating-chip-shadow: var(--channel-meta-chip-shadow);
+  --rating-chip-shadow-hover: var(--rating-chip-shadow-hover, var(--shadow-hard-hover));
+  --rating-chip-unrated-background: var(--channel-meta-chip-background);
+  --rating-chip-unrated-foreground: var(--channel-meta-chip-foreground);
+
+  /* Max widths for status/rating chips to prevent overflow; per-theme overrides encouraged */
+  --status-chip-max-width: 140px;
+  --rating-chip-max-width: 120px;
+  --ui-chip-radius: var(--video-chip-radius, var(--radius-ui));
+
+  /* Settings splash-specific tokens (override per-theme) */
+  --settings-splash-shadow-hover: var(--nav-item-shadow-hover);
+  --settings-splash-border: var(--nav-item-bg-selected);
+
+  /* Audio format indicator tokens */
+  --audio-chip-radius: var(--radius-ui);
+  --audio-chip-bg: transparent;
+  --audio-chip-border: var(--border);
+  --audio-chip-foreground: var(--foreground);
+  --audio-chip-icon: var(--secondary);
+  --audio-chip-shadow: var(--chip-shadow);
+  --audio-chip-shadow-hover: var(--chip-shadow-hover);
+
+  --video-chip-radius: var(--radius-ui);
+  --video-chip-bg: transparent;
+  --video-chip-border: var(--border);
+  --video-chip-foreground: var(--foreground);
+  --video-chip-icon: var(--primary);
+  --video-chip-shadow: var(--chip-shadow);
+  --video-chip-shadow-hover: var(--chip-shadow-hover);
+
+  /* Audio control tokens */
+  --audio-control-radius: var(--radius-input);
+  --audio-control-border: var(--input-border);
+  --audio-control-bg: var(--input);
+  --audio-control-foreground: var(--foreground);
+  --audio-control-shadow: var(--shadow-input-rest);
+  --audio-control-shadow-focus: var(--shadow-input-focus);
+
+  /* Overlay and text-on-media tokens */
+  --overlay-backdrop-background: rgba(0, 0, 0, 0.5);
+  --overlay-backdrop-background-strong: rgba(0, 0, 0, 0.6);
+  --overlay-backdrop-filter: blur(4px);
+  --media-placeholder-background: #111827;
+  --media-placeholder-border: 1px solid rgba(107, 114, 128, 0.4);
+  --media-overlay-foreground: #ffffff;
+  --media-overlay-background: rgba(0, 0, 0, 0.6);
+  --media-overlay-background-strong: rgba(0, 0, 0, 0.8);
+  --media-overlay-danger-background: rgba(211, 47, 47, 0.95);
+  --media-overlay-selection-background: rgba(25, 118, 210, 0.2);
+  --media-overlay-delete-selection-background: rgba(220, 38, 38, 0.2);
+  --media-overlay-delete-indicator-background: rgba(220, 38, 38, 0.8);
+  --media-overlay-ignore-button-background: rgba(0, 0, 0, 0.6);
+  --media-overlay-text-shadow: drop-shadow(0px 2px 4px rgba(0, 0, 0, 0.5));
+
+  /* Auth and setup surface tokens */
+  --auth-splash-background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --auth-surface-background: var(--card);
+  --auth-surface-border: 1px solid var(--border);
+  --auth-surface-shadow: var(--shadow-soft);
+  --auth-surface-backdrop-filter: none;
+  --auth-surface-transform: none;
+  --auth-surface-padding: 32px;
+  --auth-title-font-weight: 700;
+  --auth-title-font-size: 2.5rem;
+  --auth-title-letter-spacing: normal;
+  --auth-title-text-shadow: none;
+  --auth-subtitle-font-size: 1rem;
+  --auth-button-text-transform: none;
+  --auth-button-letter-spacing: normal;
+
+  /* Decorative background tokens */
+  --linear-decor-blob-primary: radial-gradient(circle, rgba(94, 106, 210, 0.55) 0%, transparent 70%);
+  --linear-decor-blob-secondary: radial-gradient(circle, rgba(244, 114, 182, 0.4) 0%, transparent 70%);
+  --linear-decor-top-rail: linear-gradient(90deg, transparent, rgba(94, 106, 210, 0.5), transparent);
+
+  /* Header and navigation tokens */
+  --nav-item-border-hover: var(--nav-item-border);
+  --header-nav-active-color: var(--foreground);
+  --header-nav-default-color: var(--muted-foreground);
+  --header-subnav-active-color: var(--header-nav-active-color);
+  --header-update-indicator-width: 32px;
+  --header-update-indicator-height: 32px;
+  --header-update-indicator-radius: 6px;
+  --header-update-indicator-foreground: var(--warning);
+  --header-update-indicator-background: transparent;
+  --header-update-indicator-border: 1px solid rgba(255, 255, 255, 0.2);
+  --header-update-indicator-shadow: none;
+  --mobile-subnav-surface-background: var(--card);
+  --mobile-subnav-surface-border-top: var(--nav-border);
+  --mobile-subnav-surface-radius: 0;
+  --mobile-subnav-surface-margin-bottom: 0;
+  --mobile-subnav-surface-padding-bottom: 8px;
+  --mobile-subnav-item-border: var(--nav-item-border);
+  --mobile-subnav-item-border-selected: var(--nav-item-border-selected);
+  --mobile-subnav-item-radius: var(--radius-ui);
+  --mobile-subnav-item-text-transform: none;
+  --mobile-subnav-item-letter-spacing: normal;
+  --mobile-primary-nav-surface-background: var(--card);
+  --mobile-primary-nav-surface-border-top: var(--nav-border);
+  --mobile-primary-nav-surface-radius: 0;
+  --mobile-primary-nav-surface-shadow: var(--nav-shadow);
+  --mobile-primary-nav-active-color: var(--primary);
+  --mobile-primary-nav-active-background: transparent;
+  --mobile-primary-nav-label-font-size: 0.65rem;
+  --mobile-primary-nav-label-text-transform: none;
+  --mobile-primary-nav-label-letter-spacing: normal;
+
+  /* Channel meta chip tokens */
+  --channel-meta-chip-background: var(--card);
+  --channel-meta-chip-foreground: var(--foreground);
+  --channel-meta-chip-border: 1px solid var(--border);
+  --channel-meta-chip-shadow: none;
+  --channel-meta-chip-icon: var(--muted-foreground);
+} 
+
+
+
+.action-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--action-bar-gap);
+  padding: var(--action-bar-padding-y) var(--action-bar-padding-x);
+}
+
+.action-bar--compact {
+  gap: var(--action-bar-gap-compact);
+}
+
+.action-bar--playful {
+  --action-bar-gap: 10px;
+}
+
+.action-bar--linear,
+.action-bar--flat {
+  --action-bar-gap: 6px;
+}
+
+/* Action bar uses theme-provided tokens for foreground and borders */
+.action-bar {
+  color: var(--action-bar-foreground);
+}
+
+.action-bar [data-btn],
+.action-bar [data-icon-btn] {
+  color: var(--action-bar-foreground);
+  border: var(--border-weight) solid var(--action-bar-border);
+}
+
+.action-bar [data-btn]:hover,
+.action-bar [data-icon-btn]:hover {
+  border: var(--border-weight) solid var(--action-bar-hover-border);
+  color: var(--foreground);
+}
+
+/* Disabled state for action bar buttons - theme-controlled */
+.action-bar [data-btn]:disabled,
+.action-bar [data-icon-btn]:disabled {
+  color: var(--action-bar-disabled-foreground) !important;
+  border-color: var(--action-bar-border) !important;
+  background-color: transparent !important;
+  opacity: 1 !important;
+}
+
+.action-bar [data-btn]:disabled svg,
+.action-bar [data-icon-btn]:disabled svg {
+  color: var(--action-bar-disabled-foreground) !important;
+}
+
+.action-bar [data-btn].intent-warning:disabled,
+.action-bar [data-icon-btn].intent-warning:disabled {
+  color: var(--warning) !important;
+  border-color: var(--warning) !important;
+  opacity: 0.55 !important;
+}
+
+.action-bar [data-btn].intent-danger:disabled,
+.action-bar [data-icon-btn].intent-danger:disabled {
+  color: var(--destructive) !important;
+  border-color: var(--destructive) !important;
+  opacity: 0.55 !important;
+}
+
+[data-btn].intent-base,
+[data-icon-btn].intent-base {
+  color: var(--foreground);
+  background-color: transparent;
+  border-color: var(--border);
+}
+
+[data-btn].intent-base:hover,
+[data-icon-btn].intent-base:hover {
+  background-color: var(--muted);
+  color: var(--foreground);
+}
+
+[data-btn].intent-success,
+[data-icon-btn].intent-success {
+  color: var(--secondary);
+  background-color: transparent;
+  border: var(--border-weight) solid var(--secondary);
+}
+
+[data-btn].intent-success:hover,
+[data-icon-btn].intent-success:hover {
+  background-color: var(--secondary);
+  color: var(--secondary-foreground);
+  border: var(--border-weight) solid var(--secondary);
+}
+
+[data-btn].intent-warning,
+[data-icon-btn].intent-warning {
+  color: var(--accent);
+  background-color: transparent;
+  border: var(--border-weight) solid var(--accent);
+}
+
+[data-btn].intent-warning:hover,
+[data-icon-btn].intent-warning:hover {
+  background-color: var(--accent);
+  color: var(--accent-foreground);
+  border: var(--border-weight) solid var(--accent);
+}
+
+[data-btn].intent-danger,
+[data-icon-btn].intent-danger {
+  color: var(--destructive);
+  background-color: transparent;
+  border: var(--border-weight) solid var(--destructive);
+}
+
+[data-btn].intent-danger:hover,
+[data-icon-btn].intent-danger:hover {
+  background-color: var(--destructive);
+  color: var(--destructive-foreground);
+  border: var(--border-weight) solid var(--destructive);
+}

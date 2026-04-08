@@ -68,6 +68,12 @@ describe('ChannelSettingsDialog', () => {
     });
   });
 
+  async function openSettingsSection(sectionName: 'General' | 'Auto Download' | 'Filters' | 'Ratings') {
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: sectionName }));
+    return user;
+  }
+
   afterEach(() => {
     // Cleanup
   });
@@ -86,7 +92,7 @@ describe('ChannelSettingsDialog', () => {
 
       render(<ChannelSettingsDialog {...defaultProps} />);
 
-      expect(screen.getByText('Channel Settings: Test Channel')).toBeInTheDocument();
+      expect(screen.getByRole('dialog', { name: 'Channel Settings' })).toBeInTheDocument();
 
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledWith('/api/channels/channel123/settings', {
@@ -98,7 +104,7 @@ describe('ChannelSettingsDialog', () => {
     test('does not render dialog when open is false', () => {
       render(<ChannelSettingsDialog {...defaultProps} open={false} />);
 
-      expect(screen.queryByText('Channel Settings: Test Channel')).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: 'Channel Settings' })).not.toBeInTheDocument();
     });
 
     test('shows loading spinner while fetching data', () => {
@@ -128,6 +134,9 @@ describe('ChannelSettingsDialog', () => {
 
       expect(screen.getByLabelText('Channel Video Quality Override')).toBeInTheDocument();
       expect(screen.getByLabelText('Subfolder')).toBeInTheDocument();
+
+      await openSettingsSection('Filters');
+
       expect(screen.getByLabelText('Min Duration (mins)')).toBeInTheDocument();
       expect(screen.getByLabelText('Max Duration (mins)')).toBeInTheDocument();
       expect(screen.getByLabelText('Title Filter (Python Regex)')).toBeInTheDocument();
@@ -166,6 +175,8 @@ describe('ChannelSettingsDialog', () => {
 
       const subfolderInput = screen.getByLabelText('Subfolder');
       expect(subfolderInput).toHaveValue('__Sports');
+
+      await openSettingsSection('Filters');
 
       const minDurationInput = screen.getByLabelText('Min Duration (mins)');
       expect(minDurationInput).toHaveValue(5);
@@ -555,6 +566,8 @@ describe('ChannelSettingsDialog', () => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
 
+      await openSettingsSection('Filters');
+
       const minDurationInput = screen.getByLabelText('Min Duration (mins)');
       expect(minDurationInput).toHaveValue(3);
 
@@ -586,6 +599,8 @@ describe('ChannelSettingsDialog', () => {
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
+
+      await openSettingsSection('Filters');
 
       const minDurationInput = screen.getByLabelText('Min Duration (mins)');
       await user.clear(minDurationInput);
@@ -638,6 +653,8 @@ describe('ChannelSettingsDialog', () => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
 
+      await openSettingsSection('Filters');
+
       const minDurationInput = screen.getByLabelText('Min Duration (mins)');
       await user.type(minDurationInput, 'abc');
 
@@ -666,6 +683,8 @@ describe('ChannelSettingsDialog', () => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
 
+      await openSettingsSection('Filters');
+
       const minDurationInput = screen.getByLabelText('Min Duration (mins)');
       expect(minDurationInput).toHaveValue(5);
 
@@ -693,6 +712,8 @@ describe('ChannelSettingsDialog', () => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
 
+      await openSettingsSection('Filters');
+
       expect(screen.getByLabelText('Title Filter (Python Regex)')).toBeInTheDocument();
       expect(
         screen.getByText(/Only download videos with titles matching regex pattern/i)
@@ -718,6 +739,8 @@ describe('ChannelSettingsDialog', () => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
 
+      await openSettingsSection('Filters');
+
       const regexInput = screen.getByLabelText('Title Filter (Python Regex)');
       await user.type(regexInput, '(?i)podcast');
 
@@ -741,6 +764,8 @@ describe('ChannelSettingsDialog', () => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
 
+      await openSettingsSection('Filters');
+
       expect(screen.getByRole('button', { name: 'Preview Regex' })).toBeInTheDocument();
     });
 
@@ -760,6 +785,8 @@ describe('ChannelSettingsDialog', () => {
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
+
+      await openSettingsSection('Filters');
 
       const previewButton = screen.getByRole('button', { name: 'Preview Regex' });
       expect(previewButton).toBeDisabled();
@@ -800,6 +827,8 @@ describe('ChannelSettingsDialog', () => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
 
+      await openSettingsSection('Filters');
+
       const previewButton = screen.getByRole('button', { name: 'Preview Regex' });
       await user.click(previewButton);
 
@@ -837,6 +866,8 @@ describe('ChannelSettingsDialog', () => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
 
+      await openSettingsSection('Filters');
+
       const previewButton = screen.getByRole('button', { name: 'Preview Regex' });
       await user.click(previewButton);
 
@@ -861,6 +892,8 @@ describe('ChannelSettingsDialog', () => {
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
+
+      await openSettingsSection('Filters');
 
       const docLink = screen.getByTitle('Python regex documentation');
       expect(docLink).toHaveAttribute(
@@ -990,8 +1023,13 @@ describe('ChannelSettingsDialog', () => {
 
       await waitFor(() => {
         expect(mockOnSettingsSaved).toHaveBeenCalledWith({
-          ...mockChannelSettings,
+          sub_folder: null,
           video_quality: '720',
+          min_duration: null,
+          max_duration: null,
+          title_filter_regex: null,
+          audio_format: null,
+          default_rating: null,
         });
       });
     });
@@ -1317,8 +1355,12 @@ describe('ChannelSettingsDialog', () => {
       render(<ChannelSettingsDialog {...defaultProps} />);
 
       await waitFor(() => {
-        expect(screen.getByText('Download Filters')).toBeInTheDocument();
+        expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
       });
+
+      await openSettingsSection('Filters');
+
+      expect(screen.getByText('Download Filters')).toBeInTheDocument();
 
       expect(
         screen.getByText(

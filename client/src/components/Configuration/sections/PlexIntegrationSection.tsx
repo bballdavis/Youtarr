@@ -10,8 +10,8 @@ import {
   Alert,
   AlertTitle,
   Typography,
-} from '@mui/material';
-import InfoIcon from '@mui/icons-material/Info';
+} from '../../ui';
+import { Info as InfoIcon } from 'lucide-react';
 import { ConfigurationAccordion } from '../common/ConfigurationAccordion';
 import { InfoTooltip } from '../common/InfoTooltip';
 import { ConfigState, PlatformManagedState, PlexConnectionStatus } from '../types';
@@ -59,6 +59,7 @@ export const PlexIntegrationSection: React.FC<PlexIntegrationSectionProps> = ({
   const handleCheckboxChange = (event: ChangeEvent<HTMLInputElement>) => {
     onConfigChange({ [event.target.name]: event.target.checked });
   };
+  const plexIntegrationEnabled = Boolean(hasPlexServerConfigured && config.plexApiKey);
 
   const getChipLabel = (): string => {
     switch (plexConnectionStatus) {
@@ -91,9 +92,15 @@ export const PlexIntegrationSection: React.FC<PlexIntegrationSectionProps> = ({
       title="Plex Media Server Integration"
       chipLabel={getChipLabel()}
       chipColor={getChipColor()}
+      statusBanner={{
+        enabled: plexIntegrationEnabled,
+        onText: 'Plex Integration Enabled',
+        offText: 'Plex Integration Disabled',
+        showToggle: false,
+      }}
       defaultExpanded={false}
     >
-      <Alert severity="info" sx={{ mb: 2 }}>
+      <Alert severity="info" className="mb-4">
         <AlertTitle>Optional Plex Integration</AlertTitle>
         <Typography variant="body2">
           • Automatic library refresh after downloads
@@ -106,20 +113,20 @@ export const PlexIntegrationSection: React.FC<PlexIntegrationSectionProps> = ({
       </Alert>
 
       {plexConnectionStatus === 'not_connected' && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
+        <Alert severity="warning" className="mb-4">
           Unable to connect to Plex server. Library refresh will not work.
           Please check your IP and API key, then click "Test Connection".
         </Alert>
       )}
 
       {plexConnectionStatus === 'not_tested' && hasPlexServerConfigured && config.plexApiKey && (
-        <Alert severity="info" sx={{ mb: 2 }}>
+        <Alert severity="info" className="mb-4">
           Plex configuration has changed. Click "Test Connection" to verify your settings.
         </Alert>
       )}
 
       {(!hasPlexServerConfigured || !config.plexApiKey) && (
-        <Alert severity="info" sx={{ mb: 2 }}>
+        <Alert severity="info" className="mb-4">
           {!hasPlexServerConfigured
             ? 'Enter your Plex server IP to enable Plex integration.'
             : 'Enter your Plex API Key to enable Plex integration.'}
@@ -131,13 +138,13 @@ export const PlexIntegrationSection: React.FC<PlexIntegrationSectionProps> = ({
           <TextField
             fullWidth
             label={
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Box className="flex items-center">
                 Plex Server IP
                 {isPlatformManaged.plexUrl ? (
                   <Chip
                     label="Platform Managed"
                     size="small"
-                    sx={{ ml: 1 }}
+                    className="ml-2"
                   />
                 ) : (
                   <InfoTooltip
@@ -163,7 +170,7 @@ export const PlexIntegrationSection: React.FC<PlexIntegrationSectionProps> = ({
             fullWidth
             type="number"
             label={
-              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <Box className="flex items-center">
                 Plex Port
                 <InfoTooltip
                   text="The TCP port Plex listens on. Defaults to 32400. Update this if you have changed the port in Plex settings or use a reverse proxy mapping."
@@ -183,7 +190,7 @@ export const PlexIntegrationSection: React.FC<PlexIntegrationSectionProps> = ({
         </Grid>
 
         <Grid item xs={12} md={4}>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Box className="flex items-center">
             <FormControlLabel
               control={
                 <Checkbox
@@ -205,7 +212,7 @@ export const PlexIntegrationSection: React.FC<PlexIntegrationSectionProps> = ({
               onMobileClick={onMobileTooltipClick}
             />
           </Box>
-          <Typography variant="caption" color="text.secondary" sx={{ ml: 4, display: 'block' }}>
+          <Typography variant="caption" color="secondary" className="ml-8 block">
             {isPlatformManaged.plexUrl
               ? 'Protocol managed by platform'
               : 'Default: HTTP'}
@@ -214,7 +221,7 @@ export const PlexIntegrationSection: React.FC<PlexIntegrationSectionProps> = ({
 
         <Grid item xs={12} md={4}>
           <Box>
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+            <Box className="flex gap-2 items-start">
               <TextField
                 fullWidth
                 label="Plex API Key"
@@ -227,7 +234,7 @@ export const PlexIntegrationSection: React.FC<PlexIntegrationSectionProps> = ({
                 variant="contained"
                 color="secondary"
                 onClick={onOpenPlexAuthDialog}
-                sx={{
+                style={{
                   minWidth: '120px',
                   height: '56px',
                   fontWeight: 'bold'
@@ -238,12 +245,12 @@ export const PlexIntegrationSection: React.FC<PlexIntegrationSectionProps> = ({
                 Get Key
               </Button>
             </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
+            <Box className="flex items-center mt-1">
               <InfoTooltip
                 text="Click 'Get Key' to automatically obtain your Plex API key by logging into Plex, or enter it manually."
                 onMobileClick={onMobileTooltipClick}
               />
-              <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+              <Typography variant="caption" color="secondary" className="ml-2">
                 <a
                   href="https://www.plexopedia.com/plex-media-server/general/plex-token/"
                   target="_blank"
@@ -259,7 +266,7 @@ export const PlexIntegrationSection: React.FC<PlexIntegrationSectionProps> = ({
         </Grid>
 
         <Grid item xs={12}>
-          <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+          <Box className="flex items-center flex-wrap gap-2">
             <Button
               variant="contained"
               onClick={onTestConnection}
@@ -283,7 +290,7 @@ export const PlexIntegrationSection: React.FC<PlexIntegrationSectionProps> = ({
             />
           </Box>
           {config.plexYoutubeLibraryId && (
-            <Typography variant="body2" sx={{ mt: 1 }}>
+            <Typography variant="body2" className="mt-2">
               Selected Library ID: {config.plexYoutubeLibraryId}
             </Typography>
           )}
