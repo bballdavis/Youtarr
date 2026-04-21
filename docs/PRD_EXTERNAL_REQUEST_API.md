@@ -5,7 +5,7 @@
 - Status: Draft
 - Target project: Youtarr
 - Date: 2026-04-17
-- Primary use case: Allow external clients such as Plinx (iOS) to safely browse approved Youtarr content and submit download/channel requests through a constrained API.
+- Primary use case: Allow external clients to safely browse approved Youtarr content and submit download/channel requests through a constrained API.
 
 ## Background
 
@@ -16,7 +16,7 @@ Youtarr already supports:
 - a REST API with Swagger/OpenAPI docs
 - a limited API-key workflow for `POST /api/videos/download`
 
-Today, API keys are intentionally restricted to a single endpoint that queues individual video downloads. That is a good security baseline, but it is too narrow for player-style clients such as Plinx that need to:
+Today, API keys are intentionally restricted to a single endpoint that queues individual video downloads. That is a good security baseline, but it is too narrow for player-style clients that need to:
 
 - show available channels
 - show videos within those channels, including thumbnails and download state
@@ -185,7 +185,8 @@ Suggested response fields:
 Notes:
 
 - Reuse existing internal channel pagination semantics where possible.
-- Return enough metadata for a client like Plinx to render a browsable channel list without needing extra follow-up calls for basic display.
+- Return enough metadata for a client to render a browsable channel list without needing extra follow-up calls for basic display.
+- Thumbnail references must be usable by authenticated external clients without requiring a Youtarr session cookie.
 
 ### 2. Channel Videos
 
@@ -226,6 +227,27 @@ Suggested response fields:
 - `rating`
 - `channelId`
 - `channelTitle`
+
+#### Thumbnail and media asset delivery
+
+This needs to be explicit because external clients may not be logged into the main Youtarr web UI.
+
+Requirements:
+
+- Thumbnail and related image assets exposed to external clients must be retrievable with API-key-based access, not only browser session auth.
+- The external API should not return asset URLs that silently depend on existing Youtarr login cookies.
+- The asset delivery contract must work for native clients that can attach an API key to each request.
+
+Recommended approach:
+
+- Return external-API-scoped asset URLs such as `/external-api/v1/assets/...` or `/external-api/v1/thumbnails/...`.
+- Protect those asset endpoints with the same `x-api-key` requirement as the rest of the external namespace.
+- Keep those asset URLs stable enough for clients to render list views without custom scraping or cookie-sharing.
+
+Compatibility note:
+
+- If some thumbnail values currently point directly to YouTube-hosted images, that is acceptable as a fallback for non-sensitive public imagery.
+- If Youtarr serves locally cached thumbnails, posters, or protected assets, the PRD should assume those must be reachable through authenticated external asset endpoints.
 
 #### Paging requirements
 
@@ -450,7 +472,7 @@ This phase should be treated as a separate PRD or tech design unless phase 1 imp
 2. All external API endpoints must require API keys.
 3. The API key model must support access levels and approval-related policy flags.
 4. External clients must be able to list channels.
-5. External clients must be able to list channel videos with paging, filters, and download-state metadata.
+5. External clients must be able to list channel videos with paging, filters, download-state metadata, and usable authenticated thumbnail references.
 6. External clients must be able to create video download requests.
 7. External clients must be able to create channel-add requests.
 8. Admins must be able to approve or reject pending requests in the web UI.
@@ -461,6 +483,7 @@ This phase should be treated as a separate PRD or tech design unless phase 1 imp
 
 - Admin can safely expose only the external API via reverse proxy.
 - External client can render channels and videos without session auth.
+- External client can fetch thumbnail/image assets needed for those views using API-key-protected routes.
 - External requester can submit a video request that appears in the approval queue.
 - Admin can approve the request and the download proceeds normally.
 - No external endpoint is accessible without an API key.
