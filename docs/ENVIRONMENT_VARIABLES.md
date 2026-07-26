@@ -98,6 +98,17 @@ To use an external database:
 - When using reverse proxy with authentication
 - Platform deployments with external auth (e.g., Cloudflare Access)
 
+### EXTERNAL_API_ENABLED
+**Required**: No
+**Default**: `false`
+**Options**: `true`, `false`
+**Description**: Enables the versioned `/external-api/v1` integration API
+**Security**: External API routes always require a non-legacy `x-api-key`, even when `AUTH_ENABLED=false`
+
+Leave this disabled until an administrator has assigned an API key an external
+role and policy. Existing API keys migrate as `legacy_download` and cannot use
+the versioned API.
+
 ### AUTH_PRESET_USERNAME
 **Required**: No
 **Default**: None

@@ -852,6 +852,24 @@ describe('API Key Authentication - Security Tests', () => {
       expect(validated).toBeNull();
     });
 
+    test('rejects an external-role key before the legacy download handler', async () => {
+      const apiKeyModuleMock = createApiKeyModuleMock();
+      apiKeyModuleMock.validateApiKey.mockResolvedValue({
+        id: 99, name: 'External', key_prefix: '12345678', role: 'request',
+      });
+      const { app } = await createServerModule({ apiKeyModuleMock });
+      const [verifyToken] = findRouteHandlers(app, 'post', '/api/videos/download');
+      const req = createMockRequest({
+        method: 'POST', path: '/api/videos/download', headers: { 'x-api-key': '12345678external' },
+      });
+      const res = createMockResponse();
+
+      await verifyToken(req, res, jest.fn());
+
+      expect(res.statusCode).toBe(403);
+      expect(res.body).toEqual({ error: 'External API keys cannot access the download endpoint' });
+    });
+
     test('rejects request without URL', async () => {
       const apiKeyModuleMock = createApiKeyModuleMock();
       const created = await apiKeyModuleMock.createApiKey('Download Key');
@@ -1149,4 +1167,3 @@ describe('URL Length Validation - Security Tests', () => {
     expect(res.statusCode).toBe(200);
   });
 });
-

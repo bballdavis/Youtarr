@@ -133,6 +133,21 @@ API Keys provide persistent authentication for external integrations like bookma
 - Playlists, channels, and batch operations require the web UI
 - Maximum of 20 active API keys per instance
 
+### External API roles and revocation
+
+Existing keys migrate as `legacy_download`, preserving their download-only
+access. Administrators may create or update a key with an explicit external
+policy and one of the cumulative roles `view`, `request`, `delete`, or `admin`.
+Deleting a key now revokes it (`revoked_at` is retained for audit); the
+management endpoint keeps its existing success response. External API access
+is separately gated by `EXTERNAL_API_ENABLED=true` and never follows the
+`AUTH_ENABLED=false` bypass.
+
+If this policy migration is rolled back, keys assigned any external role are
+disabled first. This prevents an older server from treating them as active
+legacy download keys after the role column is removed; legacy download keys
+remain active.
+
 ### Creating API Keys
 
 1. Navigate to **Configuration** in the web UI
