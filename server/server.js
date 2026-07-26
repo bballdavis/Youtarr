@@ -12,6 +12,7 @@ const logger = require('./logger');
 const pinoHttp = require('pino-http');
 const { setupSwagger } = require('./swagger');
 const { isAuthConfigured } = require('./modules/authState');
+const { createExternalApiAuth } = require('./middleware/externalApiAuth');
 const app = express();
 app.set('trust proxy', parseTrustProxySetting(process.env.TRUST_PROXY));
 if (process.env.TRUST_PROXY === undefined || process.env.TRUST_PROXY === '') {
@@ -411,6 +412,17 @@ const initialize = async () => {
             });
           }
 
+          // External API roles are deliberately not accepted by the legacy
+          // download endpoint. Missing role keeps pre-migration records and
+          // older test doubles compatible.
+          if (validKey.role !== undefined && validKey.role !== 'legacy_download') {
+            req.log.warn({
+              event: 'api_key_legacy_access_denied', keyId: validKey.id,
+              keyPrefix: validKey.key_prefix, role: validKey.role,
+            }, 'External API key attempted legacy download access');
+            return res.status(403).json({ error: 'External API keys cannot access the download endpoint' });
+          }
+
           req.log.info({
             event: 'api_key_auth_success',
             keyId: validKey.id,
@@ -587,6 +599,21 @@ const initialize = async () => {
       },
     });
 
+    const externalApiLimiter = rateLimit({
+      windowMs: 60 * 1000,
+      max: 120,
+      standardHeaders: true,
+      legacyHeaders: false,
+      validate: { trustProxy: false, ip: false },
+      keyGenerator: (req) => `external-api:${req.externalApiKey?.id || 'unknown'}`,
+      handler: (_req, res) => res.status(429).json({ error: 'External API rate limit exceeded' }),
+    });
+    const externalApiAuth = createExternalApiAuth({
+      // Resolve the model-backed module only if an external request arrives.
+      // Startup must not initialize ApiKey outside the normal DB lifecycle.
+      validateApiKey: (key) => require('./modules/apiKeyModule').validateApiKey(key),
+    });
+
     /**** ONLY ROUTES BELOW THIS LINE *********/
 
     // Setup Swagger documentation at /swagger
@@ -660,6 +687,9 @@ const initialize = async () => {
       setupTokenModule,
       getClientAddress,
       isWslEnvironment,
+      externalApiAuth,
+      externalApiLimiter,
+      serverVersion: require('../package.json').version,
     });
 
     // Handle any requests that don't match the ones above

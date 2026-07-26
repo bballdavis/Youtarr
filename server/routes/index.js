@@ -17,6 +17,7 @@ const createYoutubeApiKeyRoutes = require('./youtubeApiKey');
 const createYtdlpOptionsRoutes = require('./ytdlpOptions');
 const createMaintenanceRoutes = require('./maintenance');
 const createSubfolderRoutes = require('./subfolders');
+const { createExternalApiRoutes } = require('./externalApi');
 const videoMetadataModule = require('../modules/videoMetadataModule');
 const videoOembedEnricher = require('../modules/videoOembedEnricher');
 const playlistModule = require('../modules/playlistModule');
@@ -59,6 +60,9 @@ function registerRoutes(app, deps) {
     setupTokenModule,
     getClientAddress,
     isWslEnvironment,
+    externalApiAuth,
+    externalApiLimiter,
+    serverVersion,
   } = deps;
 
   // Health routes (no auth required for health checks, but yt-dlp endpoints are authenticated)
@@ -117,6 +121,13 @@ function registerRoutes(app, deps) {
 
   // Subfolder registry routes
   app.use(createSubfolderRoutes({ verifyToken, subfolderModule }));
+
+  if (process.env.EXTERNAL_API_ENABLED === 'true') {
+    app.use('/external-api/v1', createExternalApiRoutes({ externalApiAuth, externalApiLimiter, serverVersion }));
+  } else {
+    // Do not allow the SPA fallback to make an enabled-looking external API.
+    app.use('/external-api', (_req, res) => res.status(404).json({ error: 'Not found' }));
+  }
 
   // Defensive redirect: /channels -> /subscriptions (frontend handles client-side routing,
   // this fallback covers direct server-side hits during the transition period)

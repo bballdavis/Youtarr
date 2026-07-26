@@ -1,5 +1,4 @@
 const express = require('express');
-const router = express.Router();
 
 /**
  * Creates API key management routes
@@ -8,6 +7,7 @@ const router = express.Router();
  * @returns {express.Router}
  */
 module.exports = function createApiKeyRoutes({ verifyToken }) {
+  const router = express.Router();
   const apiKeyModule = require('../modules/apiKeyModule');
 
   /**
@@ -113,7 +113,7 @@ module.exports = function createApiKeyRoutes({ verifyToken }) {
       return res.status(403).json({ error: 'API keys cannot create other API keys' });
     }
 
-    const { name } = req.body;
+    const { name, policy } = req.body;
     if (!name || typeof name !== 'string' || name.trim().length < 1 || name.length > 100) {
       return res.status(400).json({ error: 'Name is required (1-100 characters)' });
     }
@@ -128,7 +128,7 @@ module.exports = function createApiKeyRoutes({ verifyToken }) {
     }
 
     try {
-      const result = await apiKeyModule.createApiKey(sanitizedName);
+      const result = await apiKeyModule.createApiKey(sanitizedName, policy);
       res.json({
         success: true,
         message: 'API key created. Save this key - it will not be shown again!',
@@ -136,10 +136,33 @@ module.exports = function createApiKeyRoutes({ verifyToken }) {
       });
     } catch (error) {
       req.log.error({ err: error }, 'Failed to create API key');
-      if (error.message.includes('Maximum number')) {
+      if (error.message.includes('Maximum number') || error.message.includes('Invalid') ||
+        error.message.includes('Policy') || error.message.includes('Unsupported') ||
+        error.message.includes('allowedMediaTypes') || error.message.includes('maxRatingLevel')) {
         return res.status(400).json({ error: error.message });
       }
       res.status(500).json({ error: 'Failed to create API key' });
+    }
+  });
+
+  router.patch('/api/keys/:id', verifyToken, async (req, res) => {
+    if (req.authType === 'api_key') {
+      return res.status(403).json({ error: 'API keys cannot manage other API keys' });
+    }
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'Invalid API key ID' });
+    try {
+      const key = await apiKeyModule.updateApiKey(id, req.body?.policy);
+      if (!key) return res.status(404).json({ error: 'API key not found' });
+      return res.json({ success: true, key: apiKeyModule.serializeApiKey(key) });
+    } catch (error) {
+      if (error.message.includes('Invalid') || error.message.includes('Policy') ||
+        error.message.includes('Unsupported') || error.message.includes('allowedMediaTypes') ||
+        error.message.includes('maxRatingLevel')) {
+        return res.status(400).json({ error: error.message });
+      }
+      req.log.error({ err: error }, 'Failed to update API key policy');
+      return res.status(500).json({ error: 'Failed to update API key' });
     }
   });
 
@@ -148,7 +171,7 @@ module.exports = function createApiKeyRoutes({ verifyToken }) {
    * /api/keys/{id}:
    *   delete:
    *     summary: Delete API key
-   *     description: Permanently delete an API key. Only accessible via session auth.
+   *     description: Revoke an API key while retaining it for audit. Only accessible via session auth.
    *     tags: [API Keys]
    *     parameters:
    *       - in: path
@@ -190,4 +213,3 @@ module.exports = function createApiKeyRoutes({ verifyToken }) {
 
   return router;
 };
-

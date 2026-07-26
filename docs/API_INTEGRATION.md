@@ -27,6 +27,17 @@ Youtarr provides an API endpoint that allows you to add YouTube videos to your d
 
 ## Authentication
 
+### Versioned External API (preview foundation)
+
+Set `EXTERNAL_API_ENABLED=true` to expose `GET /external-api/v1/capabilities`.
+This prefix always requires an `x-api-key`, including when `AUTH_ENABLED=false`.
+Only keys assigned a non-legacy external role (`view`, `request`, `delete`, or
+`admin`) can use it; existing keys retain `legacy_download` and continue to
+work only with `POST /api/videos/download`. The capabilities response is the
+authoritative source for granted scopes, policy, and currently implemented
+features. This first release does not provide catalog, request, or delete
+operations.
+
 ### API Keys
 
 API keys are the recommended authentication method for external integrations. They provide:
@@ -376,4 +387,3 @@ The `/api/videos/download` endpoint is still protected by Youtarr's API key auth
 **Solution for other auth proxies (Authelia, Authentik, etc.):**
 
 Configure your proxy to skip authentication for the `/api/videos/download` path. The exact configuration varies by proxy - consult your proxy's documentation for path-based bypass rules.
-
