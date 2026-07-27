@@ -1,11 +1,12 @@
 const EXTERNAL_ROLES = ['view', 'request', 'delete', 'admin'];
-const ALLOWED_MEDIA_TYPES = ['video'];
+const ALLOWED_MEDIA_TYPES = ['video', 'short', 'livestream'];
 
 function normalizeAllowedMediaTypes(value) {
   // Null/missing is the only tolerated legacy shape during migration rollout.
   if (value === null || value === undefined) return ['video'];
   if (!Array.isArray(value)) return null;
-  const types = [...new Set(value.filter((type) => ALLOWED_MEDIA_TYPES.includes(type)))];
+  if (value.some((type) => !ALLOWED_MEDIA_TYPES.includes(type))) return null;
+  const types = [...new Set(value)];
   return types.length > 0 ? types : null;
 }
 

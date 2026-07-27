@@ -29,14 +29,32 @@ Youtarr provides an API endpoint that allows you to add YouTube videos to your d
 
 ### Versioned External API (preview foundation)
 
-Set `EXTERNAL_API_ENABLED=true` to expose `GET /external-api/v1/capabilities`.
+Set `EXTERNAL_API_ENABLED=true` to expose the versioned external API.
 This prefix always requires an `x-api-key`, including when `AUTH_ENABLED=false`.
 Only keys assigned a non-legacy external role (`view`, `request`, `delete`, or
 `admin`) can use it; existing keys retain `legacy_download` and continue to
-work only with `POST /api/videos/download`. The capabilities response is the
-authoritative source for granted scopes, policy, and currently implemented
-features. This first release does not provide catalog, request, or delete
-operations.
+work only with `POST /api/videos/download`. An administrator must also grant
+each external key access to specific enabled channel database IDs. No grant
+means no catalog visibility. `GET /external-api/v1/capabilities` is the
+authoritative source for granted scopes, policy, and implemented features.
+
+The cached read API currently includes:
+
+- `GET /external-api/v1/channels` with bounded paging, search, and sorting.
+- `GET /external-api/v1/channels/{databaseId}/videos` with bounded paging,
+  tab, duration, date, search, and sorting filters.
+- `GET /external-api/v1/assets/channels/{databaseId}/thumbnail` for
+  authenticated same-origin channel artwork.
+
+All catalog responses come from Youtarr's local cache. Rating and media-type
+policy is applied on the server before rows and counts are returned. Local
+filesystem paths, API-key hashes, and ungranted channel existence are never
+included in responses. Request and delete operations are not implemented yet.
+
+Session-authenticated key-management clients can read or replace the complete
+allow-list with `GET` or `PUT /api/keys/{id}/channels`; the PUT body is
+`{"channelIds":[1,2]}`. Only active external-role keys and enabled channels
+are accepted.
 
 ### API Keys
 
