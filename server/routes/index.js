@@ -62,6 +62,7 @@ function registerRoutes(app, deps) {
     isWslEnvironment,
     externalApiAuth,
     externalApiLimiter,
+    externalApiWriteLimiter,
     serverVersion,
   } = deps;
 
@@ -123,7 +124,12 @@ function registerRoutes(app, deps) {
   app.use(createSubfolderRoutes({ verifyToken, subfolderModule }));
 
   if (process.env.EXTERNAL_API_ENABLED === 'true') {
-    app.use('/external-api/v1', createExternalApiRoutes({ externalApiAuth, externalApiLimiter, serverVersion }));
+    app.use('/external-api/v1', createExternalApiRoutes({
+      externalApiAuth,
+      externalApiLimiter,
+      externalApiWriteLimiter,
+      serverVersion,
+    }));
   } else {
     // Do not allow the SPA fallback to make an enabled-looking external API.
     app.use('/external-api', (_req, res) => res.status(404).json({ error: 'Not found' }));

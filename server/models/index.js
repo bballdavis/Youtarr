@@ -14,6 +14,7 @@ const VideoWatchStatus = require('./videowatchstatus');
 const MediaServerUser = require('./mediaserveruser');
 const WatchStatusSyncCursor = require('./watchstatussynccursor');
 const ApiKeyChannelGrant = require('./apikeychannelgrant');
+const ExternalRequest = require('./externalrequest');
 
 Job.hasMany(JobVideo, { foreignKey: 'job_id', as: 'jobVideos' });
 Job.hasMany(JobVideoDownload, { foreignKey: 'job_id', as: 'jobVideoDownloads' });
@@ -38,6 +39,10 @@ ApiKey.hasMany(ApiKeyChannelGrant, { foreignKey: 'api_key_id', as: 'channelGrant
 ApiKeyChannelGrant.belongsTo(ApiKey, { foreignKey: 'api_key_id', as: 'apiKey' });
 Channel.hasMany(ApiKeyChannelGrant, { foreignKey: 'channel_id', as: 'apiKeyGrants' });
 ApiKeyChannelGrant.belongsTo(Channel, { foreignKey: 'channel_id', as: 'channel' });
+ApiKey.hasMany(ExternalRequest, { foreignKey: 'api_key_id', as: 'externalRequests' });
+ExternalRequest.belongsTo(ApiKey, { foreignKey: 'api_key_id', as: 'apiKey' });
+Channel.hasMany(ExternalRequest, { foreignKey: 'channel_id', as: 'externalRequests' });
+ExternalRequest.belongsTo(Channel, { foreignKey: 'channel_id', as: 'channel' });
 
 module.exports = {
   Job,
@@ -55,4 +60,5 @@ module.exports = {
   MediaServerUser,
   WatchStatusSyncCursor,
   ApiKeyChannelGrant,
+  ExternalRequest,
 };

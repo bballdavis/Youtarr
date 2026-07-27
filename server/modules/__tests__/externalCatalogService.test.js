@@ -67,7 +67,7 @@ describe('external cached catalog', () => {
         youtube_id: 'abc', title: 'Allowed', thumbnail: 'https://i.ytimg.com/vi/abc/hqdefault.jpg',
         publishedAt: '2026-07-10T00:00:00.000Z', published_at_source: 'exact',
         duration: 90, media_type: 'short', description: null, downloaded_id: null,
-        downloaded_removed: null, rating: 'TV-Y',
+        downloaded_removed: null, rating: 'TV-Y', request_status: 'processing',
       }]);
     const result = await catalog.listChannelVideos(
       key({ allowedMediaTypes: ['video', 'short'] }),
@@ -80,7 +80,7 @@ describe('external cached catalog', () => {
 
     expect(result.data[0]).toEqual(expect.objectContaining({
       youtubeId: 'abc', rating: 'TV-Y', channelId: 'UCsafe', mediaType: 'short',
-      isDownloaded: false, isRequested: false, requestStatus: null,
+      isDownloaded: false, isRequested: true, requestStatus: 'processing',
     }));
     expect(result.isFullyIndexed).toBe(true);
     const channelSql = sequelize.query.mock.calls[0][0];
@@ -93,6 +93,8 @@ describe('external cached catalog', () => {
     expect(listSql).toContain('cv.publishedAt >= :dateFrom');
     expect(listSql).toContain('ORDER BY cv.publishedAt DESC, cv.youtube_id ASC');
     expect(listSql).toContain('LIMIT :pageSize OFFSET :offset');
+    expect(listSql).toContain('FROM external_requests er');
+    expect(listSql).toContain('er.api_key_id = :keyId');
   });
 
   test('fails closed for invalid policy and disallowed media without querying', async () => {

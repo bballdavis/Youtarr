@@ -56,6 +56,12 @@ describe('Channel Poster Functionality', () => {
       findOne: jest.fn()
     }));
     jest.doMock('../../models/channelvideo', () => ({}));
+    jest.doMock('../../models', () => ({
+      Playlist: {},
+      PlaylistVideo: {},
+      Video: {},
+      Channel: {},
+    }));
     jest.doMock('../messageEmitter', () => ({
       emitMessage: jest.fn()
     }));
