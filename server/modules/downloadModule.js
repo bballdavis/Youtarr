@@ -630,7 +630,18 @@ class DownloadModule {
     const urls = reqOrJobData.body
       ? reqOrJobData.body.urls
       : reqOrJobData.data.urls;
-    const jobId = await jobModule.addOrUpdateJob(
+    const externalRequestId = this.getJobDataValue(jobData, 'externalRequestId');
+    if (!isNextJob && externalRequestId) {
+      const existingExternalJob = jobModule.getJob(externalRequestId);
+      if (existingExternalJob) {
+        if (['Error', 'Killed', 'Terminated'].includes(existingExternalJob.status)) {
+          throw new Error('Existing external request job is terminal');
+        }
+        return externalRequestId;
+      }
+    }
+
+    const addJobArgs = [
       {
         jobType: jobType,
         status: '',
@@ -640,7 +651,9 @@ class DownloadModule {
         action: this.doSpecificDownloads.bind(this),
       },
       isNextJob
-    );
+    ];
+    if (externalRequestId) addJobArgs.push(externalRequestId);
+    const jobId = await jobModule.addOrUpdateJob(...addJobArgs);
 
     this.registerJobWithRun(jobData, jobId);
 
@@ -776,6 +789,7 @@ class DownloadModule {
         }
       );
     }
+    return jobId;
   }
 
   /**

@@ -45,11 +45,46 @@ The cached read API currently includes:
   tab, duration, date, search, and sorting filters.
 - `GET /external-api/v1/assets/channels/{databaseId}/thumbnail` for
   authenticated same-origin channel artwork.
+- `POST /external-api/v1/requests/videos` to persist a request for an eligible
+  cached video.
+- `GET /external-api/v1/requests` and
+  `GET /external-api/v1/requests/{requestId}` to read the calling key's own
+  request history and status.
 
 All catalog responses come from Youtarr's local cache. Rating and media-type
 policy is applied on the server before rows and counts are returned. Local
 filesystem paths, API-key hashes, and ungranted channel existence are never
-included in responses. Request and delete operations are not implemented yet.
+included in responses. Channel-request, delete-request, and recommendation
+operations are not implemented yet.
+
+Video requests require the `video:request` scope. Youtarr rechecks the key's
+channel grant, the enabled channel, cached video membership, removal/ignore
+state, media type, and rating policy at request time. Request bodies cannot
+override resolution, folders, ratings, audio format, or file structure.
+
+`POST /external-api/v1/requests/videos` accepts:
+
+```json
+{
+  "youtubeId": "abcdefghijk",
+  "channelId": 8,
+  "idempotencyKey": "optional-client-operation-id"
+}
+```
+
+`channelId` is the numeric database ID returned by the channel catalog. The
+optional idempotency key is limited to 200 characters and stored only as a
+SHA-256 digest. Responses use an `outcome` of `created`, `duplicate`, or
+`already_downloaded`, plus a bounded request DTO when a request record exists.
+Pending requests wait for a future administrator approval flow. Keys with
+video auto-approval enabled immediately queue the canonical YouTube URL through
+Youtarr's normal manual-download machinery and channel-owned settings.
+
+Request status is one of `pending`, `approved`, `processing`, `completed`,
+`rejected`, `failed`, or `cancelled`. Processing requests are lazily reconciled
+to completed when the downloaded `Videos` record appears. List responses use
+`page` and `pageSize` (maximum 100) and accept one exact `status` filter.
+Reads are always restricted to records created by the calling API key.
 
 Session-authenticated key-management clients can read or replace the complete
 allow-list with `GET` or `PUT /api/keys/{id}/channels`; the PUT body is

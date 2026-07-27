@@ -232,7 +232,7 @@ async function listChannelVideos(key, channelDatabaseId, query = {}) {
   if (dateFrom) filters.push('cv.publishedAt >= :dateFrom');
   if (dateTo) filters.push('cv.publishedAt <= :dateTo');
   const replacements = {
-    channelDatabaseId: id, mediaType, minDuration, maxDuration, search, dateFrom, dateTo,
+    keyId: key.id, channelDatabaseId: id, mediaType, minDuration, maxDuration, search, dateFrom, dateTo,
     pageSize, offset, ...ratings.replacements,
   };
   const from = `FROM channelvideos cv
@@ -246,7 +246,14 @@ async function listChannelVideos(key, channelDatabaseId, query = {}) {
   const rows = await sequelize.query(
     `SELECT cv.youtube_id, cv.title, cv.thumbnail, cv.publishedAt, cv.published_at_source,
             cv.duration, cv.media_type, v.description, v.id AS downloaded_id,
-            v.removed AS downloaded_removed, ${effectiveRating} AS rating
+            v.removed AS downloaded_removed, ${effectiveRating} AS rating,
+            (SELECT er.status
+               FROM external_requests er
+              WHERE er.api_key_id = :keyId
+                AND er.request_type = 'video'
+                AND er.youtube_id = cv.youtube_id
+              ORDER BY er.created_at DESC, er.id DESC
+              LIMIT 1) AS request_status
        ${from}
       ORDER BY ${sortColumns[sortBy]} ${sortOrder.toUpperCase()}, cv.youtube_id ASC
       LIMIT :pageSize OFFSET :offset`,
@@ -263,8 +270,8 @@ async function listChannelVideos(key, channelDatabaseId, query = {}) {
       duration: row.duration,
       description: row.description || null,
       isDownloaded: Boolean(row.downloaded_id) && !row.downloaded_removed,
-      isRequested: false,
-      requestStatus: null,
+      isRequested: Boolean(row.request_status),
+      requestStatus: row.request_status || null,
       rating: row.rating || null,
       channelId: channel.channel_id,
       channelTitle: channel.title,

@@ -8,6 +8,12 @@ jest.mock('../../models/channel', () => {
   MockChannel.init = jest.fn(() => MockChannel);
   return MockChannel;
 });
+jest.mock('../../models', () => ({
+  Playlist: {},
+  PlaylistVideo: {},
+  Video: {},
+  Channel: require('../../models/channel'),
+}));
 
 jest.mock('../configModule', () => ({
   directoryPath: '/mock/youtube/output',

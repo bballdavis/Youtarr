@@ -608,6 +608,15 @@ const initialize = async () => {
       keyGenerator: (req) => `external-api:${req.externalApiKey?.id || 'unknown'}`,
       handler: (_req, res) => res.status(429).json({ error: 'External API rate limit exceeded' }),
     });
+    const externalApiWriteLimiter = rateLimit({
+      windowMs: 60 * 1000,
+      max: 10,
+      standardHeaders: true,
+      legacyHeaders: false,
+      validate: { trustProxy: false, ip: false },
+      keyGenerator: (req) => `external-api-write:${req.externalApiKey?.id || 'unknown'}`,
+      handler: (_req, res) => res.status(429).json({ error: 'External API write rate limit exceeded' }),
+    });
     const externalApiAuth = createExternalApiAuth({
       // Resolve the model-backed module only if an external request arrives.
       // Startup must not initialize ApiKey outside the normal DB lifecycle.
@@ -689,6 +698,7 @@ const initialize = async () => {
       isWslEnvironment,
       externalApiAuth,
       externalApiLimiter,
+      externalApiWriteLimiter,
       serverVersion: require('../package.json').version,
     });
 

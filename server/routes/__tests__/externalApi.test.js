@@ -3,15 +3,18 @@ const request = require('supertest');
 const { createExternalApiAuth } = require('../../middleware/externalApiAuth');
 const { createExternalApiRoutes } = require('../externalApi');
 
-function makeApp({ enabled = true, key, catalogService } = {}) {
+function makeApp({ enabled = true, key, catalogService, requestService, writeLimiter } = {}) {
   const app = express();
+  app.use(express.json());
   const validateApiKey = jest.fn().mockResolvedValue(key || null);
   if (enabled) {
     app.use('/external-api/v1', createExternalApiRoutes({
       externalApiAuth: createExternalApiAuth({ validateApiKey }),
       externalApiLimiter: (_req, _res, next) => next(),
+      externalApiWriteLimiter: writeLimiter || ((_req, _res, next) => next()),
       serverVersion: '1.77.0',
       catalogService,
+      requestService,
     }));
   } else {
     app.use('/external-api', (_req, res) => res.status(404).json({ error: 'Not found' }));
@@ -61,10 +64,71 @@ describe('external API capabilities', () => {
         allowedMediaTypes: ['video'],
       },
       features: {
-        catalog: true, requests: false, channelRequests: false, deleteRequests: false,
+        catalog: true, requests: true, channelRequests: false, deleteRequests: false,
         recommendations: false, authenticatedAssets: true,
       },
     });
+  });
+
+  test('persists video requests behind the lower write limiter', async () => {
+    const requestService = {
+      createVideoRequest: jest.fn().mockResolvedValue({
+        outcome: 'created',
+        request: {
+          id: '9b89e5bc-8c90-4e72-b245-270fed2eacc2',
+          type: 'video',
+          status: 'pending',
+          target: { youtubeId: 'abcdefghijk', channelId: 8 },
+          createdAt: '2026-07-26T12:00:00.000Z',
+          updatedAt: '2026-07-26T12:00:00.000Z',
+        },
+      }),
+      listRequests: jest.fn(),
+      getRequest: jest.fn(),
+    };
+    const writeLimiter = jest.fn((_req, _res, next) => next());
+    const { app } = makeApp({ key: externalKey(), requestService, writeLimiter });
+    await request(app).post('/external-api/v1/requests/videos')
+      .set('x-api-key', 'test-key')
+      .send({ youtubeId: 'abcdefghijk', channelId: 8 })
+      .expect(202)
+      .expect((response) => expect(response.body.outcome).toBe('created'));
+    expect(writeLimiter).toHaveBeenCalled();
+    expect(requestService.createVideoRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 4, role: 'request' }),
+      { youtubeId: 'abcdefghijk', channelId: 8 }
+    );
+  });
+
+  test('lists and reads only through the authenticated request service', async () => {
+    const requestService = {
+      createVideoRequest: jest.fn(),
+      listRequests: jest.fn().mockResolvedValue({
+        data: [], pagination: { page: 1, pageSize: 50, total: 0, totalPages: 0 },
+      }),
+      getRequest: jest.fn().mockResolvedValue({
+        id: '9b89e5bc-8c90-4e72-b245-270fed2eacc2',
+        type: 'video',
+        status: 'pending',
+        target: { youtubeId: 'abcdefghijk', channelId: 8 },
+        createdAt: '2026-07-26T12:00:00.000Z',
+        updatedAt: '2026-07-26T12:00:00.000Z',
+      }),
+    };
+    const { app } = makeApp({ key: externalKey(), requestService });
+    await request(app).get('/external-api/v1/requests?status=pending')
+      .set('x-api-key', 'test-key').expect(200);
+    await request(app)
+      .get('/external-api/v1/requests/9b89e5bc-8c90-4e72-b245-270fed2eacc2')
+      .set('x-api-key', 'test-key').expect(200);
+    expect(requestService.listRequests).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 4 }),
+      expect.objectContaining({ status: 'pending' })
+    );
+    expect(requestService.getRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 4 }),
+      '9b89e5bc-8c90-4e72-b245-270fed2eacc2'
+    );
   });
 
   test('normalizes duplicate media types and fails closed on unknown media policies', async () => {

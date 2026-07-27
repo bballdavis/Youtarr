@@ -10,10 +10,14 @@ const ROLE_SCOPES = {
 function createExternalApiRoutes({
   externalApiAuth,
   externalApiLimiter,
+  externalApiWriteLimiter = (_req, _res, next) => next(),
   serverVersion,
   catalogService = require('../modules/externalCatalogService'),
+  requestService = null,
 }) {
   const router = express.Router();
+  const requests = () => requestService ||
+    require('../modules/externalRequestService').createExternalRequestService();
   router.use(externalApiAuth, externalApiLimiter);
   router.get('/capabilities', (req, res) => {
     const key = req.externalApiKey;
@@ -31,7 +35,7 @@ function createExternalApiRoutes({
         allowedMediaTypes: key.allowedMediaTypes,
       },
       features: {
-        catalog: true, requests: false, channelRequests: false, deleteRequests: false,
+        catalog: true, requests: true, channelRequests: false, deleteRequests: false,
         recommendations: false, authenticatedAssets: true,
       },
     });
@@ -43,6 +47,14 @@ function createExternalApiRoutes({
     }
     req.log?.error({ err: error }, 'External catalog request failed');
     return res.status(500).json({ error: 'External catalog request failed' });
+  };
+
+  const sendRequestError = (req, res, error) => {
+    if (error.name === 'RequestError' && error.status >= 400 && error.status < 500) {
+      return res.status(error.status).json({ error: error.message });
+    }
+    req.log?.error({ err: error }, 'External request operation failed');
+    return res.status(500).json({ error: 'External request operation failed' });
   };
 
   /**
@@ -83,6 +95,93 @@ function createExternalApiRoutes({
       return res.sendFile(absolutePath);
     } catch (error) {
       return sendCatalogError(req, res, error);
+    }
+  });
+
+  /**
+   * @swagger
+   * /external-api/v1/requests/videos:
+   *   post:
+   *     summary: Request a cached video from a granted channel
+   *     tags: [External API]
+   *     security: [{ ExternalApiKeyAuth: [] }]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [youtubeId, channelId]
+   *             properties:
+   *               youtubeId: { type: string }
+   *               channelId: { type: integer }
+   *               idempotencyKey: { type: string, maxLength: 200 }
+   *     responses:
+   *       202: { description: Request persisted }
+   *       403: { description: Scope or content policy denied the request }
+   *       404: { description: Granted cached video not found }
+   *       409: { description: Idempotency key target conflict }
+   */
+  router.post('/requests/videos', externalApiWriteLimiter, async (req, res) => {
+    try {
+      const result = await requests().createVideoRequest(req.externalApiKey, req.body);
+      return res.status(result.outcome === 'created' ? 202 : 200).json(result);
+    } catch (error) {
+      return sendRequestError(req, res, error);
+    }
+  });
+
+  /**
+   * @swagger
+   * /external-api/v1/requests:
+   *   get:
+   *     summary: List requests created by the calling key
+   *     tags: [External API]
+   *     security: [{ ExternalApiKeyAuth: [] }]
+   *     parameters:
+   *       - in: query
+   *         name: page
+   *         schema: { type: integer, minimum: 1, default: 1 }
+   *       - in: query
+   *         name: pageSize
+   *         schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+   *       - in: query
+   *         name: status
+   *         schema:
+   *           type: string
+   *           enum: [pending, approved, processing, completed, rejected, failed, cancelled]
+   *     responses:
+   *       200: { description: Paginated request status list }
+   */
+  router.get('/requests', async (req, res) => {
+    try {
+      return res.json(await requests().listRequests(req.externalApiKey, req.query));
+    } catch (error) {
+      return sendRequestError(req, res, error);
+    }
+  });
+
+  /**
+   * @swagger
+   * /external-api/v1/requests/{id}:
+   *   get:
+   *     summary: Read one request created by the calling key
+   *     tags: [External API]
+   *     security: [{ ExternalApiKeyAuth: [] }]
+   *     parameters:
+   *       - in: path
+   *         name: id
+   *         required: true
+   *         schema: { type: string, format: uuid }
+   *     responses:
+   *       200: { description: Request status }
+   *       404: { description: Request not found }
+   */
+  router.get('/requests/:id', async (req, res) => {
+    try {
+      return res.json(await requests().getRequest(req.externalApiKey, req.params.id));
+    } catch (error) {
+      return sendRequestError(req, res, error);
     }
   });
   return router;

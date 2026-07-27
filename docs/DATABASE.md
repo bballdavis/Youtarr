@@ -30,6 +30,7 @@ Youtarr uses MariaDB/MySQL for storing:
 | `JobVideoDownloads`| `JobVideoDownload`| Download progress tracking        |
 | `Sessions`         | `Session`         | User authentication sessions      |
 | `ApiKeys`          | `ApiKey`          | API key credentials for external integrations (bookmarklets, shortcuts, automation) |
+| `external_requests` | `ExternalRequest` | Per-API-key external request history. Active video requests use a nullable unique dedupe key; terminal states clear it so a later retry can be created. Optional client idempotency values are stored only as SHA-256 digests. |
 | `playlists`        | `Playlist`        | Subscribed YouTube playlists with per-playlist sync targets and seeded settings. `auto_download_baseline_at` (DATETIME, nullable): seed-then-track baseline for playlist auto-downloads; NULL until the first auto-download run. `sort_order` (STRING NOT NULL, default `'default'`): saved output order for the `.m3u` file and media server sync; `'reversed'` flips the YouTube playlist order. |
 | `playlistvideos`   | `PlaylistVideo`   | One row per (playlist, video) with the YouTube playlist position |
 | `playlist_sync_state` | `PlaylistSyncState` | Per-(playlist, server) sync state: server playlist id, last_synced_at, last_error |

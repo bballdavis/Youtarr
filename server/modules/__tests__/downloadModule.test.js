@@ -26,14 +26,15 @@ jest.mock('../jobModule', () => ({
   getJob: jest.fn().mockReturnValue({ status: 'Pending' })
 }));
 
-jest.mock('../download/downloadExecutor');
+jest.mock('../download/downloadExecutor', () => jest.fn());
 jest.mock('../download/ytdlpCommandBuilder');
 jest.mock('../channelModule', () => ({
   generateChannelsFile: jest.fn(),
   getEnabledChannelDownloadUrls: jest.fn(),
 }));
 jest.mock('../../models/channel', () => ({
-  findOne: jest.fn()
+  findOne: jest.fn(),
+  hasMany: jest.fn(),
 }));
 jest.mock('../../models/channelvideo', () => ({
   findAll: jest.fn()
@@ -1312,6 +1313,36 @@ describe('DownloadModule', () => {
         false,
         { subfolderOverride: null, subfolderFallback: null, ratingOverride: undefined, ratingFallback: null, skipVideoFolder: false, ownerChannelId: null, ownerChannelMap: null }
       );
+    });
+
+    it('uses an external request UUID as an idempotent downloader job boundary', async () => {
+      const externalRequestId = '9b89e5bc-8c90-4e72-b245-270fed2eacc2';
+      jobModuleMock.addOrUpdateJob.mockResolvedValue(externalRequestId);
+      jobModuleMock.getJob
+        .mockReturnValueOnce(null)
+        .mockReturnValueOnce({ status: 'In Progress' });
+      const request = {
+        body: {
+          urls: ['https://www.youtube.com/watch?v=abcdefghijk'],
+          channelId: 'UC1234567890123456789012',
+          externalRequestId,
+        },
+      };
+
+      await expect(downloadModule.doGroupedManualDownloads(request)).resolves.toBe(externalRequestId);
+      expect(jobModuleMock.addOrUpdateJob).toHaveBeenCalledWith(
+        expect.objectContaining({ data: request.body }),
+        false,
+        externalRequestId
+      );
+      expect(mockDownloadExecutor.doDownload).toHaveBeenCalledTimes(1);
+
+      jobModuleMock.addOrUpdateJob.mockClear();
+      mockDownloadExecutor.doDownload.mockClear();
+      jobModuleMock.getJob.mockReturnValue({ status: 'In Progress' });
+      await expect(downloadModule.doGroupedManualDownloads(request)).resolves.toBe(externalRequestId);
+      expect(jobModuleMock.addOrUpdateJob).not.toHaveBeenCalled();
+      expect(mockDownloadExecutor.doDownload).not.toHaveBeenCalled();
     });
 
     it('should handle job data directly', async () => {
