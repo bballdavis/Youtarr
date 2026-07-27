@@ -76,7 +76,7 @@ override resolution, folders, ratings, audio format, or file structure.
 optional idempotency key is limited to 200 characters and stored only as a
 SHA-256 digest. Responses use an `outcome` of `created`, `duplicate`, or
 `already_downloaded`, plus a bounded request DTO when a request record exists.
-Pending requests wait for a future administrator approval flow. Keys with
+Pending requests appear in Youtarr's session-authenticated **Requests** area. Keys with
 video auto-approval enabled immediately queue the canonical YouTube URL through
 Youtarr's normal manual-download machinery and channel-owned settings.
 
@@ -85,6 +85,32 @@ Request status is one of `pending`, `approved`, `processing`, `completed`,
 to completed when the downloaded `Videos` record appears. List responses use
 `page` and `pageSize` (maximum 100) and accept one exact `status` filter.
 Reads are always restricted to records created by the calling API key.
+
+### Administrator request review API
+
+The Youtarr web application uses session-authenticated administrator endpoints
+under `/api/external-requests`. These endpoints never accept external API keys
+and never return key hashes or secret values:
+
+- `GET /api/external-requests` lists all video requests with bounded
+  `page`/`pageSize` paging and exact `status` and `apiKeyId` filters.
+- `GET /api/external-requests/{requestId}` returns safe requester, target, and
+  downloader-job metadata.
+- `POST /api/external-requests/{requestId}/approve` confirms and queues a
+  pending request.
+- `POST /api/external-requests/{requestId}/reject` accepts
+  `{"reason":"1 to 300 characters"}` and terminally rejects a pending request.
+
+Approve and reject actions have a dedicated 30-per-minute session/IP rate
+limit. Only `pending -> rejected` and
+`pending -> approved -> processing|completed|failed` transitions are allowed.
+Before approval, Youtarr re-reads and locks the request and current API-key
+policy, then rechecks active/revoked state, role, channel grant, enabled
+channel, cached catalog membership, removal/ignore state, media type, rating,
+downloaded state, and active duplicates. The request UUID is the stable
+downloader job boundary. `processing` and `job_id` are stored only after the
+queue accepts the job. Validation and queue failures are terminal and clear
+the active dedupe key so the client may submit a later request.
 
 Session-authenticated key-management clients can read or replace the complete
 allow-list with `GET` or `PUT /api/keys/{id}/channels`; the PUT body is

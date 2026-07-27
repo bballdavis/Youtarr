@@ -17,6 +17,7 @@ const createYoutubeApiKeyRoutes = require('./youtubeApiKey');
 const createYtdlpOptionsRoutes = require('./ytdlpOptions');
 const createMaintenanceRoutes = require('./maintenance');
 const createSubfolderRoutes = require('./subfolders');
+const createExternalRequestReviewRoutes = require('./externalRequests');
 const { createExternalApiRoutes } = require('./externalApi');
 const videoMetadataModule = require('../modules/videoMetadataModule');
 const videoOembedEnricher = require('../modules/videoOembedEnricher');
@@ -63,6 +64,7 @@ function registerRoutes(app, deps) {
     externalApiAuth,
     externalApiLimiter,
     externalApiWriteLimiter,
+    externalRequestReviewLimiter,
     serverVersion,
   } = deps;
 
@@ -104,6 +106,12 @@ function registerRoutes(app, deps) {
 
   // API Key routes
   app.use(createApiKeyRoutes({ verifyToken }));
+
+  // Session-authenticated administrator review of external requests
+  app.use(createExternalRequestReviewRoutes({
+    verifyToken,
+    reviewLimiter: externalRequestReviewLimiter,
+  }));
 
   // Subscription import routes
   app.use(createSubscriptionRoutes({ verifyToken, subscriptionImportModule }));

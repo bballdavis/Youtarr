@@ -578,6 +578,24 @@ Send videos to Youtarr from anywhere using API keys. This enables one-click down
 
 > **Note**: API keys currently support **single video downloads only**. Playlists and channels require the web UI.
 
+### Review external video requests
+
+Open **Requests** in Youtarr's main navigation to review requests submitted by
+external clients. The page supports status and requester filters, bounded
+paging, request/job details, loading and retry states, and explicit
+confirmation before approval or rejection.
+
+- **Approve** rechecks the requester's current role and policy, its current
+  channel grant, the enabled cached catalog entry, media type, rating, and
+  downloaded/duplicate state before it queues anything.
+- **Reject** requires a short reason. Rejection is final for that request, but
+  clears the active dedupe record so the client can submit a new request later.
+- Requests that are no longer safe or whose downloader job cannot be queued
+  are marked failed without exposing internal errors.
+
+The Requests area uses the logged-in Youtarr session. External API keys cannot
+access the administrator queue or review actions.
+
 ### Create an API Key
 
 1. **Navigate to Configuration**

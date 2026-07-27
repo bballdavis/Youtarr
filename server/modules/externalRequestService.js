@@ -43,13 +43,75 @@ function dto(record) {
   };
 }
 
+function normalizeStoredKey(record) {
+  const value = record?.toJSON ? record.toJSON() : record;
+  if (!value) return null;
+  return {
+    id: value.id,
+    name: value.name,
+    role: value.role,
+    isActive: value.is_active,
+    revokedAt: value.revoked_at,
+    autoApproveVideoRequests: value.auto_approve_video_requests,
+    maxRatingLevel: value.max_rating_level,
+    allowUnrated: value.allow_unrated,
+    allowedMediaTypes: value.allowed_media_types,
+  };
+}
+
+function sanitizeReason(value) {
+  if (typeof value !== 'string') {
+    throw new RequestError('reason is required');
+  }
+  // eslint-disable-next-line no-control-regex
+  const sanitized = value.replace(/[\x00-\x1F\x7F]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (sanitized.length < 1 || sanitized.length > 300) {
+    throw new RequestError('reason must be between 1 and 300 characters');
+  }
+  return sanitized;
+}
+
+function adminDto(record, catalogVideo = null) {
+  const value = record.toJSON ? record.toJSON() : record;
+  const key = value.apiKey || value.api_key || null;
+  const channel = value.channel || null;
+  const job = value.job || null;
+  return {
+    ...dto(record),
+    requester: key ? {
+      id: key.id,
+      name: key.name,
+      keyPrefix: key.key_prefix,
+      role: key.role,
+      isActive: key.is_active === true,
+      revokedAt: key.revoked_at || null,
+    } : null,
+    target: {
+      youtubeId: value.youtube_id,
+      channelId: value.channel_id,
+      youtubeChannelId: channel?.channel_id || null,
+      channelTitle: channel?.title || channel?.uploader || null,
+      title: catalogVideo?.title || null,
+      mediaType: catalogVideo?.media_type || null,
+    },
+    job: job ? {
+      id: job.id,
+      status: job.status,
+      type: job.jobType,
+      createdAt: job.timeCreated,
+      startedAt: job.timeInitiated,
+    } : null,
+  };
+}
+
 function createExternalRequestService({
   models = require('../models'),
   executor = (jobData) => require('./downloadModule').doGroupedManualDownloads(jobData),
   now = () => new Date(),
+  sequelize = require('../db').sequelize,
 } = {}) {
   const {
-    ExternalRequest, ApiKeyChannelGrant, Channel, ChannelVideo, Video, Job,
+    ExternalRequest, ApiKey, ApiKeyChannelGrant, Channel, ChannelVideo, Video, Job,
   } = models;
 
   async function reconcile(records) {
@@ -96,20 +158,24 @@ function createExternalRequestService({
     return records;
   }
 
-  async function validateTarget(key, youtubeId, channelId) {
+  async function validateTarget(key, youtubeId, channelId, transaction = null) {
     const policy = normalizePolicy(key);
-    const [grant, channel] = await Promise.all([
-      ApiKeyChannelGrant.findOne({ where: { api_key_id: key.id, channel_id: channelId } }),
-      Channel.findByPk(channelId, {
-        attributes: ['id', 'channel_id', 'enabled', 'default_rating'],
-      }),
-    ]);
+    const queryOptions = transaction ? { transaction, lock: transaction.LOCK.UPDATE } : {};
+    const grant = await ApiKeyChannelGrant.findOne({
+      where: { api_key_id: key.id, channel_id: channelId },
+      ...queryOptions,
+    });
+    const channel = await Channel.findByPk(channelId, {
+      attributes: ['id', 'channel_id', 'enabled', 'default_rating'],
+      ...queryOptions,
+    });
     if (!grant || !channel || channel.enabled !== true || !channel.channel_id) {
       throw new RequestError('Video not found', 404);
     }
     const cached = await ChannelVideo.findOne({
       where: { youtube_id: youtubeId, channel_id: channel.channel_id },
       attributes: ['youtube_id', 'media_type', 'youtube_removed', 'ignored'],
+      ...queryOptions,
     });
     if (!cached || cached.youtube_removed !== false || cached.ignored !== false) {
       throw new RequestError('Video not found', 404);
@@ -123,6 +189,7 @@ function createExternalRequestService({
     const storedVideo = await Video.findOne({
       where: { youtubeId },
       attributes: ['youtubeId', 'normalized_rating', 'removed'],
+      ...queryOptions,
     });
     if (storedVideo && storedVideo.removed !== true && storedVideo.removed !== false) {
       throw new RequestError('Video is not eligible', 403);
@@ -136,6 +203,56 @@ function createExternalRequestService({
       throw new RequestError('Video is not eligible', 403);
     }
     return { channel, downloaded };
+  }
+
+  const adminIncludes = () => [
+    {
+      model: ApiKey,
+      as: 'apiKey',
+      attributes: [
+        'id', 'name', 'key_prefix', 'role', 'is_active', 'revoked_at',
+        'auto_approve_video_requests', 'max_rating_level', 'allow_unrated',
+        'allowed_media_types',
+      ],
+      required: true,
+    },
+    {
+      model: Channel,
+      as: 'channel',
+      attributes: ['id', 'channel_id', 'title', 'uploader'],
+      required: true,
+    },
+    {
+      model: Job,
+      as: 'job',
+      attributes: ['id', 'status', 'jobType', 'timeCreated', 'timeInitiated'],
+      required: false,
+    },
+  ];
+
+  async function catalogMetadata(records) {
+    const youtubeIds = [...new Set(records.map((record) => record.youtube_id))];
+    if (youtubeIds.length === 0) return new Map();
+    const rows = await ChannelVideo.findAll({
+      where: { youtube_id: youtubeIds },
+      attributes: ['youtube_id', 'channel_id', 'title', 'media_type'],
+    });
+    return new Map(rows.map((row) => {
+      const value = row.toJSON ? row.toJSON() : row;
+      return [`${value.channel_id}:${value.youtube_id}`, value];
+    }));
+  }
+
+  async function adminDtos(records) {
+    const metadata = await catalogMetadata(records);
+    return records.map((record) => {
+      const value = record.toJSON ? record.toJSON() : record;
+      const channel = value.channel;
+      return adminDto(
+        record,
+        metadata.get(`${channel?.channel_id || ''}:${value.youtube_id}`) || null
+      );
+    });
   }
 
   async function findDuplicate(keyId, activeDedupeKey, idempotencyHash, youtubeId, channelId) {
@@ -267,11 +384,15 @@ function createExternalRequestService({
     const where = { api_key_id: key.id, ...(status ? { status } : {}) };
     const result = await ExternalRequest.findAndCountAll({
       where,
-      order: [['created_at', 'DESC'], ['id', 'ASC']],
+      order: [['created_at', 'DESC'], ['id', 'DESC']],
       limit: pageSize,
       offset: (page - 1) * pageSize,
     });
-    await reconcile(result.rows);
+    // A filtered page is a consistent snapshot of the stored status. Mutating
+    // rows after the filtered count would make the response contradict its
+    // own predicate and pagination. Unfiltered polling/detail reads perform
+    // lazy terminal reconciliation.
+    if (!status) await reconcile(result.rows);
     return {
       data: result.rows.map(dto),
       pagination: {
@@ -294,7 +415,220 @@ function createExternalRequestService({
     return dto(record);
   }
 
-  return { createVideoRequest, listRequests, getRequest };
+  async function listAdminRequests(query = {}) {
+    const page = parseInteger(query.page, 1, 1, 1000000, 'page');
+    const pageSize = parseInteger(query.pageSize, 50, 1, 100, 'pageSize');
+    const status = query.status;
+    if (status !== undefined && !REQUEST_STATUSES.includes(status)) {
+      throw new RequestError(`status must be one of: ${REQUEST_STATUSES.join(', ')}`);
+    }
+    const apiKeyId = query.apiKeyId === undefined
+      ? null
+      : parseInteger(query.apiKeyId, null, 1, Number.MAX_SAFE_INTEGER, 'apiKeyId');
+    const where = {
+      request_type: 'video',
+      ...(status ? { status } : {}),
+      ...(apiKeyId ? { api_key_id: apiKeyId } : {}),
+    };
+    const result = await ExternalRequest.findAndCountAll({
+      where,
+      include: adminIncludes(),
+      distinct: true,
+      order: [['created_at', 'DESC'], ['id', 'DESC']],
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+    });
+    if (!status) await reconcile(result.rows);
+    const requesters = await ApiKey.findAll({
+      attributes: ['id', 'name', 'key_prefix', 'role', 'is_active', 'revoked_at'],
+      order: [['name', 'ASC'], ['id', 'ASC']],
+    });
+    return {
+      data: await adminDtos(result.rows),
+      pagination: {
+        page,
+        pageSize,
+        total: result.count,
+        totalPages: result.count === 0 ? 0 : Math.ceil(result.count / pageSize),
+      },
+      filterOptions: {
+        requesters: requesters.map((key) => {
+          const value = key.toJSON ? key.toJSON() : key;
+          return {
+            id: value.id,
+            name: value.name,
+            keyPrefix: value.key_prefix,
+            role: value.role,
+            isActive: value.is_active === true,
+            revokedAt: value.revoked_at || null,
+          };
+        }),
+      },
+    };
+  }
+
+  async function getAdminRequest(id) {
+    if (typeof id !== 'string' ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+      throw new RequestError('Request not found', 404);
+    }
+    const record = await ExternalRequest.findOne({
+      where: { id, request_type: 'video' },
+      include: adminIncludes(),
+    });
+    if (!record) throw new RequestError('Request not found', 404);
+    await reconcile([record]);
+    return (await adminDtos([record]))[0];
+  }
+
+  async function reviewVideoRequest(id, action, input = {}) {
+    if (typeof id !== 'string' ||
+        !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+      throw new RequestError('Request not found', 404);
+    }
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+      throw new RequestError('Request body must be an object');
+    }
+    if (!['approve', 'reject'].includes(action)) {
+      throw new RequestError('Unsupported review action');
+    }
+    const allowedFields = action === 'reject' ? ['reason'] : [];
+    if (Object.keys(input).some((field) => !allowedFields.includes(field))) {
+      throw new RequestError('Request body contains unsupported fields');
+    }
+    const reason = action === 'reject' ? sanitizeReason(input.reason) : null;
+
+    await sequelize.transaction(async (transaction) => {
+      const record = await ExternalRequest.findOne({
+        where: { id, request_type: 'video' },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (!record) throw new RequestError('Request not found', 404);
+
+      if (action === 'reject') {
+        if (record.status !== 'pending') {
+          throw new RequestError('Only pending requests can be rejected', 409);
+        }
+        const rejectedAt = now();
+        await record.update({
+          status: 'rejected',
+          active_dedupe_key: null,
+          message: reason,
+          decided_at: rejectedAt,
+          updated_at: rejectedAt,
+        }, { transaction });
+        return;
+      }
+
+      if (record.status !== 'pending' &&
+          !(record.status === 'approved' && !record.job_id)) {
+        throw new RequestError('Only pending requests can be approved', 409);
+      }
+
+      const failApproval = async (message) => {
+        const failedAt = now();
+        await record.update({
+          status: 'failed',
+          active_dedupe_key: null,
+          message,
+          decided_at: record.decided_at || failedAt,
+          updated_at: failedAt,
+        }, { transaction });
+      };
+
+      const storedKey = await ApiKey.findByPk(record.api_key_id, {
+        attributes: [
+          'id', 'name', 'role', 'is_active', 'revoked_at',
+          'auto_approve_video_requests', 'max_rating_level', 'allow_unrated',
+          'allowed_media_types',
+        ],
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      const key = normalizeStoredKey(storedKey);
+      if (!key || key.isActive !== true || key.revokedAt ||
+          !['request', 'delete', 'admin'].includes(key.role)) {
+        await failApproval('Request is no longer eligible');
+        return;
+      }
+
+      let target;
+      try {
+        target = await validateTarget(key, record.youtube_id, record.channel_id, transaction);
+      } catch (error) {
+        if (!(error instanceof RequestError) && error.name !== 'CatalogError') throw error;
+        await failApproval('Request is no longer eligible');
+        return;
+      }
+      if (target.downloaded) {
+        const completedAt = now();
+        await record.update({
+          status: 'completed',
+          active_dedupe_key: null,
+          message: 'Video is already downloaded',
+          decided_at: record.decided_at || completedAt,
+          completed_at: completedAt,
+          updated_at: completedAt,
+        }, { transaction });
+        return;
+      }
+
+      const duplicate = await ExternalRequest.findOne({
+        where: {
+          id: { [Op.ne]: record.id },
+          active_dedupe_key: `${record.api_key_id}:video:${record.youtube_id}`,
+          status: { [Op.in]: ACTIVE_STATUSES },
+        },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+      if (duplicate) {
+        await failApproval('Another active request already exists');
+        return;
+      }
+
+      const approvedAt = now();
+      if (record.status === 'pending') {
+        await record.update({
+          status: 'approved',
+          decided_at: approvedAt,
+          updated_at: approvedAt,
+        }, { transaction });
+      }
+      try {
+        const jobId = await executor({
+          body: {
+            urls: [`https://www.youtube.com/watch?v=${record.youtube_id}`],
+            channelId: target.channel.channel_id,
+            ownerChannelMap: { [record.youtube_id]: target.channel.channel_id },
+            initiatedBy: { type: 'api_key', name: key.name },
+            jobLabel: 'External video request',
+            externalRequestId: record.id,
+          },
+        });
+        const acceptedAt = now();
+        await record.update({
+          status: 'processing',
+          job_id: jobId || record.id,
+          updated_at: acceptedAt,
+        }, { transaction });
+      } catch (_error) {
+        await failApproval('Download could not be queued');
+      }
+    });
+
+    return getAdminRequest(id);
+  }
+
+  return {
+    createVideoRequest,
+    listRequests,
+    getRequest,
+    listAdminRequests,
+    getAdminRequest,
+    reviewVideoRequest,
+  };
 }
 
 module.exports = {
@@ -303,4 +637,6 @@ module.exports = {
   REQUEST_STATUSES,
   ACTIVE_STATUSES,
   dto,
+  adminDto,
+  sanitizeReason,
 };

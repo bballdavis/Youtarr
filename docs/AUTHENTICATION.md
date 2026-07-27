@@ -143,6 +143,14 @@ management endpoint keeps its existing success response. External API access
 is separately gated by `EXTERNAL_API_ENABLED=true` and never follows the
 `AUTH_ENABLED=false` bypass.
 
+The administrator request-review endpoints under `/api/external-requests`
+require the normal Youtarr session (`x-access-token`). They do not accept an
+external or legacy API key. Their responses expose only a key's numeric ID,
+name, prefix, role, active/revoked state, and request-related metadata; stored
+key hashes and raw secrets are never selected or serialized. These review
+routes remain session-only even when the general `AUTH_ENABLED=false` bypass
+is configured.
+
 If this policy migration is rolled back, keys assigned any external role are
 disabled first. This prevents an older server from treating them as active
 legacy download keys after the role column is removed; legacy download keys

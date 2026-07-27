@@ -113,6 +113,10 @@ const options = {
         description: 'Versioned, API-key-authenticated integration endpoints',
       },
       {
+        name: 'External Requests',
+        description: 'Session-authenticated administrator review of external requests',
+      },
+      {
         name: 'Playlists',
         description: 'YouTube playlist subscriptions and downloads',
       },
@@ -133,6 +137,7 @@ const options = {
     path.join(__dirname, 'routes', 'apikeys.js'),
     path.join(__dirname, 'routes', 'playlists.js'),
     path.join(__dirname, 'routes', 'externalApi.js'),
+    path.join(__dirname, 'routes', 'externalRequests.js'),
   ],
 };
 

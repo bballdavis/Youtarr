@@ -617,6 +617,17 @@ const initialize = async () => {
       keyGenerator: (req) => `external-api-write:${req.externalApiKey?.id || 'unknown'}`,
       handler: (_req, res) => res.status(429).json({ error: 'External API write rate limit exceeded' }),
     });
+    const externalRequestReviewLimiter = rateLimit({
+      windowMs: 60 * 1000,
+      max: 30,
+      standardHeaders: true,
+      legacyHeaders: false,
+      validate: { trustProxy: false, ip: false },
+      keyGenerator: (req) => `external-request-review:${req.sessionId || getRateLimitAddress(req)}`,
+      handler: (_req, res) => res.status(429).json({
+        error: 'External request review rate limit exceeded',
+      }),
+    });
     const externalApiAuth = createExternalApiAuth({
       // Resolve the model-backed module only if an external request arrives.
       // Startup must not initialize ApiKey outside the normal DB lifecycle.
@@ -699,6 +710,7 @@ const initialize = async () => {
       externalApiAuth,
       externalApiLimiter,
       externalApiWriteLimiter,
+      externalRequestReviewLimiter,
       serverVersion: require('../package.json').version,
     });
 
