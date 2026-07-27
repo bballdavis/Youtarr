@@ -12,7 +12,7 @@ import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { HEADER_HEIGHT_DESKTOP, HEADER_HEIGHT_MOBILE, NAV_SIDEBAR_COLLAPSED_WIDTH, NAV_SIDEBAR_EXPANDED_WIDTH } from './navLayoutConstants';
 import './layoutFallback.css';
 
-import { Tv as SubscriptionsIcon, Library as VideoLibraryIcon } from 'lucide-react';
+import { Tv as SubscriptionsIcon, Library as VideoLibraryIcon, ClipboardList as RequestsIcon } from 'lucide-react';
 import { Download as DownloadIcon, Settings as SettingsIcon } from '../../lib/icons';
 
 interface AppShellProps {
@@ -144,6 +144,12 @@ export function AppShell({
           icon: <DownloadIcon />,
           to: '/downloads',
           subItems: downloadsSubItems,
+        },
+        {
+          key: 'requests' as const,
+          label: 'Requests',
+          icon: <RequestsIcon />,
+          to: '/requests',
         },
         {
           key: 'settings' as const,

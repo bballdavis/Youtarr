@@ -43,6 +43,8 @@ ApiKey.hasMany(ExternalRequest, { foreignKey: 'api_key_id', as: 'externalRequest
 ExternalRequest.belongsTo(ApiKey, { foreignKey: 'api_key_id', as: 'apiKey' });
 Channel.hasMany(ExternalRequest, { foreignKey: 'channel_id', as: 'externalRequests' });
 ExternalRequest.belongsTo(Channel, { foreignKey: 'channel_id', as: 'channel' });
+Job.hasMany(ExternalRequest, { foreignKey: 'job_id', as: 'externalRequests' });
+ExternalRequest.belongsTo(Job, { foreignKey: 'job_id', as: 'job' });
 
 module.exports = {
   Job,

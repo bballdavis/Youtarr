@@ -30,6 +30,7 @@ import InitialSetup from './components/InitialSetup';
 import ChannelPage from './components/ChannelPage';
 import PlaylistPage from './components/PlaylistPage';
 import ImportSubscriptionsPage from './components/SubscriptionImport';
+import RequestsPage from './components/ExternalRequests/RequestsPage';
 import ChangelogPage from './components/ChangelogPage';
 import { AuthSplash } from './components/AuthSplash';
 import { useConfig } from './hooks/useConfig';
@@ -539,6 +540,7 @@ function AppContent() {
                           <Route path="/downloads/*" element={<DownloadManager token={token} />} />
                           <Route path="/videos" element={<VideosPage token={token} />} />
                           <Route path="/videos/find" element={<FindVideos token={token} />} />
+                          <Route path="/requests" element={<RequestsPage token={token} />} />
                           <Route path="/channel/:channel_id" element={<ChannelPage token={token} />} />
                           <Route path="/playlist/:id" element={<PlaylistPage token={token} />} />
                           <Route path="/" element={<Navigate to="/subscriptions" replace />} />
