@@ -146,6 +146,7 @@ describe('ratingMapper', () => {
 
     it('maps PG and PG equivalents to 2', () => {
       expect(mapToNumericRating('PG')).toBe(2);
+      expect(mapToNumericRating('TV-Y7')).toBe(2);
       expect(mapToNumericRating('TV-PG')).toBe(2);
     });
 

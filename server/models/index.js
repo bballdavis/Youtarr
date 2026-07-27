@@ -13,6 +13,7 @@ const Subfolder = require('./subfolder');
 const VideoWatchStatus = require('./videowatchstatus');
 const MediaServerUser = require('./mediaserveruser');
 const WatchStatusSyncCursor = require('./watchstatussynccursor');
+const ApiKeyChannelGrant = require('./apikeychannelgrant');
 
 Job.hasMany(JobVideo, { foreignKey: 'job_id', as: 'jobVideos' });
 Job.hasMany(JobVideoDownload, { foreignKey: 'job_id', as: 'jobVideoDownloads' });
@@ -33,6 +34,11 @@ PlaylistSyncState.belongsTo(Playlist, { foreignKey: 'playlist_id', targetKey: 'i
 Video.hasMany(VideoWatchStatus, { foreignKey: 'video_id', as: 'watchStatuses' });
 VideoWatchStatus.belongsTo(Video, { foreignKey: 'video_id', as: 'video' });
 
+ApiKey.hasMany(ApiKeyChannelGrant, { foreignKey: 'api_key_id', as: 'channelGrants' });
+ApiKeyChannelGrant.belongsTo(ApiKey, { foreignKey: 'api_key_id', as: 'apiKey' });
+Channel.hasMany(ApiKeyChannelGrant, { foreignKey: 'channel_id', as: 'apiKeyGrants' });
+ApiKeyChannelGrant.belongsTo(Channel, { foreignKey: 'channel_id', as: 'channel' });
+
 module.exports = {
   Job,
   JobVideo,
@@ -48,4 +54,5 @@ module.exports = {
   VideoWatchStatus,
   MediaServerUser,
   WatchStatusSyncCursor,
+  ApiKeyChannelGrant,
 };

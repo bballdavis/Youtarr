@@ -9,6 +9,7 @@ const express = require('express');
 module.exports = function createApiKeyRoutes({ verifyToken }) {
   const router = express.Router();
   const apiKeyModule = require('../modules/apiKeyModule');
+  const apiKeyChannelGrantModule = require('../modules/apiKeyChannelGrantModule');
 
   /**
    * @swagger
@@ -163,6 +164,49 @@ module.exports = function createApiKeyRoutes({ verifyToken }) {
       }
       req.log.error({ err: error }, 'Failed to update API key policy');
       return res.status(500).json({ error: 'Failed to update API key' });
+    }
+  });
+
+  router.get('/api/keys/:id/channels', verifyToken, async (req, res) => {
+    if (req.authType === 'api_key') {
+      return res.status(403).json({ error: 'API keys cannot manage channel grants' });
+    }
+    const id = Number(req.params.id);
+    if (!Number.isSafeInteger(id) || id < 1) {
+      return res.status(400).json({ error: 'Invalid API key ID' });
+    }
+    try {
+      const grants = await apiKeyChannelGrantModule.getChannelGrants(id);
+      if (!grants) return res.status(404).json({ error: 'API key not found' });
+      return res.json(grants);
+    } catch (error) {
+      if (error.message.includes('Only active external API keys')) {
+        return res.status(400).json({ error: error.message });
+      }
+      req.log.error({ err: error }, 'Failed to list API key channel grants');
+      return res.status(500).json({ error: 'Failed to list channel grants' });
+    }
+  });
+
+  router.put('/api/keys/:id/channels', verifyToken, async (req, res) => {
+    if (req.authType === 'api_key') {
+      return res.status(403).json({ error: 'API keys cannot manage channel grants' });
+    }
+    const id = Number(req.params.id);
+    if (!Number.isSafeInteger(id) || id < 1) {
+      return res.status(400).json({ error: 'Invalid API key ID' });
+    }
+    try {
+      const grants = await apiKeyChannelGrantModule.replaceChannelGrants(id, req.body?.channelIds);
+      if (!grants) return res.status(404).json({ error: 'API key not found' });
+      return res.json({ success: true, ...grants });
+    } catch (error) {
+      if (error.message.includes('channelIds') || error.message.includes('enabled channel') ||
+          error.message.includes('Only active external API keys')) {
+        return res.status(400).json({ error: error.message });
+      }
+      req.log.error({ err: error }, 'Failed to replace API key channel grants');
+      return res.status(500).json({ error: 'Failed to replace channel grants' });
     }
   });
 

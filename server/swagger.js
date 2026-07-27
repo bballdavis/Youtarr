@@ -53,7 +53,13 @@ const options = {
           type: 'apiKey',
           in: 'header',
           name: 'x-api-key',
-          description: 'API key for external integrations (bookmarklets, shortcuts). Only works for /api/videos/download endpoint.',
+          description: 'API key sent to legacy download endpoints or the versioned external API.',
+        },
+        ExternalApiKeyAuth: {
+          type: 'apiKey',
+          in: 'header',
+          name: 'x-api-key',
+          description: 'External-role API key. Channel catalog access also requires an explicit per-key grant.',
         },
       },
     },
@@ -103,6 +109,10 @@ const options = {
         description: 'API key management for external integrations',
       },
       {
+        name: 'External API',
+        description: 'Versioned, API-key-authenticated integration endpoints',
+      },
+      {
         name: 'Playlists',
         description: 'YouTube playlist subscriptions and downloads',
       },
@@ -122,6 +132,7 @@ const options = {
     path.join(__dirname, 'routes', 'videoSearch.js'),
     path.join(__dirname, 'routes', 'apikeys.js'),
     path.join(__dirname, 'routes', 'playlists.js'),
+    path.join(__dirname, 'routes', 'externalApi.js'),
   ],
 };
 
@@ -142,4 +153,3 @@ const setupSwagger = (app) => {
 };
 
 module.exports = { setupSwagger, swaggerSpec };
-

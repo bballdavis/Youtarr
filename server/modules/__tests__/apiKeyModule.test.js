@@ -24,6 +24,9 @@ describe('external API key policies', () => {
     expect(apiKeyModule.validatePolicy({ role: 'view' })).toEqual(expect.objectContaining({
       role: 'view', max_rating_level: 4, allowed_media_types: ['video'],
     }));
+    expect(apiKeyModule.validatePolicy({
+      role: 'view', allowedMediaTypes: ['video', 'short', 'livestream'],
+    }).allowed_media_types).toEqual(['video', 'short', 'livestream']);
   });
 
   test('updates an existing key policy', async () => {

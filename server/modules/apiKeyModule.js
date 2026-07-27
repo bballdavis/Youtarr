@@ -4,7 +4,7 @@ const logger = require('../logger');
 
 const MAX_API_KEYS = 20;
 const ROLES = ['legacy_download', 'view', 'request', 'delete', 'admin'];
-const MEDIA_TYPES = ['video'];
+const MEDIA_TYPES = ['video', 'short', 'livestream'];
 const POLICY_FIELDS = [
   'role', 'autoApproveVideoRequests', 'autoApproveChannelRequests',
   'autoApproveDeleteRequests', 'maxRatingLevel', 'allowUnrated', 'allowedMediaTypes',
@@ -40,7 +40,7 @@ function validatePolicy(policy) {
   }
   if ('allowedMediaTypes' in policy && (!Array.isArray(policy.allowedMediaTypes) || policy.allowedMediaTypes.length === 0 ||
     policy.allowedMediaTypes.some((type) => !MEDIA_TYPES.includes(type)))) {
-    throw new Error('allowedMediaTypes must contain only video');
+    throw new Error('allowedMediaTypes must contain only video, short, or livestream');
   }
   return {
     role: policy.role,
