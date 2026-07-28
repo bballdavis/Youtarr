@@ -561,6 +561,16 @@ describe('external video request service', () => {
       { ...key, role: 'view' }, { youtubeId, channelId: 8 }
     )).rejects.toBeInstanceOf(RequestError);
     await expect(service.createVideoRequest(
+      { ...key, allowVideoRequests: false }, { youtubeId, channelId: 8 }
+    )).rejects.toThrow('video:request scope is required');
+    await expect(service.createChannelRequest(
+      { ...key, allowChannelRequests: false }, { channelUrl: 'youtube.com/@safe' }
+    )).rejects.toThrow('channel:request scope is required');
+    await expect(service.createDeleteVideoRequest(
+      { ...key, role: 'delete', allowDeleteVideoRequests: false },
+      { youtubeId, channelId: 8 }
+    )).rejects.toThrow('video:delete scope is required');
+    await expect(service.createVideoRequest(
       key, { youtubeId, channelId: 8, resolution: '2160' }
     )).rejects.toThrow('unsupported');
     await expect(service.createVideoRequest(key, { youtubeId })).rejects.toThrow('channelId is required');

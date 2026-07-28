@@ -1,6 +1,7 @@
 const EXTERNAL_ROLES = ['view', 'request', 'delete', 'admin'];
 const ALLOWED_MEDIA_TYPES = ['video', 'short', 'livestream'];
 const { sendExternalError } = require('../modules/externalApiResponse');
+const { normalizeExternalPermissions } = require('../modules/externalPermissions');
 
 function normalizeAllowedMediaTypes(value) {
   // Null/missing is the only tolerated legacy shape during migration rollout.
@@ -30,7 +31,8 @@ function createExternalApiAuth({ validateApiKey }) {
         });
       }
       const allowedMediaTypes = normalizeAllowedMediaTypes(apiKey.allowed_media_types);
-      if (!allowedMediaTypes) {
+      const permissions = normalizeExternalPermissions(apiKey);
+      if (!allowedMediaTypes || !permissions) {
         return sendExternalError(res, 401, 'Invalid external API key policy', {
           code: 'invalid_key_policy',
           requestId: req.id,
@@ -43,6 +45,7 @@ function createExternalApiAuth({ validateApiKey }) {
         autoApproveVideoRequests: apiKey.auto_approve_video_requests,
         autoApproveChannelRequests: apiKey.auto_approve_channel_requests,
         autoApproveDeleteRequests: apiKey.auto_approve_delete_requests,
+        ...permissions,
         maxRatingLevel: apiKey.max_rating_level,
         allowUnrated: apiKey.allow_unrated,
         allowedMediaTypes,

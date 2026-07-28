@@ -73,6 +73,9 @@ describe('external API capabilities', () => {
       apiVersion: '1', serverVersion: '1.77.0', role: 'request',
       scopes: ['catalog:read', 'requests:read', 'video:request', 'channel:request'],
       policy: {
+        allowVideoRequests: true,
+        allowChannelRequests: true,
+        allowDeleteVideoRequests: false,
         autoApproveVideoRequests: true, autoApproveChannelRequests: false,
         autoApproveDeleteRequests: false, maxRatingLevel: 3, allowUnrated: false,
         allowedMediaTypes: ['video'],
@@ -82,6 +85,31 @@ describe('external API capabilities', () => {
         recommendations: true, authenticatedAssets: true,
       },
     });
+  });
+
+  test('reports independently configured request scopes', async () => {
+    const { app } = makeApp({
+      key: externalKey({
+        allow_video_requests: true,
+        allow_channel_requests: false,
+        allow_delete_video_requests: false,
+      }),
+    });
+    await request(app).get('/external-api/v1/capabilities')
+      .set('x-api-key', 'test-key')
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.scopes).toEqual([
+          'catalog:read',
+          'requests:read',
+          'video:request',
+        ]);
+        expect(response.body.policy).toEqual(expect.objectContaining({
+          allowVideoRequests: true,
+          allowChannelRequests: false,
+          allowDeleteVideoRequests: false,
+        }));
+      });
   });
 
   test('persists video requests behind the lower write limiter', async () => {

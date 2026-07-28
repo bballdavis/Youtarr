@@ -29,6 +29,9 @@ describe('external API key policies', () => {
     }).allowed_media_types).toEqual(['video', 'short', 'livestream']);
     expect(apiKeyModule.validatePolicy({
       role: 'view',
+      allowVideoRequests: false,
+      allowChannelRequests: false,
+      allowDeleteVideoRequests: false,
       autoApproveVideoRequests: true,
       autoApproveChannelRequests: true,
       autoApproveDeleteRequests: true,
@@ -36,6 +39,21 @@ describe('external API key policies', () => {
       auto_approve_video_requests: false,
       auto_approve_channel_requests: false,
       auto_approve_delete_requests: false,
+    }));
+    expect(apiKeyModule.validatePolicy({
+      role: 'request',
+      allowVideoRequests: true,
+      allowChannelRequests: false,
+      allowDeleteVideoRequests: false,
+      autoApproveVideoRequests: true,
+      autoApproveChannelRequests: true,
+    })).toEqual(expect.objectContaining({
+      role: 'request',
+      allow_video_requests: true,
+      allow_channel_requests: false,
+      allow_delete_video_requests: false,
+      auto_approve_video_requests: true,
+      auto_approve_channel_requests: false,
     }));
   });
 

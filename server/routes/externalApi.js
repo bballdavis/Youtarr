@@ -1,12 +1,6 @@
 const express = require('express');
 const { sendExternalError } = require('../modules/externalApiResponse');
-
-const ROLE_SCOPES = {
-  view: ['catalog:read', 'requests:read'],
-  request: ['catalog:read', 'requests:read', 'video:request', 'channel:request'],
-  delete: ['catalog:read', 'requests:read', 'video:request', 'channel:request', 'video:delete'],
-  admin: ['catalog:read', 'requests:read', 'video:request', 'channel:request', 'video:delete'],
-};
+const { scopesForExternalKey } = require('../modules/externalPermissions');
 
 function createExternalApiRoutes({
   externalApiAuth,
@@ -37,12 +31,16 @@ function createExternalApiRoutes({
    */
   router.get('/capabilities', (req, res) => {
     const key = req.externalApiKey;
+    const scopes = scopesForExternalKey(key) || [];
     res.json({
       apiVersion: '1',
       serverVersion,
       role: key.role,
-      scopes: ROLE_SCOPES[key.role] || [],
+      scopes,
       policy: {
+        allowVideoRequests: key.allowVideoRequests,
+        allowChannelRequests: key.allowChannelRequests,
+        allowDeleteVideoRequests: key.allowDeleteVideoRequests,
         autoApproveVideoRequests: key.autoApproveVideoRequests,
         autoApproveChannelRequests: key.autoApproveChannelRequests,
         autoApproveDeleteRequests: key.autoApproveDeleteRequests,
@@ -367,4 +365,4 @@ function createExternalApiRoutes({
   return router;
 }
 
-module.exports = { createExternalApiRoutes, ROLE_SCOPES };
+module.exports = { createExternalApiRoutes };

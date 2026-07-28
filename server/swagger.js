@@ -111,7 +111,11 @@ const options = {
             role: {
               type: 'string',
               enum: ['view', 'request', 'delete', 'admin'],
+              description: 'Backward-compatible summary; clients should use explicit permissions.',
             },
+            allowVideoRequests: { type: 'boolean', default: false },
+            allowChannelRequests: { type: 'boolean', default: false },
+            allowDeleteVideoRequests: { type: 'boolean', default: false },
             autoApproveVideoRequests: { type: 'boolean', default: false },
             autoApproveChannelRequests: { type: 'boolean', default: false },
             autoApproveDeleteRequests: { type: 'boolean', default: false },
