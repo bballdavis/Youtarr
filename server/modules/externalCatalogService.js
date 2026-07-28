@@ -3,12 +3,11 @@ const path = require('path');
 const { QueryTypes } = require('sequelize');
 const { sequelize } = require('../db');
 const configModule = require('./configModule');
-const ratingMapper = require('./ratingMapper');
+const { normalizeExternalPolicy, ratingPolicy } = require('./externalEligibility');
 
-const MEDIA_TYPES = ['video', 'short', 'livestream'];
 const TAB_MEDIA_TYPES = { videos: 'video', shorts: 'short', streams: 'livestream' };
-const RATINGS = ['G', 'TV-Y', 'TV-Y7', 'TV-G', 'PG', 'TV-PG', 'PG-13', 'TV-14', 'R', 'TV-MA', 'NC-17'];
 const SAFE_THUMBNAIL_HOSTS = ['ytimg.com', 'ggpht.com', 'googleusercontent.com'];
+const ACTIVE_REQUEST_STATUSES = ['pending', 'approved', 'processing'];
 
 class CatalogError extends Error {
   constructor(message, status = 400) {
@@ -48,27 +47,11 @@ function normalizeDate(value, name, endOfDay = false) {
 }
 
 function normalizePolicy(policy) {
-  const maxRatingLevel = policy?.maxRatingLevel;
-  const allowUnrated = policy?.allowUnrated;
-  const allowedMediaTypes = policy?.allowedMediaTypes;
-  if (!Number.isInteger(maxRatingLevel) || maxRatingLevel < 1 || maxRatingLevel > 4 ||
-      typeof allowUnrated !== 'boolean' || !Array.isArray(allowedMediaTypes) ||
-      allowedMediaTypes.length === 0 ||
-      allowedMediaTypes.some((type) => !MEDIA_TYPES.includes(type))) {
-    throw new CatalogError('Invalid external API key policy', 401);
-  }
-  return {
-    maxRatingLevel,
-    allowUnrated,
-    allowedMediaTypes: [...new Set(allowedMediaTypes)],
-  };
+  return normalizeExternalPolicy(policy, CatalogError);
 }
 
 function ratingSql(policy, effectiveRatingSql) {
-  const recognizedRatings = RATINGS.filter((rating) => ratingMapper.mapToNumericRating(rating) !== null);
-  const allowedRatings = recognizedRatings.filter(
-    (rating) => ratingMapper.mapToNumericRating(rating) <= policy.maxRatingLevel
-  );
+  const { recognizedRatings, allowedRatings } = ratingPolicy(policy);
   const clauses = [`${effectiveRatingSql} IN (:allowedRatings)`];
   if (policy.allowUnrated) {
     clauses.push(`(${effectiveRatingSql} IS NULL OR ${effectiveRatingSql} NOT IN (:recognizedRatings))`);
@@ -79,8 +62,8 @@ function ratingSql(policy, effectiveRatingSql) {
   };
 }
 
-function pagination(query) {
-  const page = parseInteger(query.page, 1, 1, 1000000, 'page');
+function pagination(query, maximumPage = 1000000) {
+  const page = parseInteger(query.page, 1, 1, maximumPage, 'page');
   const pageSize = parseInteger(query.pageSize, 50, 1, 100, 'pageSize');
   return { page, pageSize, offset: (page - 1) * pageSize };
 }
@@ -128,16 +111,24 @@ async function listChannels(key, query = {}) {
   const sortOrder = (query.sortOrder || 'asc').toLowerCase();
   if (!['asc', 'desc'].includes(sortOrder)) throw new CatalogError('sortOrder must be asc or desc');
 
-  const effectiveRating = 'COALESCE(v.normalized_rating, c.default_rating)';
+  const effectiveRating =
+    'COALESCE(NULLIF(v.normalized_rating, \'\'), NULLIF(c.default_rating, \'\'))';
   const ratings = ratingSql(policy, effectiveRating);
   const videoPolicy = `cv.youtube_removed = false AND cv.ignored = false
     AND cv.media_type IN (:allowedMediaTypes) AND ${ratings.sql}`;
   const whereSearch = search
     ? 'AND (LOWER(COALESCE(c.title, c.uploader, \'\')) LIKE :search OR LOWER(COALESCE(c.description, \'\')) LIKE :search)'
     : '';
+  const subfolder = query.subfolder === undefined || query.subfolder === ''
+    ? null
+    : String(query.subfolder);
+  if (subfolder && subfolder.length > 255) {
+    throw new CatalogError('subfolder must be 255 characters or fewer');
+  }
+  const whereSubfolder = subfolder ? 'AND c.sub_folder = :subfolder' : '';
   const replacements = {
     keyId: key.id, allowedMediaTypes: policy.allowedMediaTypes, search,
-    pageSize, offset, ...ratings.replacements,
+    subfolder, pageSize, offset, ...ratings.replacements,
   };
 
   const countRows = await sequelize.query(
@@ -145,7 +136,7 @@ async function listChannels(key, query = {}) {
        FROM channels c
        INNER JOIN api_key_channel_grants g
          ON g.channel_id = c.id AND g.api_key_id = :keyId
-      WHERE c.enabled = true ${whereSearch}`,
+      WHERE c.enabled = true AND c.terminated_at IS NULL ${whereSearch} ${whereSubfolder}`,
     { replacements, type: QueryTypes.SELECT }
   );
   const rows = await sequelize.query(
@@ -160,7 +151,7 @@ async function listChannels(key, query = {}) {
        FROM channels c
        INNER JOIN api_key_channel_grants g
          ON g.channel_id = c.id AND g.api_key_id = :keyId
-      WHERE c.enabled = true ${whereSearch}
+      WHERE c.enabled = true AND c.terminated_at IS NULL ${whereSearch} ${whereSubfolder}
       ORDER BY ${sortColumns[sortBy]} ${sortOrder.toUpperCase()}, c.id ASC
       LIMIT :pageSize OFFSET :offset`,
     { replacements, type: QueryTypes.SELECT }
@@ -205,19 +196,24 @@ async function listChannelVideos(key, channelDatabaseId, query = {}) {
   const dateFrom = normalizeDate(query.dateFrom, 'dateFrom');
   const dateTo = normalizeDate(query.dateTo, 'dateTo', true);
   if (dateFrom && dateTo && dateFrom > dateTo) throw new CatalogError('dateFrom cannot exceed dateTo');
+  const status = query.status || null;
+  if (status && !['downloaded', 'available', 'requested'].includes(status)) {
+    throw new CatalogError('status must be downloaded, available, or requested');
+  }
 
   const channelRows = await sequelize.query(
     `SELECT c.id, c.channel_id, COALESCE(c.title, c.uploader, '') AS title, c.lastFetchedByTab
        FROM channels c
        INNER JOIN api_key_channel_grants g
          ON g.channel_id = c.id AND g.api_key_id = :keyId
-      WHERE c.id = :channelDatabaseId AND c.enabled = true
+      WHERE c.id = :channelDatabaseId AND c.enabled = true AND c.terminated_at IS NULL
       LIMIT 1`,
     { replacements: { keyId: key.id, channelDatabaseId: id }, type: QueryTypes.SELECT }
   );
   if (channelRows.length === 0) throw new CatalogError('Channel not found', 404);
   const channel = channelRows[0];
-  const effectiveRating = 'COALESCE(v.normalized_rating, c.default_rating)';
+  const effectiveRating =
+    'COALESCE(NULLIF(v.normalized_rating, \'\'), NULLIF(c.default_rating, \'\'))';
   const ratings = ratingSql(policy, effectiveRating);
   const filters = [
     'cv.channel_id = c.channel_id',
@@ -231,6 +227,17 @@ async function listChannelVideos(key, channelDatabaseId, query = {}) {
   if (search) filters.push('LOWER(cv.title) LIKE :search');
   if (dateFrom) filters.push('cv.publishedAt >= :dateFrom');
   if (dateTo) filters.push('cv.publishedAt <= :dateTo');
+  if (status === 'downloaded') filters.push('v.id IS NOT NULL AND v.removed = false');
+  if (status === 'available') filters.push('(v.id IS NULL OR v.removed = true)');
+  if (status === 'requested') {
+    filters.push(`EXISTS (
+      SELECT 1 FROM external_requests er
+       WHERE er.api_key_id = :keyId
+         AND er.request_type = 'video'
+         AND er.youtube_id = cv.youtube_id
+         AND er.status IN ('pending', 'approved', 'processing')
+    )`);
+  }
   const replacements = {
     keyId: key.id, channelDatabaseId: id, mediaType, minDuration, maxDuration, search, dateFrom, dateTo,
     pageSize, offset, ...ratings.replacements,
@@ -270,7 +277,7 @@ async function listChannelVideos(key, channelDatabaseId, query = {}) {
       duration: row.duration,
       description: row.description || null,
       isDownloaded: Boolean(row.downloaded_id) && !row.downloaded_removed,
-      isRequested: Boolean(row.request_status),
+      isRequested: ACTIVE_REQUEST_STATUSES.includes(row.request_status),
       requestStatus: row.request_status || null,
       rating: row.rating || null,
       channelId: channel.channel_id,
@@ -285,6 +292,117 @@ async function listChannelVideos(key, channelDatabaseId, query = {}) {
   };
 }
 
+async function listVideos(key, query = {}) {
+  const policy = normalizePolicy(key);
+  const { page, pageSize, offset } = pagination(query, 3);
+  const search = normalizeSearch(query.search);
+  const tabType = query.tabType || null;
+  const mediaType = tabType ? TAB_MEDIA_TYPES[tabType] : null;
+  if (tabType && !mediaType) throw new CatalogError('tabType must be videos, shorts, or streams');
+  if (mediaType && !policy.allowedMediaTypes.includes(mediaType)) {
+    throw new CatalogError('Media type is not allowed', 403);
+  }
+  const sortColumns = { date: 'cv.publishedAt', title: 'cv.title', duration: 'cv.duration' };
+  const sortBy = query.sortBy || 'date';
+  if (!sortColumns[sortBy]) throw new CatalogError('sortBy must be date, title, or duration');
+  const sortOrder = (query.sortOrder || 'desc').toLowerCase();
+  if (!['asc', 'desc'].includes(sortOrder)) throw new CatalogError('sortOrder must be asc or desc');
+  const status = query.status || null;
+  if (status && !['downloaded', 'available', 'requested'].includes(status)) {
+    throw new CatalogError('status must be downloaded, available, or requested');
+  }
+  const effectiveRating =
+    'COALESCE(NULLIF(v.normalized_rating, \'\'), NULLIF(c.default_rating, \'\'))';
+  const ratings = ratingSql(policy, effectiveRating);
+  const filters = [
+    'c.enabled = true',
+    'c.terminated_at IS NULL',
+    'cv.youtube_removed = false',
+    'cv.ignored = false',
+    'cv.media_type IN (:allowedMediaTypes)',
+    ratings.sql,
+  ];
+  if (mediaType) filters.push('cv.media_type = :mediaType');
+  if (search) filters.push('LOWER(cv.title) LIKE :search');
+  if (status === 'downloaded') filters.push('v.id IS NOT NULL AND v.removed = false');
+  if (status === 'available') filters.push('(v.id IS NULL OR v.removed = true)');
+  if (status === 'requested') {
+    filters.push(`EXISTS (
+      SELECT 1 FROM external_requests er2
+       WHERE er2.api_key_id = :keyId
+         AND er2.request_type = 'video'
+         AND er2.youtube_id = cv.youtube_id
+         AND er2.status IN ('pending', 'approved', 'processing')
+    )`);
+  }
+  const replacements = {
+    keyId: key.id,
+    allowedMediaTypes: policy.allowedMediaTypes,
+    mediaType,
+    search,
+    pageSize,
+    offset,
+    ...ratings.replacements,
+  };
+  const from = `FROM channelvideos cv
+    INNER JOIN channels c ON c.channel_id = cv.channel_id
+    INNER JOIN api_key_channel_grants g
+      ON g.channel_id = c.id AND g.api_key_id = :keyId
+    LEFT JOIN Videos v ON v.youtubeId = cv.youtube_id
+    WHERE ${filters.join(' AND ')}`;
+  const countRows = await sequelize.query(
+    `SELECT COUNT(*) AS total ${from}`,
+    { replacements, type: QueryTypes.SELECT }
+  );
+  const rows = await sequelize.query(
+    `SELECT cv.youtube_id, cv.title, cv.thumbnail, cv.publishedAt, cv.published_at_source,
+            cv.duration, cv.media_type, v.description, v.id AS downloaded_id,
+            v.removed AS downloaded_removed, ${effectiveRating} AS rating,
+            c.id AS channel_database_id, c.channel_id, COALESCE(c.title, c.uploader, '') AS channel_title,
+            (SELECT er.status
+               FROM external_requests er
+              WHERE er.api_key_id = :keyId
+                AND er.request_type = 'video'
+                AND er.youtube_id = cv.youtube_id
+              ORDER BY er.created_at DESC, er.id DESC
+              LIMIT 1) AS request_status
+       ${from}
+      ORDER BY ${sortColumns[sortBy]} ${sortOrder.toUpperCase()}, cv.youtube_id ASC
+      LIMIT :pageSize OFFSET :offset`,
+    { replacements, type: QueryTypes.SELECT }
+  );
+  const total = Number(countRows[0]?.total || 0);
+  return {
+    data: rows.map((row) => ({
+      youtubeId: row.youtube_id,
+      title: row.title,
+      thumbnailUrl: publicVideoThumbnail(row.thumbnail) ||
+        `/external-api/v1/assets/videos/${row.youtube_id}/thumbnail`,
+      publishedAt: row.published_at_source === 'estimated' ? null : row.publishedAt,
+      duration: row.duration,
+      description: row.description || null,
+      isDownloaded: Boolean(row.downloaded_id) && !row.downloaded_removed,
+      isRequested: ACTIVE_REQUEST_STATUSES.includes(row.request_status),
+      requestStatus: row.request_status || null,
+      rating: row.rating || null,
+      channelDatabaseId: row.channel_database_id,
+      channelId: row.channel_id,
+      channelTitle: row.channel_title,
+      mediaType: row.media_type,
+    })),
+    pagination: {
+      page,
+      pageSize,
+      total,
+      totalPages: total === 0 ? 0 : Math.min(3, Math.ceil(total / pageSize)),
+    },
+    dataSource: 'cache',
+    isFullyIndexed: true,
+    lastIndexedAt: null,
+    indexingHint: null,
+  };
+}
+
 async function getChannelThumbnail(key, channelDatabaseId) {
   normalizePolicy(key);
   const id = parseInteger(channelDatabaseId, null, 1, Number.MAX_SAFE_INTEGER, 'channel id');
@@ -293,7 +411,7 @@ async function getChannelThumbnail(key, channelDatabaseId) {
        FROM channels c
        INNER JOIN api_key_channel_grants g
          ON g.channel_id = c.id AND g.api_key_id = :keyId
-      WHERE c.id = :channelDatabaseId AND c.enabled = true
+      WHERE c.id = :channelDatabaseId AND c.enabled = true AND c.terminated_at IS NULL
       LIMIT 1`,
     { replacements: { keyId: key.id, channelDatabaseId: id }, type: QueryTypes.SELECT }
   );
@@ -313,10 +431,58 @@ async function getChannelThumbnail(key, channelDatabaseId) {
   }
 }
 
+async function getVideoThumbnail(key, youtubeId) {
+  const policy = normalizePolicy(key);
+  if (typeof youtubeId !== 'string' || !/^[A-Za-z0-9_-]{11}$/.test(youtubeId)) {
+    throw new CatalogError('Thumbnail not found', 404);
+  }
+  const effectiveRating =
+    'COALESCE(NULLIF(v.normalized_rating, \'\'), NULLIF(c.default_rating, \'\'))';
+  const ratings = ratingSql(policy, effectiveRating);
+  const rows = await sequelize.query(
+    `SELECT cv.youtube_id
+       FROM channelvideos cv
+       INNER JOIN channels c ON c.channel_id = cv.channel_id
+       INNER JOIN api_key_channel_grants g
+         ON g.channel_id = c.id AND g.api_key_id = :keyId
+       LEFT JOIN Videos v ON v.youtubeId = cv.youtube_id
+      WHERE cv.youtube_id = :youtubeId
+        AND c.enabled = true AND c.terminated_at IS NULL
+        AND cv.youtube_removed = false AND cv.ignored = false
+        AND cv.media_type IN (:allowedMediaTypes)
+        AND ${ratings.sql}
+      LIMIT 1`,
+    {
+      replacements: {
+        keyId: key.id,
+        youtubeId,
+        allowedMediaTypes: policy.allowedMediaTypes,
+        ...ratings.replacements,
+      },
+      type: QueryTypes.SELECT,
+    }
+  );
+  if (rows.length === 0) throw new CatalogError('Thumbnail not found', 404);
+  try {
+    const imageDirectory = await fs.realpath(path.resolve(configModule.getImagePath()));
+    const candidatePath = path.resolve(imageDirectory, `videothumb-${youtubeId}.jpg`);
+    if (path.dirname(candidatePath) !== imageDirectory) throw new Error('unsafe path');
+    const stat = await fs.lstat(candidatePath);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('not a regular file');
+    const absolutePath = await fs.realpath(candidatePath);
+    if (path.dirname(absolutePath) !== imageDirectory) throw new Error('unsafe target');
+    return absolutePath;
+  } catch (_error) {
+    throw new CatalogError('Thumbnail not found', 404);
+  }
+}
+
 module.exports = {
   listChannels,
   listChannelVideos,
+  listVideos,
   getChannelThumbnail,
+  getVideoThumbnail,
   CatalogError,
   normalizePolicy,
   publicVideoThumbnail,
