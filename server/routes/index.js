@@ -19,6 +19,7 @@ const createMaintenanceRoutes = require('./maintenance');
 const createSubfolderRoutes = require('./subfolders');
 const createExternalRequestReviewRoutes = require('./externalRequests');
 const { createExternalApiRoutes } = require('./externalApi');
+const { sendExternalError } = require('../modules/externalApiResponse');
 const videoMetadataModule = require('../modules/videoMetadataModule');
 const videoOembedEnricher = require('../modules/videoOembedEnricher');
 const playlistModule = require('../modules/playlistModule');
@@ -138,10 +139,15 @@ function registerRoutes(app, deps) {
       externalApiWriteLimiter,
       serverVersion,
     }));
-  } else {
-    // Do not allow the SPA fallback to make an enabled-looking external API.
-    app.use('/external-api', (_req, res) => res.status(404).json({ error: 'Not found' }));
   }
+  // Do not allow unknown or disabled external routes to fall through to the
+  // SPA. Keep the public namespace on the same versioned error contract.
+  app.use('/external-api', (req, res) =>
+    sendExternalError(res, 404, 'External API route not found', {
+      code: 'not_found',
+      requestId: req.id,
+    })
+  );
 
   // Defensive redirect: /channels -> /subscriptions (frontend handles client-side routing,
   // this fallback covers direct server-side hits during the transition period)
