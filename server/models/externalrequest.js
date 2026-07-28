@@ -12,13 +12,15 @@ ExternalRequest.init(
   {
     id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true, allowNull: false },
     api_key_id: { type: DataTypes.INTEGER, allowNull: false },
-    channel_id: { type: DataTypes.INTEGER, allowNull: false },
-    youtube_id: { type: DataTypes.STRING(32), allowNull: false },
+    channel_id: { type: DataTypes.INTEGER, allowNull: true },
+    youtube_id: { type: DataTypes.STRING(32), allowNull: true },
+    channel_url: { type: DataTypes.STRING(500), allowNull: true },
+    grant_to_requesting_key: { type: DataTypes.BOOLEAN, allowNull: true },
     request_type: {
       type: DataTypes.STRING(20),
       allowNull: false,
       defaultValue: 'video',
-      validate: { isIn: [['video']] },
+      validate: { isIn: [['video', 'channel', 'delete_video']] },
     },
     status: {
       type: DataTypes.STRING(20),
@@ -50,6 +52,10 @@ ExternalRequest.init(
       {
         fields: ['api_key_id', 'request_type', 'youtube_id', 'created_at', 'id'],
         name: 'external_requests_catalog_status_idx',
+      },
+      {
+        fields: ['request_type', 'status', 'created_at', 'id'],
+        name: 'external_requests_management_idx',
       },
     ],
   }
