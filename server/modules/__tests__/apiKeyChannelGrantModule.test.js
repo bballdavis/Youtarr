@@ -3,6 +3,7 @@ jest.mock('../../db', () => ({
     transaction: jest.fn(async (callback) => callback({ id: 'transaction' })),
   },
 }));
+const { Op } = require('sequelize');
 jest.mock('../../models', () => ({
   ApiKey: { findByPk: jest.fn() },
   ApiKeyChannelGrant: {
@@ -31,6 +32,27 @@ describe('API key channel grants', () => {
       [{ api_key_id: 7, channel_id: 3 }, { api_key_id: 7, channel_id: 9 }],
       { transaction: { id: 'transaction' } }
     );
+  });
+
+  test('lists only grants whose channels are still enabled and non-terminated', async () => {
+    ApiKey.findByPk.mockResolvedValue({
+      id: 7, role: 'view', is_active: true, revoked_at: null,
+    });
+    ApiKeyChannelGrant.findAll.mockResolvedValue([{ channel_id: 3 }]);
+
+    await expect(grants.getChannelGrants(7)).resolves.toEqual({
+      keyId: 7,
+      channelIds: [3],
+    });
+    expect(ApiKeyChannelGrant.findAll).toHaveBeenCalledWith(expect.objectContaining({
+      where: { api_key_id: 7 },
+      include: [expect.objectContaining({
+        model: Channel,
+        as: 'channel',
+        required: true,
+        where: { enabled: true, terminated_at: { [Op.is]: null } },
+      })],
+    }));
   });
 
   test('rejects legacy keys before changing grants', async () => {

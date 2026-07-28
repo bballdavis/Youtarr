@@ -30,6 +30,14 @@ const mockApiKeys = [
     last_used_at: '2024-01-20T15:45:00Z',
     is_active: true,
     usage_count: 42,
+    role: 'legacy_download',
+    auto_approve_video_requests: false,
+    auto_approve_channel_requests: false,
+    auto_approve_delete_requests: false,
+    max_rating_level: 3,
+    allow_unrated: false,
+    allowed_media_types: ['video'],
+    revoked_at: null,
   },
   {
     id: 2,
@@ -39,6 +47,14 @@ const mockApiKeys = [
     last_used_at: null,
     is_active: true,
     usage_count: 0,
+    role: 'legacy_download',
+    auto_approve_video_requests: false,
+    auto_approve_channel_requests: false,
+    auto_approve_delete_requests: false,
+    max_rating_level: 3,
+    allow_unrated: false,
+    allowed_media_types: ['video'],
+    revoked_at: null,
   },
 ];
 
@@ -90,20 +106,18 @@ describe('ApiKeysSection Component', () => {
       expect(screen.getByText(/API Keys/i)).toBeInTheDocument();
     });
 
-    test('shows single video limitation note', async () => {
-      const user = userEvent.setup();
+    test('distinguishes legacy downloads from constrained external access', async () => {
       mockFetch.mockResolvedValue({
         ok: true,
         json: jest.fn().mockResolvedValue({ keys: [] }),
       });
-      
+
       const props = createSectionProps();
       renderWithProviders(<ApiKeysSection {...props} />);
 
-
-      await waitFor(() => {
-        expect(screen.getByText(/single video downloads only/i)).toBeInTheDocument();
-      });
+      expect(await screen.findByText(/Legacy keys support the bookmarklet download endpoint/i))
+        .toBeInTheDocument();
+      expect(screen.getByText('/external-api/v1')).toBeInTheDocument();
     });
   });
 
@@ -232,7 +246,7 @@ describe('ApiKeysSection Component', () => {
       });
     });
 
-    test('shows delete button for each key', async () => {
+    test('shows revoke button for each active key', async () => {
       const user = userEvent.setup();
       mockFetch.mockResolvedValue({
         ok: true,
@@ -244,8 +258,8 @@ describe('ApiKeysSection Component', () => {
 
 
       await waitFor(() => {
-        const deleteButtons = screen.getAllByRole('button', { name: /Delete/i });
-        expect(deleteButtons).toHaveLength(2);
+        const revokeButtons = screen.getAllByRole('button', { name: /Revoke/i });
+        expect(revokeButtons).toHaveLength(2);
       });
     });
 
@@ -263,6 +277,134 @@ describe('ApiKeysSection Component', () => {
       // Check that usage counts are displayed
       expect(await screen.findByText('42')).toBeInTheDocument();
       expect(screen.getByText('0')).toBeInTheDocument();
+    });
+  });
+
+  describe('External access editor', () => {
+    test('confirms and atomically saves policy with channel grants', async () => {
+      const externalKey = {
+        ...mockApiKeys[0],
+        id: 7,
+        name: 'External Client',
+        role: 'request',
+        key_prefix: 'feed1234',
+      };
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ keys: [externalKey] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ keyId: 7, channelIds: [] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            channels: [{
+              database_id: 12,
+              channel_id: 'UC1234567890123456789012',
+              uploader: 'Safe Channel',
+              title: 'Safe Channel',
+              terminated_at: null,
+            }],
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            success: true,
+            key: externalKey,
+            channelIds: [12],
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ keys: [externalKey] }),
+        });
+      const confirm = jest.spyOn(window, 'confirm').mockReturnValue(true);
+      const user = userEvent.setup();
+      renderWithProviders(<ApiKeysSection {...createSectionProps()} />);
+
+      await user.click(await screen.findByRole('button', { name: 'Edit external access' }));
+      expect(screen.getByRole('button', { name: 'Maximum allowed rating' }))
+        .toHaveTextContent('Teen · Movies PG-13 · TV TV-14');
+      expect(screen.getByText(/channel's manually assigned default rating/i))
+        .toBeInTheDocument();
+      await user.click(await screen.findByLabelText('Safe Channel'));
+      await user.click(screen.getByRole('button', { name: 'Save External Access' }));
+
+      await waitFor(() => expect(mockFetch).toHaveBeenCalledWith(
+        '/api/keys/7/external-access',
+        expect.objectContaining({
+          method: 'PUT',
+          body: JSON.stringify({
+            policy: {
+              role: 'request',
+              autoApproveVideoRequests: false,
+              autoApproveChannelRequests: false,
+              autoApproveDeleteRequests: false,
+              maxRatingLevel: 3,
+              allowUnrated: false,
+              allowedMediaTypes: ['video'],
+            },
+            channelIds: [12],
+          }),
+        })
+      ));
+      expect(confirm).toHaveBeenCalled();
+      confirm.mockRestore();
+    });
+
+    test('loads every channel page before presenting grant choices', async () => {
+      const externalKey = {
+        ...mockApiKeys[0],
+        id: 7,
+        name: 'External Client',
+        role: 'request',
+        key_prefix: 'feed1234',
+      };
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ keys: [externalKey] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({ keyId: 7, channelIds: [] }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            channels: [{
+              database_id: 12,
+              uploader: 'First Page Channel',
+              terminated_at: null,
+            }],
+            totalPages: 2,
+          }),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            channels: [{
+              database_id: 112,
+              uploader: 'Second Page Channel',
+              terminated_at: null,
+            }],
+            totalPages: 2,
+          }),
+        });
+      const user = userEvent.setup();
+      renderWithProviders(<ApiKeysSection {...createSectionProps()} />);
+
+      await user.click(await screen.findByRole('button', { name: 'Edit external access' }));
+
+      expect(await screen.findByLabelText('Second Page Channel')).toBeInTheDocument();
+      expect(mockFetch).toHaveBeenCalledWith(
+        '/getchannels?page=2&pageSize=100&sortOrder=asc',
+        { headers: { 'x-access-token': 'test-token-123' } }
+      );
     });
   });
 
@@ -418,8 +560,8 @@ describe('ApiKeysSection Component', () => {
     });
   });
 
-  describe('Delete API Key', () => {
-    test('opens confirmation dialog when delete button is clicked', async () => {
+  describe('Revoke API Key', () => {
+    test('opens confirmation dialog when revoke button is clicked', async () => {
       const user = userEvent.setup();
       mockFetch.mockResolvedValue({
         ok: true,
@@ -434,13 +576,13 @@ describe('ApiKeysSection Component', () => {
         expect(screen.getByText('My Bookmarklet')).toBeInTheDocument();
       });
 
-      const deleteButtons = screen.getAllByRole('button', { name: /Delete/i });
-      await user.click(deleteButtons[0]);
+      const revokeButtons = screen.getAllByRole('button', { name: /Revoke/i });
+      await user.click(revokeButtons[0]);
 
-      expect(screen.getByText(/Delete API Key\?/i)).toBeInTheDocument();
+      expect(screen.getByText(/Revoke API Key\?/i)).toBeInTheDocument();
       // The key name appears in both the table and dialog, so check for all instances
       expect(screen.getAllByText(/My Bookmarklet/i).length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByText(/cannot be undone/i)).toBeInTheDocument();
+      expect(screen.getByText(/stop working immediately/i)).toBeInTheDocument();
     });
 
     test('closes confirmation dialog when Cancel is clicked', async () => {
@@ -458,17 +600,17 @@ describe('ApiKeysSection Component', () => {
         expect(screen.getByText('My Bookmarklet')).toBeInTheDocument();
       });
 
-      const deleteButtons = screen.getAllByRole('button', { name: /Delete/i });
-      await user.click(deleteButtons[0]);
+      const revokeButtons = screen.getAllByRole('button', { name: /Revoke/i });
+      await user.click(revokeButtons[0]);
 
       await user.click(screen.getByRole('button', { name: /Cancel/i }));
 
       await waitFor(() => {
-        expect(screen.queryByText(/Delete API Key\?/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/Revoke API Key\?/i)).not.toBeInTheDocument();
       });
     });
 
-    test('deletes key when confirmed', async () => {
+    test('revokes key when confirmed', async () => {
       const user = userEvent.setup();
       
       mockFetch
@@ -493,12 +635,11 @@ describe('ApiKeysSection Component', () => {
         expect(screen.getByText('My Bookmarklet')).toBeInTheDocument();
       });
 
-      const deleteButtons = screen.getAllByRole('button', { name: /Delete/i });
-      await user.click(deleteButtons[0]);
+      const revokeButtons = screen.getAllByRole('button', { name: /Revoke/i });
+      await user.click(revokeButtons[0]);
 
-      // Click the Delete button in the confirmation dialog
-      const confirmDeleteButton = screen.getByRole('button', { name: /^Delete$/i });
-      await user.click(confirmDeleteButton);
+      const confirmRevokeButton = screen.getByRole('button', { name: /^Revoke$/i });
+      await user.click(confirmRevokeButton);
 
       await waitFor(() => {
         expect(mockFetch).toHaveBeenCalledWith('/api/keys/1', expect.objectContaining({
@@ -655,7 +796,7 @@ describe('ApiKeysSection Component', () => {
       });
     });
 
-    test('delete buttons have accessible tooltips', async () => {
+    test('revoke buttons have accessible tooltips', async () => {
       const user = userEvent.setup();
       mockFetch.mockResolvedValue({
         ok: true,
@@ -667,10 +808,9 @@ describe('ApiKeysSection Component', () => {
 
 
       await waitFor(() => {
-        const deleteButtons = screen.getAllByRole('button', { name: /Delete/i });
-        expect(deleteButtons).toHaveLength(2);
+        const revokeButtons = screen.getAllByRole('button', { name: /Revoke/i });
+        expect(revokeButtons).toHaveLength(2);
       });
     });
   });
 });
-
