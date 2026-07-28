@@ -1,5 +1,6 @@
 const EXTERNAL_ROLES = ['view', 'request', 'delete', 'admin'];
 const ALLOWED_MEDIA_TYPES = ['video', 'short', 'livestream'];
+const { sendExternalError } = require('../modules/externalApiResponse');
 
 function normalizeAllowedMediaTypes(value) {
   // Null/missing is the only tolerated legacy shape during migration rollout.
@@ -14,17 +15,26 @@ function createExternalApiAuth({ validateApiKey }) {
   return async function externalApiAuth(req, res, next) {
     const key = req.headers['x-api-key'];
     if (!key || typeof key !== 'string') {
-      return res.status(401).json({ error: 'x-api-key is required' });
+      return sendExternalError(res, 401, 'x-api-key is required', {
+        code: 'missing_api_key',
+        requestId: req.id,
+      });
     }
 
     try {
       const apiKey = await validateApiKey(key);
       if (!apiKey || apiKey.revoked_at || !EXTERNAL_ROLES.includes(apiKey.role)) {
-        return res.status(401).json({ error: 'Invalid external API key' });
+        return sendExternalError(res, 401, 'Invalid external API key', {
+          code: 'invalid_api_key',
+          requestId: req.id,
+        });
       }
       const allowedMediaTypes = normalizeAllowedMediaTypes(apiKey.allowed_media_types);
       if (!allowedMediaTypes) {
-        return res.status(401).json({ error: 'Invalid external API key policy' });
+        return sendExternalError(res, 401, 'Invalid external API key policy', {
+          code: 'invalid_key_policy',
+          requestId: req.id,
+        });
       }
       req.externalApiKey = {
         id: apiKey.id,
@@ -40,7 +50,9 @@ function createExternalApiAuth({ validateApiKey }) {
       return next();
     } catch (error) {
       req.log?.error({ err: error }, 'External API key verification failed');
-      return res.status(500).json({ error: 'External API authentication error' });
+      return sendExternalError(res, 500, 'External API authentication error', {
+        requestId: req.id,
+      });
     }
   };
 }

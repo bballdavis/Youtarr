@@ -13,6 +13,7 @@ const pinoHttp = require('pino-http');
 const { setupSwagger } = require('./swagger');
 const { isAuthConfigured } = require('./modules/authState');
 const { createExternalApiAuth } = require('./middleware/externalApiAuth');
+const { sendExternalError } = require('./modules/externalApiResponse');
 const app = express();
 app.set('trust proxy', parseTrustProxySetting(process.env.TRUST_PROXY));
 if (process.env.TRUST_PROXY === undefined || process.env.TRUST_PROXY === '') {
@@ -90,6 +91,22 @@ app.use(pinoHttp({
 }));
 
 app.use(express.json());
+// Express otherwise renders malformed/oversized JSON as an HTML error. Keep
+// every response in the public external namespace on the versioned envelope.
+app.use((error, req, res, next) => {
+  if (!req.path.startsWith('/external-api')) return next(error);
+  if (error?.type === 'entity.too.large') {
+    return sendExternalError(res, 413, 'Request body is too large', {
+      requestId: req.id,
+    });
+  }
+  if (error instanceof SyntaxError && error?.type === 'entity.parse.failed') {
+    return sendExternalError(res, 400, 'Request body contains invalid JSON', {
+      requestId: req.id,
+    });
+  }
+  return next(error);
+});
 const path = require('path');
 const fs = require('fs');
 const { execSync } = require('child_process');
@@ -348,6 +365,12 @@ const initialize = async () => {
           errorMessage = 'A database error has occurred. Please check the logs for details.';
         }
 
+        if (req.path.startsWith('/external-api')) {
+          return sendExternalError(res, 503, 'External API is temporarily unavailable', {
+            code: 'service_unavailable',
+            requestId: req.id,
+          });
+        }
         return res.status(503).json({
           error: errorType,
           message: errorMessage,
@@ -606,7 +629,12 @@ const initialize = async () => {
       legacyHeaders: false,
       validate: { trustProxy: false, ip: false },
       keyGenerator: (req) => `external-api:${req.externalApiKey?.id || 'unknown'}`,
-      handler: (_req, res) => res.status(429).json({ error: 'External API rate limit exceeded' }),
+      handler: (req, res) => sendExternalError(
+        res,
+        429,
+        'External API rate limit exceeded',
+        { code: 'rate_limited', requestId: req.id }
+      ),
     });
     const externalApiWriteLimiter = rateLimit({
       windowMs: 60 * 1000,
@@ -615,7 +643,12 @@ const initialize = async () => {
       legacyHeaders: false,
       validate: { trustProxy: false, ip: false },
       keyGenerator: (req) => `external-api-write:${req.externalApiKey?.id || 'unknown'}`,
-      handler: (_req, res) => res.status(429).json({ error: 'External API write rate limit exceeded' }),
+      handler: (req, res) => sendExternalError(
+        res,
+        429,
+        'External API write rate limit exceeded',
+        { code: 'rate_limited', requestId: req.id }
+      ),
     });
     const externalRequestReviewLimiter = rateLimit({
       windowMs: 60 * 1000,

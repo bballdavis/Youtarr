@@ -62,6 +62,82 @@ const options = {
           description: 'External-role API key. Channel catalog access also requires an explicit per-key grant.',
         },
       },
+      schemas: {
+        ExternalError: {
+          type: 'object',
+          required: ['error'],
+          properties: {
+            error: {
+              type: 'object',
+              required: ['code', 'message'],
+              properties: {
+                code: { type: 'string', example: 'not_found' },
+                message: { type: 'string' },
+                requestId: { type: 'string' },
+              },
+            },
+          },
+        },
+        ExternalRequest: {
+          type: 'object',
+          required: ['id', 'type', 'status', 'target', 'createdAt', 'updatedAt'],
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            type: { type: 'string', enum: ['video', 'channel', 'delete_video'] },
+            status: {
+              type: 'string',
+              enum: ['pending', 'approved', 'processing', 'completed', 'rejected', 'failed', 'cancelled'],
+            },
+            target: {
+              type: 'object',
+              properties: {
+                youtubeId: { type: 'string', nullable: true },
+                channelId: { type: 'integer', nullable: true },
+                channelUrl: { type: 'string', format: 'uri', nullable: true },
+              },
+            },
+            createdAt: { type: 'string', format: 'date-time' },
+            updatedAt: { type: 'string', format: 'date-time' },
+            decidedAt: { type: 'string', format: 'date-time' },
+            completedAt: { type: 'string', format: 'date-time' },
+            message: { type: 'string', maxLength: 500 },
+            grantToRequestingKey: { type: 'boolean' },
+          },
+        },
+        ExternalApiKeyPolicy: {
+          type: 'object',
+          required: ['role'],
+          properties: {
+            role: {
+              type: 'string',
+              enum: ['view', 'request', 'delete', 'admin'],
+            },
+            autoApproveVideoRequests: { type: 'boolean', default: false },
+            autoApproveChannelRequests: { type: 'boolean', default: false },
+            autoApproveDeleteRequests: { type: 'boolean', default: false },
+            maxRatingLevel: {
+              type: 'integer',
+              minimum: 1,
+              maximum: 4,
+              default: 4,
+              description: 'Maximum content-rating band: 1 = G / TV-Y / TV-G; ' +
+                '2 = PG / TV-Y7 / TV-PG; 3 = PG-13 / TV-14; ' +
+                '4 = R / NC-17 / TV-MA.',
+            },
+            allowUnrated: { type: 'boolean', default: false },
+            allowedMediaTypes: {
+              type: 'array',
+              minItems: 1,
+              uniqueItems: true,
+              items: {
+                type: 'string',
+                enum: ['video', 'short', 'livestream'],
+              },
+              default: ['video'],
+            },
+          },
+        },
+      },
     },
     security: [
       {
