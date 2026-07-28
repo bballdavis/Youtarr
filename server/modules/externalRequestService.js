@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const { Op, UniqueConstraintError } = require('sequelize');
 const { normalizePolicy } = require('./externalCatalogService');
 const { isMediaTypeEligible, isRatingEligible } = require('./externalEligibility');
+const { hasExternalScope, normalizeExternalPermissions } = require('./externalPermissions');
 
 const REQUEST_STATUSES = [
   'pending', 'approved', 'processing', 'completed',
@@ -93,6 +94,8 @@ function dto(record) {
 function normalizeStoredKey(record) {
   const value = record?.toJSON ? record.toJSON() : record;
   if (!value) return null;
+  const permissions = normalizeExternalPermissions(value);
+  if (!permissions) return null;
   return {
     id: value.id,
     name: value.name,
@@ -102,6 +105,7 @@ function normalizeStoredKey(record) {
     autoApproveVideoRequests: value.auto_approve_video_requests,
     autoApproveChannelRequests: value.auto_approve_channel_requests,
     autoApproveDeleteRequests: value.auto_approve_delete_requests,
+    ...permissions,
     maxRatingLevel: value.max_rating_level,
     allowUnrated: value.allow_unrated,
     allowedMediaTypes: value.allowed_media_types,
@@ -406,7 +410,7 @@ function createExternalRequestService({
   }
 
   async function createVideoRequest(key, input) {
-    if (!['request', 'delete', 'admin'].includes(key.role)) {
+    if (!hasExternalScope(key, 'video:request')) {
       throw new RequestError('video:request scope is required', 403);
     }
     if (!input || typeof input !== 'object' || Array.isArray(input)) {
@@ -522,7 +526,7 @@ function createExternalRequestService({
   }
 
   async function createChannelRequest(key, input) {
-    if (!['request', 'delete', 'admin'].includes(key.role)) {
+    if (!hasExternalScope(key, 'channel:request')) {
       throw new RequestError('channel:request scope is required', 403);
     }
     if (!input || typeof input !== 'object' || Array.isArray(input)) {
@@ -615,7 +619,7 @@ function createExternalRequestService({
   }
 
   async function createDeleteVideoRequest(key, input) {
-    if (!['delete', 'admin'].includes(key.role)) {
+    if (!hasExternalScope(key, 'video:delete')) {
       throw new RequestError('video:delete scope is required', 403);
     }
     if (!input || typeof input !== 'object' || Array.isArray(input)) {
@@ -878,6 +882,7 @@ function createExternalRequestService({
           'id', 'name', 'role', 'is_active', 'revoked_at',
           'auto_approve_video_requests', 'auto_approve_channel_requests',
           'auto_approve_delete_requests', 'max_rating_level', 'allow_unrated',
+          'allow_video_requests', 'allow_channel_requests', 'allow_delete_video_requests',
           'allowed_media_types',
         ],
         transaction,
@@ -885,7 +890,7 @@ function createExternalRequestService({
       });
       const key = normalizeStoredKey(storedKey);
       if (!key || key.isActive !== true || key.revokedAt ||
-          !['request', 'delete', 'admin'].includes(key.role)) {
+          !hasExternalScope(key, 'video:request')) {
         await failApproval('Request is no longer eligible');
         return;
       }
@@ -1011,16 +1016,18 @@ function createExternalRequestService({
           'id', 'name', 'role', 'is_active', 'revoked_at',
           'auto_approve_video_requests', 'auto_approve_channel_requests',
           'auto_approve_delete_requests', 'max_rating_level', 'allow_unrated',
+          'allow_video_requests', 'allow_channel_requests', 'allow_delete_video_requests',
           'allowed_media_types',
         ],
         transaction,
         lock: transaction.LOCK.UPDATE,
       });
       key = normalizeStoredKey(storedKey);
-      const allowedRoles = record.request_type === 'delete_video'
-        ? ['delete', 'admin']
-        : ['request', 'delete', 'admin'];
-      if (!key || key.isActive !== true || key.revokedAt || !allowedRoles.includes(key.role)) {
+      const requiredScope = record.request_type === 'delete_video'
+        ? 'video:delete'
+        : 'channel:request';
+      if (!key || key.isActive !== true || key.revokedAt ||
+          !hasExternalScope(key, requiredScope)) {
         await record.update({
           status: 'failed',
           active_dedupe_key: null,

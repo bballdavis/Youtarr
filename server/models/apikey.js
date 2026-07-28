@@ -52,6 +52,9 @@ ApiKey.init(
     auto_approve_video_requests: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     auto_approve_channel_requests: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     auto_approve_delete_requests: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    allow_video_requests: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    allow_channel_requests: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    allow_delete_video_requests: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     max_rating_level: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 4 },
     allow_unrated: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     allowed_media_types: {

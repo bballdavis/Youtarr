@@ -1,17 +1,23 @@
 const crypto = require('crypto');
 const ApiKey = require('../models/apikey');
 const logger = require('../logger');
+const {
+  normalizeExternalPermissions,
+  roleForExternalPermissions,
+} = require('./externalPermissions');
 
 const MAX_API_KEYS = 20;
 const ROLES = ['legacy_download', 'view', 'request', 'delete', 'admin'];
 const MEDIA_TYPES = ['video', 'short', 'livestream'];
 const POLICY_FIELDS = [
   'role', 'autoApproveVideoRequests', 'autoApproveChannelRequests',
-  'autoApproveDeleteRequests', 'maxRatingLevel', 'allowUnrated', 'allowedMediaTypes',
+  'autoApproveDeleteRequests', 'allowVideoRequests', 'allowChannelRequests',
+  'allowDeleteVideoRequests', 'maxRatingLevel', 'allowUnrated', 'allowedMediaTypes',
 ];
 const MANAGEMENT_ATTRIBUTES = [
   'id', 'name', 'key_prefix', 'created_at', 'last_used_at', 'is_active', 'usage_count', 'role',
   'auto_approve_video_requests', 'auto_approve_channel_requests', 'auto_approve_delete_requests',
+  'allow_video_requests', 'allow_channel_requests', 'allow_delete_video_requests',
   'max_rating_level', 'allow_unrated', 'allowed_media_types', 'revoked_at',
 ];
 
@@ -32,7 +38,10 @@ function validatePolicy(policy) {
   const unknown = Object.keys(policy).filter((field) => !POLICY_FIELDS.includes(field));
   if (unknown.length > 0) throw new Error(`Unsupported policy field: ${unknown[0]}`);
   if (!ROLES.includes(policy.role)) throw new Error('Invalid API key role');
-  for (const field of ['autoApproveVideoRequests', 'autoApproveChannelRequests', 'autoApproveDeleteRequests', 'allowUnrated']) {
+  for (const field of [
+    'autoApproveVideoRequests', 'autoApproveChannelRequests', 'autoApproveDeleteRequests',
+    'allowVideoRequests', 'allowChannelRequests', 'allowDeleteVideoRequests', 'allowUnrated',
+  ]) {
     if (field in policy && typeof policy[field] !== 'boolean') throw new Error(`Invalid ${field}`);
   }
   if ('maxRatingLevel' in policy && (!Number.isInteger(policy.maxRatingLevel) || policy.maxRatingLevel < 1 || policy.maxRatingLevel > 4)) {
@@ -42,13 +51,19 @@ function validatePolicy(policy) {
     policy.allowedMediaTypes.some((type) => !MEDIA_TYPES.includes(type)))) {
     throw new Error('allowedMediaTypes must contain only video, short, or livestream');
   }
-  const requestCapable = ['request', 'delete', 'admin'].includes(policy.role);
-  const deleteCapable = ['delete', 'admin'].includes(policy.role);
+  const permissions = normalizeExternalPermissions(policy);
+  if (!permissions) throw new Error('Invalid external request permissions');
   return {
-    role: policy.role,
-    auto_approve_video_requests: requestCapable && (policy.autoApproveVideoRequests ?? false),
-    auto_approve_channel_requests: requestCapable && (policy.autoApproveChannelRequests ?? false),
-    auto_approve_delete_requests: deleteCapable && (policy.autoApproveDeleteRequests ?? false),
+    role: roleForExternalPermissions(permissions, policy.role),
+    allow_video_requests: permissions.allowVideoRequests,
+    allow_channel_requests: permissions.allowChannelRequests,
+    allow_delete_video_requests: permissions.allowDeleteVideoRequests,
+    auto_approve_video_requests:
+      permissions.allowVideoRequests && (policy.autoApproveVideoRequests ?? false),
+    auto_approve_channel_requests:
+      permissions.allowChannelRequests && (policy.autoApproveChannelRequests ?? false),
+    auto_approve_delete_requests:
+      permissions.allowDeleteVideoRequests && (policy.autoApproveDeleteRequests ?? false),
     max_rating_level: policy.maxRatingLevel ?? 4,
     allow_unrated: policy.allowUnrated ?? false,
     allowed_media_types: policy.allowedMediaTypes ?? ['video'],
