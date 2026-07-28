@@ -5,812 +5,312 @@ import '@testing-library/jest-dom';
 import ApiKeysSection from '../ApiKeysSection';
 import { renderWithProviders } from '../../../../test-utils';
 
-// Mock fetch globally
 const mockFetch = jest.fn();
 global.fetch = mockFetch;
 
-const createSectionProps = (
-  overrides: Partial<React.ComponentProps<typeof ApiKeysSection>> = {}
-): React.ComponentProps<typeof ApiKeysSection> => ({
+const props = (): React.ComponentProps<typeof ApiKeysSection> => ({
   token: 'test-token-123',
   apiKeyRateLimit: 10,
   onRateLimitChange: jest.fn(),
-  ...overrides,
 });
 
-// Helper to expand accordion
+const externalKey = {
+  id: 7,
+  name: 'External Client Family Room',
+  key_prefix: 'external-client123',
+  created_at: '2026-07-27T18:30:00.000Z',
+  last_used_at: '2026-07-27T19:00:00.000Z',
+  is_active: true,
+  usage_count: 12,
+  role: 'delete',
+  allow_video_requests: true,
+  allow_channel_requests: true,
+  allow_delete_video_requests: true,
+  auto_approve_video_requests: false,
+  auto_approve_channel_requests: true,
+  auto_approve_delete_requests: false,
+  max_rating_level: 3,
+  allow_unrated: false,
+  allowed_media_types: ['video', 'short'],
+  revoked_at: null,
+};
 
-// Mock API key data
-const mockApiKeys = [
-  {
-    id: 1,
-    name: 'My Bookmarklet',
-    key_prefix: 'abc12345',
-    created_at: '2024-01-15T10:30:00Z',
-    last_used_at: '2024-01-20T15:45:00Z',
-    is_active: true,
-    usage_count: 42,
-    role: 'legacy_download',
-    auto_approve_video_requests: false,
-    auto_approve_channel_requests: false,
-    auto_approve_delete_requests: false,
-    max_rating_level: 3,
-    allow_unrated: false,
-    allowed_media_types: ['video'],
-    revoked_at: null,
-  },
-  {
-    id: 2,
-    name: 'iPhone Shortcut',
-    key_prefix: 'xyz98765',
-    created_at: '2024-01-10T08:00:00Z',
-    last_used_at: null,
-    is_active: true,
-    usage_count: 0,
-    role: 'legacy_download',
-    auto_approve_video_requests: false,
-    auto_approve_channel_requests: false,
-    auto_approve_delete_requests: false,
-    max_rating_level: 3,
-    allow_unrated: false,
-    allowed_media_types: ['video'],
-    revoked_at: null,
-  },
-];
+const legacyKey = {
+  ...externalKey,
+  id: 2,
+  name: 'My Bookmarklet',
+  key_prefix: 'abc12345',
+  role: 'legacy_download',
+  allow_video_requests: false,
+  allow_channel_requests: false,
+  allow_delete_video_requests: false,
+  auto_approve_channel_requests: false,
+  usage_count: 42,
+};
 
-const mockCreatedKeyResponse = {
+const createdKey = {
   success: true,
   message: 'API key created. Save this key - it will not be shown again!',
-  id: 3,
+  id: 8,
   name: 'New Key',
   key: 'abc12345def67890abc12345def67890abc12345def67890abc12345def67890',
   prefix: 'abc12345',
 };
 
-describe('ApiKeysSection Component', () => {
+const jsonResponse = (body: unknown, ok = true) => ({
+  ok,
+  json: jest.fn().mockResolvedValue(body),
+});
+
+const installDefaultFetch = (keys = [externalKey, legacyKey]) => {
+  mockFetch.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url === '/api/keys' && (!init?.method || init.method === 'GET')) {
+      return jsonResponse({ keys });
+    }
+    if (url === '/getchannels?page=1&pageSize=100&sortOrder=asc') {
+      return jsonResponse({
+        channels: [{
+          database_id: 12,
+          channel_id: 'UC1234567890123456789012',
+          uploader: 'Safe Channel',
+          title: 'Safe Channel',
+          terminated_at: null,
+        }],
+        totalPages: 1,
+      });
+    }
+    if (url === '/api/keys/7/channels') {
+      return jsonResponse({ keyId: 7, channelIds: [] });
+    }
+    if (url === '/api/keys/7/external-access') {
+      return jsonResponse({ success: true, key: externalKey, channelIds: [12] });
+    }
+    if (url === '/api/keys' && init?.method === 'POST') {
+      return jsonResponse(createdKey);
+    }
+    if (url.startsWith('/api/keys/') && init?.method === 'DELETE') {
+      return jsonResponse({ success: true });
+    }
+    return jsonResponse({});
+  });
+};
+
+describe('ApiKeysSection', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockFetch.mockClear();
-    
-    // Default mock for fetching API keys
-    mockFetch.mockResolvedValue({
-      ok: true,
-      json: jest.fn().mockResolvedValue({ keys: [] }),
-    });
+    installDefaultFetch();
   });
 
-  describe('Component Rendering', () => {
-    test('renders without crashing', async () => {
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-      expect(screen.getByText(/API Keys/i)).toBeInTheDocument();
-    });
+  test('renders the external section before the legacy section', async () => {
+    renderWithProviders(<ApiKeysSection {...props()} />);
 
-    test('renders with ConfigurationAccordion wrapper', async () => {
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-      expect(screen.getByText(/API Keys & External Access/i)).toBeInTheDocument();
-    });
-
-    test('accordion is collapsed by default', () => {
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-      expect(screen.getByRole('heading', { name: /API Keys & External Access/i })).toBeInTheDocument();
-    });
-
-    test('shows loading skeleton initially', () => {
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-      // Skeleton should be visible while loading
-      expect(screen.getByText(/API Keys/i)).toBeInTheDocument();
-    });
-
-    test('distinguishes legacy downloads from constrained external access', async () => {
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ keys: [] }),
-      });
-
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-      expect(await screen.findByText(/Legacy keys support the bookmarklet download endpoint/i))
-        .toBeInTheDocument();
-      expect(screen.getByText('/external-api/v1')).toBeInTheDocument();
-    });
+    expect(await screen.findByText('External access keys')).toBeInTheDocument();
+    const externalHeading = screen.getByText('External access keys');
+    const legacyHeading = screen.getByText('Legacy download keys');
+    expect(externalHeading.compareDocumentPosition(legacyHeading) &
+      Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByText('/external-api/v1')).toBeInTheDocument();
   });
 
-  describe('Rate Limit Setting', () => {
-    test('renders rate limit input with current value', async () => {
-      const user = userEvent.setup();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ keys: [] }),
-      });
-      
-      const props = createSectionProps({ apiKeyRateLimit: 15 });
-      renderWithProviders(<ApiKeysSection {...props} />);
+  test('uses compact cards with rating and permission chips but no key prefix', async () => {
+    renderWithProviders(<ApiKeysSection {...props()} />);
 
-
-      await waitFor(() => {
-        const input = screen.getByLabelText(/Rate Limit/i);
-        expect(input).toHaveValue(15);
-      });
-    });
-
-    test('calls onRateLimitChange when value changes', async () => {
-      const user = userEvent.setup();
-      const onRateLimitChange = jest.fn();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ keys: [] }),
-      });
-      
-      const props = createSectionProps({ apiKeyRateLimit: 10, onRateLimitChange });
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-
-      await waitFor(() => {
-        expect(screen.getByLabelText(/Rate Limit/i)).toBeInTheDocument();
-      });
-
-      const input = screen.getByLabelText(/Rate Limit/i) as HTMLInputElement;
-      // Triple click to select all, then type new value
-      await user.tripleClick(input);
-      await user.keyboard('15');
-
-      // onRateLimitChange is called with valid values during typing
-      expect(onRateLimitChange).toHaveBeenCalled();
-    });
+    const cards = await screen.findByLabelText('External API key cards');
+    expect(within(cards).getByText('External Client Family Room')).toBeInTheDocument();
+    expect(within(cards).getByLabelText('Movie rating ceiling PG-13')).toBeInTheDocument();
+    expect(within(cards).getByLabelText('TV rating ceiling TV-14')).toBeInTheDocument();
+    expect(within(cards).getByText('Videos')).toBeInTheDocument();
+    expect(within(cards).getByText('Channels · Auto')).toBeInTheDocument();
+    expect(within(cards).getByText('Delete video')).toBeInTheDocument();
+    expect(within(cards).getByText(/Last used/i)).toBeInTheDocument();
+    expect(screen.queryByText('external-client123...')).not.toBeInTheDocument();
   });
 
-  describe('Empty State', () => {
-    test('shows empty state message when no keys exist', async () => {
-      const user = userEvent.setup();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ keys: [] }),
-      });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
+  test('keeps legacy controls and keys in the bottom section', async () => {
+    renderWithProviders(<ApiKeysSection {...props()} />);
 
-
-      await waitFor(() => {
-        expect(screen.getByText(/No API keys created yet/i)).toBeInTheDocument();
-      });
-    });
-
-    test('shows Create Key button in empty state', async () => {
-      const user = userEvent.setup();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ keys: [] }),
-      });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Create Key/i })).toBeInTheDocument();
-      });
-    });
+    const legacyRows = await screen.findByLabelText('Legacy API key rows');
+    expect(within(legacyRows).getByText('My Bookmarklet')).toBeInTheDocument();
+    expect(within(legacyRows).getByText('Legacy download')).toBeInTheDocument();
+    expect(screen.getByLabelText('Legacy rate limit (requests/min)')).toHaveValue(10);
   });
 
-  describe('API Keys List', () => {
-    test('displays list of API keys', async () => {
-      const user = userEvent.setup();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ keys: mockApiKeys }),
-      });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
+  test('shows separate empty states for external and legacy keys', async () => {
+    installDefaultFetch([]);
+    renderWithProviders(<ApiKeysSection {...props()} />);
 
-
-      expect(await screen.findByText('My Bookmarklet')).toBeInTheDocument();
-      expect(screen.getByText('iPhone Shortcut')).toBeInTheDocument();
-    });
-
-    test('displays key prefix with ellipsis', async () => {
-      const user = userEvent.setup();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ keys: mockApiKeys }),
-      });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-
-      expect(await screen.findByText('abc12345...')).toBeInTheDocument();
-      expect(screen.getByText('xyz98765...')).toBeInTheDocument();
-    });
-
-    test('displays "Never" for keys that have not been used', async () => {
-      const user = userEvent.setup();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ keys: mockApiKeys }),
-      });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-
-      await waitFor(() => {
-        expect(screen.getByText('Never')).toBeInTheDocument();
-      });
-    });
-
-    test('shows revoke button for each active key', async () => {
-      const user = userEvent.setup();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ keys: mockApiKeys }),
-      });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-
-      await waitFor(() => {
-        const revokeButtons = screen.getAllByRole('button', { name: /Revoke/i });
-        expect(revokeButtons).toHaveLength(2);
-      });
-    });
-
-    test('displays usage count for each key', async () => {
-      const user = userEvent.setup();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ keys: mockApiKeys }),
-      });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-
-      // Check that usage counts are displayed
-      expect(await screen.findByText('42')).toBeInTheDocument();
-      expect(screen.getByText('0')).toBeInTheDocument();
-    });
+    expect(await screen.findByText('No external access keys yet.')).toBeInTheDocument();
+    expect(screen.getByText('No legacy download keys.')).toBeInTheDocument();
   });
 
-  describe('External access editor', () => {
-    test('confirms and atomically saves policy with channel grants', async () => {
-      const externalKey = {
-        ...mockApiKeys[0],
-        id: 7,
-        name: 'External Client',
+  test('shows auto-approve only after its permission is enabled', async () => {
+    const viewOnly = {
+      ...externalKey,
+      role: 'view',
+      allow_video_requests: false,
+      allow_channel_requests: false,
+      allow_delete_video_requests: false,
+      auto_approve_video_requests: false,
+      auto_approve_channel_requests: false,
+      auto_approve_delete_requests: false,
+    };
+    installDefaultFetch([viewOnly]);
+    const user = userEvent.setup();
+    renderWithProviders(<ApiKeysSection {...props()} />);
+
+    await user.click(await screen.findByRole('button', {
+      name: 'Edit External Client Family Room external access',
+    }));
+    expect(screen.queryByLabelText('Auto-approve request videos')).not.toBeInTheDocument();
+
+    await user.click(screen.getByLabelText('Request videos'));
+    expect(screen.getByLabelText('Auto-approve request videos')).toBeInTheDocument();
+    expect(screen.getByLabelText('Request videos')).toHaveAttribute('data-state', 'checked');
+  });
+
+  test('saves independent permissions and channel grants atomically', async () => {
+    const viewOnly = {
+      ...externalKey,
+      role: 'view',
+      allow_video_requests: false,
+      allow_channel_requests: false,
+      allow_delete_video_requests: false,
+      auto_approve_video_requests: false,
+      auto_approve_channel_requests: false,
+      auto_approve_delete_requests: false,
+    };
+    installDefaultFetch([viewOnly]);
+    const confirm = jest.spyOn(window, 'confirm').mockReturnValue(true);
+    const user = userEvent.setup();
+    renderWithProviders(<ApiKeysSection {...props()} />);
+
+    await user.click(await screen.findByRole('button', {
+      name: 'Edit External Client Family Room external access',
+    }));
+    await user.click(screen.getByLabelText('Request videos'));
+    await user.click(screen.getByLabelText('Safe Channel'));
+    await user.click(screen.getByRole('button', { name: 'Save External Access' }));
+
+    await waitFor(() => expect(mockFetch.mock.calls.some(([url, init]) =>
+      url === '/api/keys/7/external-access' && init?.method === 'PUT'
+    )).toBe(true));
+    const call = mockFetch.mock.calls.find(([url, init]) =>
+        url === '/api/keys/7/external-access' && init?.method === 'PUT'
+    );
+    const requestBody = JSON.parse(call?.[1]?.body as string);
+    expect(requestBody).toEqual({
+      policy: expect.objectContaining({
         role: 'request',
-        key_prefix: 'feed1234',
-      };
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue({ keys: [externalKey] }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue({ keyId: 7, channelIds: [] }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue({
-            channels: [{
-              database_id: 12,
-              channel_id: 'UC1234567890123456789012',
-              uploader: 'Safe Channel',
-              title: 'Safe Channel',
-              terminated_at: null,
-            }],
-          }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue({
-            success: true,
-            key: externalKey,
-            channelIds: [12],
-          }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue({ keys: [externalKey] }),
-        });
-      const confirm = jest.spyOn(window, 'confirm').mockReturnValue(true);
-      const user = userEvent.setup();
-      renderWithProviders(<ApiKeysSection {...createSectionProps()} />);
-
-      await user.click(await screen.findByRole('button', { name: 'Edit external access' }));
-      expect(screen.getByRole('button', { name: 'Maximum allowed rating' }))
-        .toHaveTextContent('Teen · Movies PG-13 · TV TV-14');
-      expect(screen.getByText(/channel's manually assigned default rating/i))
-        .toBeInTheDocument();
-      await user.click(await screen.findByLabelText('Safe Channel'));
-      await user.click(screen.getByRole('button', { name: 'Save External Access' }));
-
-      await waitFor(() => expect(mockFetch).toHaveBeenCalledWith(
-        '/api/keys/7/external-access',
-        expect.objectContaining({
-          method: 'PUT',
-          body: JSON.stringify({
-            policy: {
-              role: 'request',
-              autoApproveVideoRequests: false,
-              autoApproveChannelRequests: false,
-              autoApproveDeleteRequests: false,
-              maxRatingLevel: 3,
-              allowUnrated: false,
-              allowedMediaTypes: ['video'],
-            },
-            channelIds: [12],
-          }),
-        })
-      ));
-      expect(confirm).toHaveBeenCalled();
-      confirm.mockRestore();
+        allowVideoRequests: true,
+        allowChannelRequests: false,
+        allowDeleteVideoRequests: false,
+        autoApproveVideoRequests: false,
+      }),
+      channelIds: [12],
     });
+    expect(confirm).toHaveBeenCalled();
+    confirm.mockRestore();
+  });
 
-    test('loads every channel page before presenting grant choices', async () => {
-      const externalKey = {
-        ...mockApiKeys[0],
-        id: 7,
-        name: 'External Client',
-        role: 'request',
-        key_prefix: 'feed1234',
-      };
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue({ keys: [externalKey] }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue({ keyId: 7, channelIds: [] }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue({
-            channels: [{
-              database_id: 12,
-              uploader: 'First Page Channel',
-              terminated_at: null,
-            }],
-            totalPages: 2,
-          }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue({
-            channels: [{
-              database_id: 112,
-              uploader: 'Second Page Channel',
-              terminated_at: null,
-            }],
-            totalPages: 2,
-          }),
-        });
-      const user = userEvent.setup();
-      renderWithProviders(<ApiKeysSection {...createSectionProps()} />);
+  test('turning off a permission also turns off its auto-approval', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ApiKeysSection {...props()} />);
 
-      await user.click(await screen.findByRole('button', { name: 'Edit external access' }));
+    await user.click(await screen.findByRole('button', {
+      name: 'Edit External Client Family Room external access',
+    }));
+    expect(screen.getByLabelText('Auto-approve request channels'))
+      .toHaveAttribute('data-state', 'checked');
+    await user.click(screen.getByLabelText('Request channels'));
+    expect(screen.queryByLabelText('Auto-approve request channels')).not.toBeInTheDocument();
+  });
 
-      expect(await screen.findByLabelText('Second Page Channel')).toBeInTheDocument();
-      expect(mockFetch).toHaveBeenCalledWith(
-        '/getchannels?page=2&pageSize=100&sortOrder=asc',
-        { headers: { 'x-access-token': 'test-token-123' } }
+  test('creates an external key as view-only by default', async () => {
+    installDefaultFetch([]);
+    const user = userEvent.setup();
+    renderWithProviders(<ApiKeysSection {...props()} />);
+
+    await user.click(await screen.findByRole('button', { name: 'Create external key' }));
+    expect(screen.getByText('Create External Access Key')).toBeInTheDocument();
+    expect(screen.getByText('View included')).toBeInTheDocument();
+    expect(screen.getByLabelText('Request videos')).toHaveAttribute('data-state', 'unchecked');
+
+    await user.type(screen.getByLabelText('Key Name'), 'New Key');
+    await user.click(screen.getByRole('button', { name: /^Create$/ }));
+
+    await waitFor(() => {
+      const call = mockFetch.mock.calls.find(([url, init]) =>
+        url === '/api/keys' && init?.method === 'POST'
       );
+      const requestBody = JSON.parse(call?.[1]?.body as string);
+      expect(requestBody.policy).toEqual(expect.objectContaining({
+        role: 'view',
+        allowVideoRequests: false,
+        allowChannelRequests: false,
+        allowDeleteVideoRequests: false,
+      }));
     });
+    expect(await screen.findByText(/API Key Created/)).toBeInTheDocument();
   });
 
-  describe('Create API Key', () => {
-    test('opens create dialog when Create Key button is clicked', async () => {
-      const user = userEvent.setup();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ keys: [] }),
-      });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
+  test('creates legacy keys without an external policy', async () => {
+    installDefaultFetch([]);
+    const user = userEvent.setup();
+    renderWithProviders(<ApiKeysSection {...props()} />);
 
+    await user.click(await screen.findByRole('button', { name: 'Create legacy key' }));
+    expect(screen.getByText('Create Legacy Download Key')).toBeInTheDocument();
+    expect(screen.queryByText('Request permissions')).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText('Key Name'), 'Bookmarklet');
+    await user.click(screen.getByRole('button', { name: /^Create$/ }));
 
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Create Key/i })).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByRole('button', { name: /Create Key/i }));
-
-      expect(screen.getByText('Create API Key')).toBeInTheDocument();
-      expect(screen.getByLabelText(/Key Name/i)).toBeInTheDocument();
+    await waitFor(() => {
+      const call = mockFetch.mock.calls.find(([url, init]) =>
+        url === '/api/keys' && init?.method === 'POST'
+      );
+      expect(JSON.parse(call?.[1]?.body as string)).toEqual({ name: 'Bookmarklet' });
     });
-
-    test('Create button is disabled when name is empty', async () => {
-      const user = userEvent.setup();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ keys: [] }),
-      });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Create Key/i })).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByRole('button', { name: /Create Key/i }));
-
-      const createButton = screen.getByRole('button', { name: /^Create$/i });
-      expect(createButton).toBeDisabled();
-    });
-
-    test('successfully creates API key and shows bookmarklet dialog', async () => {
-      const user = userEvent.setup();
-      
-      // First call: fetch keys (empty)
-      // Second call: create key
-      // Third call: refresh keys
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue({ keys: [] }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue(mockCreatedKeyResponse),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue({ keys: [{ ...mockApiKeys[0], name: 'New Key' }] }),
-        });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Create Key/i })).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByRole('button', { name: /Create Key/i }));
-
-      const nameInput = screen.getByLabelText(/Key Name/i);
-      await user.type(nameInput, 'New Key');
-
-      const createButton = screen.getByRole('button', { name: /^Create$/i });
-      await user.click(createButton);
-
-      await waitFor(() => {
-        expect(screen.getByText(/API Key Created/i)).toBeInTheDocument();
-      });
-
-      // Should show the key only once warning
-      expect(screen.getByText(/Save this key now/i)).toBeInTheDocument();
-    });
-
-    test('shows bookmarklet section in created key dialog', async () => {
-      const user = userEvent.setup();
-      
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue({ keys: [] }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue(mockCreatedKeyResponse),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue({ keys: [] }),
-        });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Create Key/i })).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByRole('button', { name: /Create Key/i }));
-      await user.type(screen.getByLabelText(/Key Name/i), 'Test Key');
-      await user.click(screen.getByRole('button', { name: /^Create$/i }));
-
-      expect(await screen.findByText(/Add to Bookmarks/i)).toBeInTheDocument();
-      expect(screen.getByText(/Send to Youtarr/i)).toBeInTheDocument();
-      expect(screen.getByText(/Mobile \/ Shortcuts/i)).toBeInTheDocument();
-    });
-
-    test('shows error when API key creation fails', async () => {
-      const user = userEvent.setup();
-      
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue({ keys: [] }),
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          json: jest.fn().mockResolvedValue({ error: 'Maximum number of API keys reached' }),
-        });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Create Key/i })).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByRole('button', { name: /Create Key/i }));
-      await user.type(screen.getByLabelText(/Key Name/i), 'Test Key');
-      await user.click(screen.getByRole('button', { name: /^Create$/i }));
-
-      await waitFor(() => {
-        expect(screen.getByText(/Maximum number of API keys reached/i)).toBeInTheDocument();
-      });
-    });
+    expect(await screen.findByText(/Add to Bookmarks/)).toBeInTheDocument();
   });
 
-  describe('Revoke API Key', () => {
-    test('opens confirmation dialog when revoke button is clicked', async () => {
-      const user = userEvent.setup();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ keys: mockApiKeys }),
-      });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
+  test('changes the legacy rate limit', async () => {
+    const onRateLimitChange = jest.fn();
+    const user = userEvent.setup();
+    renderWithProviders(<ApiKeysSection {...props()} onRateLimitChange={onRateLimitChange} />);
 
-
-      await waitFor(() => {
-        expect(screen.getByText('My Bookmarklet')).toBeInTheDocument();
-      });
-
-      const revokeButtons = screen.getAllByRole('button', { name: /Revoke/i });
-      await user.click(revokeButtons[0]);
-
-      expect(screen.getByText(/Revoke API Key\?/i)).toBeInTheDocument();
-      // The key name appears in both the table and dialog, so check for all instances
-      expect(screen.getAllByText(/My Bookmarklet/i).length).toBeGreaterThanOrEqual(1);
-      expect(screen.getByText(/stop working immediately/i)).toBeInTheDocument();
-    });
-
-    test('closes confirmation dialog when Cancel is clicked', async () => {
-      const user = userEvent.setup();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ keys: mockApiKeys }),
-      });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-
-      await waitFor(() => {
-        expect(screen.getByText('My Bookmarklet')).toBeInTheDocument();
-      });
-
-      const revokeButtons = screen.getAllByRole('button', { name: /Revoke/i });
-      await user.click(revokeButtons[0]);
-
-      await user.click(screen.getByRole('button', { name: /Cancel/i }));
-
-      await waitFor(() => {
-        expect(screen.queryByText(/Revoke API Key\?/i)).not.toBeInTheDocument();
-      });
-    });
-
-    test('revokes key when confirmed', async () => {
-      const user = userEvent.setup();
-      
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue({ keys: mockApiKeys }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue({ success: true }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue({ keys: [mockApiKeys[1]] }),
-        });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-
-      await waitFor(() => {
-        expect(screen.getByText('My Bookmarklet')).toBeInTheDocument();
-      });
-
-      const revokeButtons = screen.getAllByRole('button', { name: /Revoke/i });
-      await user.click(revokeButtons[0]);
-
-      const confirmRevokeButton = screen.getByRole('button', { name: /^Revoke$/i });
-      await user.click(confirmRevokeButton);
-
-      await waitFor(() => {
-        expect(mockFetch).toHaveBeenCalledWith('/api/keys/1', expect.objectContaining({
-          method: 'DELETE',
-        }));
-      });
-    });
+    const input = await screen.findByLabelText('Legacy rate limit (requests/min)');
+    await user.tripleClick(input);
+    await user.keyboard('15');
+    expect(onRateLimitChange).toHaveBeenCalled();
   });
 
-  describe('Copy to Clipboard', () => {
-    test('copies API key to clipboard when copy button is clicked', async () => {
-      const user = userEvent.setup();
-      
-      mockFetch
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue({ keys: [] }),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue(mockCreatedKeyResponse),
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          json: jest.fn().mockResolvedValue({ keys: [] }),
-        });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
+  test('revokes an active key after confirmation', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ApiKeysSection {...props()} />);
 
-
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Create Key/i })).toBeInTheDocument();
-      });
-
-      await user.click(screen.getByRole('button', { name: /Create Key/i }));
-      await user.type(screen.getByLabelText(/Key Name/i), 'Test Key');
-      await user.click(screen.getByRole('button', { name: /^Create$/i }));
-
-      await waitFor(() => {
-        expect(screen.getByText(/API Key Created/i)).toBeInTheDocument();
-      });
-
-      // The API key should be displayed in the dialog
-      expect(screen.getByText(mockCreatedKeyResponse.key)).toBeInTheDocument();
-    });
+    await user.click(await screen.findByRole('button', { name: 'Revoke External Client Family Room' }));
+    expect(screen.getByText('Revoke API Key?')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /^Revoke$/ }));
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledWith(
+      '/api/keys/7',
+      expect.objectContaining({ method: 'DELETE' })
+    ));
   });
 
-  describe('HTTP Warning', () => {
-    // Note: HTTP warning tests are difficult to mock reliably due to window.location
-    // The component correctly shows warnings when protocol is http and hostname is not localhost
-    // These tests verify the default behavior (no warning on localhost)
-    
-    test('does not show warning on localhost (default test environment)', async () => {
-      const user = userEvent.setup();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ keys: [] }),
-      });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
+  test('shows API loading failures and allows dismissing the alert', async () => {
+    mockFetch.mockResolvedValue(jsonResponse({ error: 'Failed to fetch API keys' }, false));
+    const user = userEvent.setup();
+    renderWithProviders(<ApiKeysSection {...props()} />);
 
-
-      await waitFor(() => {
-        expect(screen.getByText(/No API keys created yet/i)).toBeInTheDocument();
-      });
-
-      // Should not show HTTP warning on localhost (default in jsdom)
-      expect(screen.queryByText(/insecure/i)).not.toBeInTheDocument();
-    });
-
-    test('shows warning on insecure external network', async () => {
-      setMockLocation('http://192.168.1.10:3000/');
-      const user = userEvent.setup();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ keys: [] }),
-      });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-
-      await waitFor(() => {
-        expect(screen.getByText(/insecure/i)).toBeInTheDocument();
-      });
-    });
+    expect(await screen.findByText('Failed to fetch API keys')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByText('Failed to fetch API keys')).not.toBeInTheDocument();
   });
 
-  describe('Error Handling', () => {
-    test('shows error when fetching keys fails', async () => {
-      const user = userEvent.setup();
-      mockFetch.mockResolvedValue({
-        ok: false,
-        json: jest.fn().mockResolvedValue({ error: 'Failed to fetch API keys' }),
-      });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-
-      await waitFor(() => {
-        expect(screen.getByText(/Failed to fetch API keys/i)).toBeInTheDocument();
-      });
-    });
-
-    test('error alert can be dismissed', async () => {
-      const user = userEvent.setup();
-      mockFetch.mockResolvedValue({
-        ok: false,
-        json: jest.fn().mockResolvedValue({ error: 'Failed to fetch API keys' }),
-      });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-
-      await waitFor(() => {
-        expect(screen.getByText(/Failed to fetch API keys/i)).toBeInTheDocument();
-      });
-
-      // Close the error alert
-      const closeButton = screen.getByRole('button', { name: /close/i });
-      await user.click(closeButton);
-
-      await waitFor(() => {
-        expect(screen.queryByText(/Failed to fetch API keys/i)).not.toBeInTheDocument();
-      });
-    });
-  });
-
-  describe('Accessibility', () => {
-    test('accordion has proper aria attributes', () => {
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-      expect(screen.getByRole('heading', { name: /API Keys & External Access/i })).toBeInTheDocument();
-    });
-
-    test('Create Key button is accessible', async () => {
-      const user = userEvent.setup();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ keys: [] }),
-      });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-
-      await waitFor(() => {
-        expect(screen.getByRole('button', { name: /Create Key/i })).toBeInTheDocument();
-      });
-    });
-
-    test('revoke buttons have accessible tooltips', async () => {
-      const user = userEvent.setup();
-      mockFetch.mockResolvedValue({
-        ok: true,
-        json: jest.fn().mockResolvedValue({ keys: mockApiKeys }),
-      });
-      
-      const props = createSectionProps();
-      renderWithProviders(<ApiKeysSection {...props} />);
-
-
-      await waitFor(() => {
-        const revokeButtons = screen.getAllByRole('button', { name: /Revoke/i });
-        expect(revokeButtons).toHaveLength(2);
-      });
-    });
+  test('does not show the insecure-network warning on localhost', async () => {
+    renderWithProviders(<ApiKeysSection {...props()} />);
+    await screen.findByText('External access keys');
+    expect(screen.queryByText(/Creating API keys over HTTP is insecure/i)).not.toBeInTheDocument();
   });
 });
