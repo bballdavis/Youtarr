@@ -23,11 +23,18 @@ Youtarr provides an API endpoint that allows you to add YouTube videos to your d
 - **Home Assistant/n8n**: Smart home and automation integrations
 - **CLI Scripts**: Download individual videos
 
-> **Note**: API keys currently support **single video downloads only**. Playlists, channels, and batch operations are not supported via the API at this time. Use the web UI for those features.
+> **Legacy endpoint note**: `POST /api/videos/download` supports single videos
+> only. The separately enabled `/external-api/v1` uses constrained external
+> keys for cached browsing and approval-backed video, channel, and deletion
+> requests.
 
 ## Authentication
 
-### Versioned External API (preview foundation)
+### Versioned External API
+
+The authoritative contract is [External API v1](EXTERNAL_API_V1.md). Deployment,
+proxy, migration, rollback, and shutdown guidance is in
+[External API operations](EXTERNAL_API_OPERATIONS.md).
 
 Set `EXTERNAL_API_ENABLED=true` to expose the versioned external API.
 This prefix always requires an `x-api-key`, including when `AUTH_ENABLED=false`.
@@ -42,11 +49,19 @@ The cached read API currently includes:
 
 - `GET /external-api/v1/channels` with bounded paging, search, and sorting.
 - `GET /external-api/v1/channels/{databaseId}/videos` with bounded paging,
-  tab, duration, date, search, and sorting filters.
+  status, tab, duration, date, search, and sorting filters.
+- `GET /external-api/v1/videos` for at most three 100-row pages of
+  cross-channel recommendation candidates.
 - `GET /external-api/v1/assets/channels/{databaseId}/thumbnail` for
   authenticated same-origin channel artwork.
+- `GET /external-api/v1/assets/videos/{youtubeId}/thumbnail` for eligible
+  cached video artwork.
 - `POST /external-api/v1/requests/videos` to persist a request for an eligible
   cached video.
+- `POST /external-api/v1/requests/channels` to request canonical channel
+  provisioning.
+- `POST /external-api/v1/requests/delete-videos` to request deletion of a
+  downloaded video asset without removing its channel subscription.
 - `GET /external-api/v1/requests` and
   `GET /external-api/v1/requests/{requestId}` to read the calling key's own
   request history and status.
@@ -54,8 +69,8 @@ The cached read API currently includes:
 All catalog responses come from Youtarr's local cache. Rating and media-type
 policy is applied on the server before rows and counts are returned. Local
 filesystem paths, API-key hashes, and ungranted channel existence are never
-included in responses. Channel-request, delete-request, and recommendation
-operations are not implemented yet.
+included in responses. Recommendation scoring and Plex-derived signals remain
+outside Youtarr.
 
 Video requests require the `video:request` scope. Youtarr rechecks the key's
 channel grant, the enabled channel, cached video membership, removal/ignore
@@ -92,12 +107,13 @@ The Youtarr web application uses session-authenticated administrator endpoints
 under `/api/external-requests`. These endpoints never accept external API keys
 and never return key hashes or secret values:
 
-- `GET /api/external-requests` lists all video requests with bounded
-  `page`/`pageSize` paging and exact `status` and `apiKeyId` filters.
+- `GET /api/external-requests` lists all request types with bounded
+  `page`/`pageSize` paging and exact `status`, `requestType`, and `apiKeyId`
+  filters.
 - `GET /api/external-requests/{requestId}` returns safe requester, target, and
   downloader-job metadata.
-- `POST /api/external-requests/{requestId}/approve` confirms and queues a
-  pending request.
+- `POST /api/external-requests/{requestId}/approve` revalidates and executes a
+  pending video, channel, or downloaded-video deletion request.
 - `POST /api/external-requests/{requestId}/reject` accepts
   `{"reason":"1 to 300 characters"}` and terminally rejects a pending request.
 
@@ -116,6 +132,13 @@ Session-authenticated key-management clients can read or replace the complete
 allow-list with `GET` or `PUT /api/keys/{id}/channels`; the PUT body is
 `{"channelIds":[1,2]}`. Only active external-role keys and enabled channels
 are accepted.
+
+The administrator UI creates a constrained key and its initial channel grants
+in one database transaction. It also updates policy and the complete grant set
+atomically with `PUT /api/keys/{id}/external-access` using
+`{"policy":{...},"channelIds":[1,2]}`. A validation failure rolls back the
+entire operation. The raw key is returned only after the creation transaction
+commits and is never returned by list or update endpoints.
 
 ### API Keys
 
@@ -235,7 +258,7 @@ Create a new API key.
 ```
 
 #### DELETE /api/keys/:id
-Delete an API key.
+Revoke an API key while retaining its metadata for audit visibility.
 
 ## Rate Limiting
 
