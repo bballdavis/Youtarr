@@ -124,6 +124,21 @@ Channel.init(
     modelName: 'Channel',
     timestamps: false,
     tableName: 'channels',
+    indexes: [
+      { fields: ['channel_id'], name: 'channels_external_channel_id_idx' },
+      {
+        fields: ['enabled', 'terminated_at', 'id'],
+        name: 'channels_external_visibility_idx',
+      },
+      {
+        fields: [
+          'enabled',
+          'terminated_at',
+          { name: 'sub_folder', length: 191 },
+        ],
+        name: 'channels_external_subfolder_idx',
+      },
+    ],
   }
 );
 

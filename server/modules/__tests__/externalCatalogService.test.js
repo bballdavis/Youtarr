@@ -44,7 +44,9 @@ describe('external cached catalog', () => {
     expect(listSql).toContain('INNER JOIN api_key_channel_grants');
     expect(listSql).toContain('g.api_key_id = :keyId');
     expect(listSql).toContain('LIMIT :pageSize OFFSET :offset');
-    expect(listSql).toContain('COALESCE(v.normalized_rating, c.default_rating)');
+    expect(listSql).toContain(
+      'COALESCE(NULLIF(v.normalized_rating, \'\'), NULLIF(c.default_rating, \'\'))'
+    );
     expect(options.replacements).toEqual(expect.objectContaining({ keyId: 4, pageSize: 10, offset: 10 }));
     expect(options.replacements.allowedRatings).toContain('TV-Y7');
     expect(options.replacements.recognizedRatings).toContain('TV-Y7');
@@ -87,6 +89,7 @@ describe('external cached catalog', () => {
     const listSql = sequelize.query.mock.calls[2][0];
     expect(channelSql).toContain('INNER JOIN api_key_channel_grants');
     expect(channelSql).toContain('c.enabled = true');
+    expect(channelSql).toContain('c.terminated_at IS NULL');
     expect(listSql).toContain('cv.media_type = :mediaType');
     expect(listSql).toContain('cv.duration >= :minDuration');
     expect(listSql).toContain('cv.duration <= :maxDuration');
@@ -95,6 +98,62 @@ describe('external cached catalog', () => {
     expect(listSql).toContain('LIMIT :pageSize OFFSET :offset');
     expect(listSql).toContain('FROM external_requests er');
     expect(listSql).toContain('er.api_key_id = :keyId');
+  });
+
+  test('returns a bounded deterministic cross-channel candidate feed', async () => {
+    sequelize.query
+      .mockResolvedValueOnce([{ total: 1000 }])
+      .mockResolvedValueOnce([{
+        youtube_id: 'abcdefghijk',
+        title: 'Safe candidate',
+        thumbnail: '/cached/private-thumbnail.jpg',
+        publishedAt: '2026-07-10T00:00:00.000Z',
+        published_at_source: 'exact',
+        duration: 120,
+        media_type: 'video',
+        description: null,
+        downloaded_id: null,
+        downloaded_removed: null,
+        rating: 'TV-Y',
+        channel_database_id: 8,
+        channel_id: 'UCsafe',
+        channel_title: 'Safe Channel',
+        request_status: 'failed',
+      }]);
+
+    const result = await catalog.listVideos(key(), {
+      page: '3',
+      pageSize: '100',
+      status: 'available',
+    });
+
+    expect(result).toMatchObject({
+      data: [{
+        youtubeId: 'abcdefghijk',
+        channelDatabaseId: 8,
+        thumbnailUrl: '/external-api/v1/assets/videos/abcdefghijk/thumbnail',
+        isRequested: false,
+        requestStatus: 'failed',
+      }],
+      pagination: { page: 3, pageSize: 100, total: 1000, totalPages: 3 },
+      dataSource: 'cache',
+      isFullyIndexed: true,
+    });
+    const listSql = sequelize.query.mock.calls[1][0];
+    expect(listSql).toContain('INNER JOIN api_key_channel_grants');
+    expect(listSql).toContain('c.terminated_at IS NULL');
+    expect(listSql).toContain('ORDER BY cv.publishedAt DESC, cv.youtube_id ASC');
+    expect(listSql).toContain('LIMIT :pageSize OFFSET :offset');
+    expect(sequelize.query.mock.calls[1][1].replacements).toMatchObject({
+      keyId: 4,
+      pageSize: 100,
+      offset: 200,
+    });
+
+    sequelize.query.mockClear();
+    await expect(catalog.listVideos(key(), { page: '4', pageSize: '100' }))
+      .rejects.toThrow('page must be between 1 and 3');
+    expect(sequelize.query).not.toHaveBeenCalled();
   });
 
   test('fails closed for invalid policy and disallowed media without querying', async () => {
