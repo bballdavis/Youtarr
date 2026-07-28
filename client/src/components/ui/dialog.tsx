@@ -84,7 +84,14 @@ const Dialog: React.FC<DialogProps> = ({
   >
     <DialogCompatContext.Provider value>
       <DialogPortal>
-        <DialogOverlay onClick={() => onClose?.({}, 'backdropClick')} {...(backdropProps || {})} />
+        <DialogOverlay
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) {
+              onClose?.({}, 'backdropClick');
+            }
+          }}
+          {...(backdropProps || {})}
+        />
         <DialogPrimitive.Content
           aria-describedby={contentProps['aria-describedby'] ?? undefined}
           className={cn(
