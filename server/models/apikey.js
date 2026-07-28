@@ -54,7 +54,22 @@ ApiKey.init(
     auto_approve_delete_requests: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     max_rating_level: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 4 },
     allow_unrated: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
-    allowed_media_types: { type: DataTypes.JSON, allowNull: false, defaultValue: ['video'] },
+    allowed_media_types: {
+      type: DataTypes.JSON,
+      allowNull: false,
+      defaultValue: ['video'],
+      get() {
+        const stored = this.getDataValue('allowed_media_types');
+        if (typeof stored !== 'string') return stored;
+        try {
+          return JSON.parse(stored);
+        } catch {
+          // Preserve invalid database state so the external authenticator can
+          // fail closed instead of silently replacing a corrupt policy.
+          return stored;
+        }
+      },
+    },
     revoked_at: { type: DataTypes.DATE, allowNull: true },
   },
   {

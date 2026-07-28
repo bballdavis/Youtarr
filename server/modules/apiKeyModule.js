@@ -42,11 +42,13 @@ function validatePolicy(policy) {
     policy.allowedMediaTypes.some((type) => !MEDIA_TYPES.includes(type)))) {
     throw new Error('allowedMediaTypes must contain only video, short, or livestream');
   }
+  const requestCapable = ['request', 'delete', 'admin'].includes(policy.role);
+  const deleteCapable = ['delete', 'admin'].includes(policy.role);
   return {
     role: policy.role,
-    auto_approve_video_requests: policy.autoApproveVideoRequests ?? false,
-    auto_approve_channel_requests: policy.autoApproveChannelRequests ?? false,
-    auto_approve_delete_requests: policy.autoApproveDeleteRequests ?? false,
+    auto_approve_video_requests: requestCapable && (policy.autoApproveVideoRequests ?? false),
+    auto_approve_channel_requests: requestCapable && (policy.autoApproveChannelRequests ?? false),
+    auto_approve_delete_requests: deleteCapable && (policy.autoApproveDeleteRequests ?? false),
     max_rating_level: policy.maxRatingLevel ?? 4,
     allow_unrated: policy.allowUnrated ?? false,
     allowed_media_types: policy.allowedMediaTypes ?? ['video'],
@@ -59,9 +61,12 @@ class ApiKeyModule {
    * @param {string} name - Human-readable name for the key
    * @returns {Object} { id, name, key, prefix } - key is only returned once!
    */
-  async createApiKey(name, policy) {
+  async createApiKey(name, policy, { transaction, logEvent = true } = {}) {
     // Check max keys limit
-    const existingCount = await ApiKey.count({ where: { is_active: true } });
+    const existingCount = await ApiKey.count({
+      where: { is_active: true },
+      ...(transaction ? { transaction } : {}),
+    });
     if (existingCount >= MAX_API_KEYS) {
       throw new Error(`Maximum number of API keys reached (${MAX_API_KEYS})`);
     }
@@ -71,21 +76,19 @@ class ApiKeyModule {
     const prefix = rawKey.substring(0, 8);
     const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
 
-    const apiKey = await ApiKey.create({
+    const values = {
       name,
       key_hash: keyHash,
       key_prefix: prefix,
       created_at: new Date(),
       is_active: true,
       ...(policy === undefined ? {} : validatePolicy(policy)),
-    });
+    };
+    const apiKey = transaction
+      ? await ApiKey.create(values, { transaction })
+      : await ApiKey.create(values);
 
-    logger.info({ 
-      keyId: apiKey.id, 
-      name,
-      prefix,
-      event: 'api_key_created'
-    }, 'API key created');
+    if (logEvent) this.logApiKeyCreated({ id: apiKey.id, name, prefix });
 
     return {
       id: apiKey.id,
@@ -93,6 +96,15 @@ class ApiKeyModule {
       key: rawKey, // Only time the full key is returned
       prefix: prefix,
     };
+  }
+
+  logApiKeyCreated({ id, name, prefix }) {
+    logger.info({
+      keyId: id,
+      name,
+      prefix,
+      event: 'api_key_created',
+    }, 'API key created');
   }
 
   /**
@@ -148,16 +160,22 @@ class ApiKeyModule {
   async listApiKeys() {
     const keys = await ApiKey.findAll({
       attributes: MANAGEMENT_ATTRIBUTES,
-      where: { is_active: true, revoked_at: null },
       order: [['created_at', 'DESC']],
     });
     return keys.map(serializeApiKey);
   }
 
-  async updateApiKey(id, policy) {
-    const apiKey = await ApiKey.findByPk(id);
-    if (!apiKey) return null;
-    await apiKey.update(validatePolicy(policy));
+  async updateApiKey(id, policy, { transaction } = {}) {
+    const apiKey = transaction
+      ? await ApiKey.findByPk(id, { transaction })
+      : await ApiKey.findByPk(id);
+    if (!apiKey || !apiKey.is_active || apiKey.revoked_at) return null;
+    if (apiKey.role === 'legacy_download' || policy?.role === 'legacy_download') {
+      throw new Error('Legacy and external API key types cannot be converted');
+    }
+    const values = validatePolicy(policy);
+    if (transaction) await apiKey.update(values, { transaction });
+    else await apiKey.update(values);
     return serializeApiKey(apiKey);
   }
 

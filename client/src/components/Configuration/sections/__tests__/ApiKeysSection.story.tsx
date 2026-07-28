@@ -31,3 +31,38 @@ export const OpensCreateDialog: Story = {
     await expect(await body.findByText('Create API Key')).toBeInTheDocument();
   },
 };
+
+export const ResponsiveKeyCards: Story = {
+  parameters: {
+    viewport: { defaultViewport: 'mobile1' },
+    msw: {
+      handlers: [
+        http.get('/api/keys', () => HttpResponse.json({
+          keys: [{
+            id: 4,
+            name: 'Plinx Family Room',
+            key_prefix: 'plinx123',
+            created_at: '2026-07-27T18:30:00.000Z',
+            last_used_at: '2026-07-27T19:00:00.000Z',
+            is_active: true,
+            usage_count: 12,
+            role: 'delete',
+            auto_approve_video_requests: false,
+            auto_approve_channel_requests: false,
+            auto_approve_delete_requests: false,
+            max_rating_level: 3,
+            allow_unrated: false,
+            allowed_media_types: ['video', 'short'],
+            revoked_at: null,
+          }],
+        })),
+      ],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText('Plinx Family Room')).toBeInTheDocument();
+    await expect(await canvas.findByText('Teen · Movies PG-13 · TV TV-14'))
+      .toBeInTheDocument();
+  },
+};
