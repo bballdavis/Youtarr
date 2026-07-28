@@ -3,12 +3,6 @@ import {
   Box,
   Typography,
   Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Paper,
   IconButton,
   TextField,
@@ -23,6 +17,7 @@ import {
   Snackbar,
   Divider,
   Checkbox,
+  Switch,
   FormControlLabel,
   Select,
   MenuItem,
@@ -33,6 +28,11 @@ import {
   Copy as ContentCopyIcon,
   AlertTriangle as WarningIcon,
   Pencil as EditIcon,
+  Video as VideoIcon,
+  Radio as ChannelIcon,
+  Clock3 as ClockIcon,
+  Zap as AutoApproveIcon,
+  Eye as ViewIcon,
 } from 'lucide-react';
 import { ConfigurationAccordion } from '../common/ConfigurationAccordion';
 import { InfoTooltip } from '../common/InfoTooltip';
@@ -41,8 +41,9 @@ import { locationUtils } from '../../../utils/location';
 import {
   EXTERNAL_RATING_BANDS,
   formatExternalRatingBand,
+  getExternalRatingBand,
 } from '../../../utils/externalRatingPolicy';
-import useMediaQuery from '../../../hooks/useMediaQuery';
+import RatingBadge from '../../shared/RatingBadge';
 
 interface ApiKey {
   id: number;
@@ -56,6 +57,9 @@ interface ApiKey {
   auto_approve_video_requests: boolean;
   auto_approve_channel_requests: boolean;
   auto_approve_delete_requests: boolean;
+  allow_video_requests: boolean;
+  allow_channel_requests: boolean;
+  allow_delete_video_requests: boolean;
   max_rating_level: number;
   allow_unrated: boolean;
   allowed_media_types: MediaType[];
@@ -64,21 +68,12 @@ interface ApiKey {
 
 type ApiKeyRole = 'legacy_download' | 'view' | 'request' | 'delete' | 'admin';
 type MediaType = 'video' | 'short' | 'livestream';
-const ROLE_PRIVILEGE: Record<ApiKeyRole, number> = {
-  legacy_download: 0,
-  view: 1,
-  request: 2,
-  delete: 3,
-  admin: 4,
-};
-
-const formatApiRole = (role: ApiKeyRole) => role
-  .split('_')
-  .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-  .join(' ');
 
 interface ApiKeyPolicy {
   role: ApiKeyRole;
+  allowVideoRequests: boolean;
+  allowChannelRequests: boolean;
+  allowDeleteVideoRequests: boolean;
   autoApproveVideoRequests: boolean;
   autoApproveChannelRequests: boolean;
   autoApproveDeleteRequests: boolean;
@@ -96,7 +91,10 @@ interface ChannelOption {
 }
 
 const defaultPolicy: ApiKeyPolicy = {
-  role: 'legacy_download',
+  role: 'view',
+  allowVideoRequests: false,
+  allowChannelRequests: false,
+  allowDeleteVideoRequests: false,
   autoApproveVideoRequests: false,
   autoApproveChannelRequests: false,
   autoApproveDeleteRequests: false,
@@ -105,8 +103,32 @@ const defaultPolicy: ApiKeyPolicy = {
   allowedMediaTypes: ['video'],
 };
 
+const legacyRolePermissions = (role: ApiKeyRole) => ({
+  allowVideoRequests: ['request', 'delete', 'admin'].includes(role),
+  allowChannelRequests: ['request', 'delete', 'admin'].includes(role),
+  allowDeleteVideoRequests: ['delete', 'admin'].includes(role),
+});
+
+const permissionsFromKey = (key: ApiKey) => {
+  const fallback = legacyRolePermissions(key.role);
+  return {
+    allowVideoRequests: key.allow_video_requests ?? fallback.allowVideoRequests,
+    allowChannelRequests: key.allow_channel_requests ?? fallback.allowChannelRequests,
+    allowDeleteVideoRequests:
+      key.allow_delete_video_requests ?? fallback.allowDeleteVideoRequests,
+  };
+};
+
+const roleForPolicy = (policy: ApiKeyPolicy): ApiKeyRole => {
+  if (policy.role === 'admin') return 'admin';
+  if (policy.allowDeleteVideoRequests) return 'delete';
+  if (policy.allowVideoRequests || policy.allowChannelRequests) return 'request';
+  return 'view';
+};
+
 const policyFromKey = (key: ApiKey): ApiKeyPolicy => ({
   role: key.role,
+  ...permissionsFromKey(key),
   autoApproveVideoRequests: key.auto_approve_video_requests,
   autoApproveChannelRequests: key.auto_approve_channel_requests,
   autoApproveDeleteRequests: key.auto_approve_delete_requests,
@@ -118,103 +140,149 @@ const policyFromKey = (key: ApiKey): ApiKeyPolicy => ({
 const PolicyEditor: React.FC<{
   policy: ApiKeyPolicy;
   onChange: (policy: ApiKeyPolicy) => void;
-  includeLegacy?: boolean;
-}> = ({ policy, onChange, includeLegacy = false }) => {
-  const external = policy.role !== 'legacy_download';
-  const requestCapable = ['request', 'delete', 'admin'].includes(policy.role);
-  const deleteCapable = ['delete', 'admin'].includes(policy.role);
+}> = ({ policy, onChange }) => {
+  const updatePolicy = (changes: Partial<ApiKeyPolicy>) => {
+    const next = { ...policy, ...changes };
+    onChange({ ...next, role: roleForPolicy(next) });
+  };
+  const togglePermission = (
+    permission: 'allowVideoRequests' | 'allowChannelRequests' | 'allowDeleteVideoRequests',
+    autoApprove: 'autoApproveVideoRequests' | 'autoApproveChannelRequests' |
+      'autoApproveDeleteRequests',
+    enabled: boolean
+  ) => updatePolicy({
+    [permission]: enabled,
+    ...(!enabled ? { [autoApprove]: false } : {}),
+  });
   const toggleMedia = (mediaType: MediaType) => {
     const selected = policy.allowedMediaTypes.includes(mediaType);
     if (selected && policy.allowedMediaTypes.length === 1) return;
-    onChange({
-      ...policy,
+    updatePolicy({
       allowedMediaTypes: selected
         ? policy.allowedMediaTypes.filter((value) => value !== mediaType)
         : [...policy.allowedMediaTypes, mediaType],
     });
   };
   return (
-    <Box className="mt-4 space-y-3">
-      <Select
-        fullWidth
-        value={policy.role}
-        onChange={(event) => onChange({ ...policy, role: event.target.value as ApiKeyRole })}
-        inputProps={{ 'aria-label': 'API key role' }}
-      >
-        {includeLegacy && <MenuItem value="legacy_download">Legacy download</MenuItem>}
-        <MenuItem value="view">View catalog</MenuItem>
-        <MenuItem value="request">View and request</MenuItem>
-        <MenuItem value="delete">View, request, and request deletion</MenuItem>
-        <MenuItem value="admin">External policy administrator</MenuItem>
-      </Select>
-      {external && (
-        <>
-          <Box className="space-y-1">
-            <Typography variant="caption" color="secondary">
-              Maximum allowed rating
-            </Typography>
-            <Select
-              fullWidth
-              aria-label="Maximum allowed rating"
-              inputProps={{ 'aria-label': 'Maximum allowed rating' }}
-              value={policy.maxRatingLevel}
-              onChange={(event) => onChange({
-                ...policy,
-                maxRatingLevel: Number(event.target.value),
-              })}
-            >
-              {EXTERNAL_RATING_BANDS.map((band) => (
-                <MenuItem key={band.level} value={band.level}>
-                  {formatExternalRatingBand(band.level)}
-                </MenuItem>
-              ))}
-            </Select>
-            <Typography variant="caption" color="secondary">
-              Applies to a video&apos;s rating and, when no video rating exists, the channel&apos;s
-              manually assigned default rating.
-            </Typography>
-          </Box>
-          <FormControlLabel
-            control={<Checkbox checked={policy.allowUnrated} onChange={(event) =>
-              onChange({ ...policy, allowUnrated: event.target.checked })
-            } />}
-            label="Allow unrated or unrecognized ratings"
-          />
-          <Box className="flex flex-wrap gap-3">
-            {(['video', 'short', 'livestream'] as MediaType[]).map((mediaType) => (
-              <FormControlLabel
-                key={mediaType}
-                control={<Checkbox
-                  checked={policy.allowedMediaTypes.includes(mediaType)}
-                  onChange={() => toggleMedia(mediaType)}
-                />}
-                label={mediaType}
-              />
-            ))}
-          </Box>
-          <FormControlLabel
-            disabled={!requestCapable}
-            control={<Checkbox checked={policy.autoApproveVideoRequests} onChange={(event) =>
-              onChange({ ...policy, autoApproveVideoRequests: event.target.checked })
-            } />}
-            label="Automatically approve video requests"
-          />
-          <FormControlLabel
-            disabled={!requestCapable}
-            control={<Checkbox checked={policy.autoApproveChannelRequests} onChange={(event) =>
-              onChange({ ...policy, autoApproveChannelRequests: event.target.checked })
-            } />}
-            label="Automatically approve channel requests"
-          />
-          <FormControlLabel
-            disabled={!deleteCapable}
-            control={<Checkbox checked={policy.autoApproveDeleteRequests} onChange={(event) =>
-              onChange({ ...policy, autoApproveDeleteRequests: event.target.checked })
-            } />}
-            label="Automatically approve deletion requests"
-          />
-        </>
-      )}
+    <Box className="mt-4 space-y-5">
+      <Box className="space-y-1">
+        <Typography variant="caption" color="secondary">
+          Maximum allowed rating
+        </Typography>
+        <Select
+          fullWidth
+          aria-label="Maximum allowed rating"
+          inputProps={{ 'aria-label': 'Maximum allowed rating' }}
+          value={policy.maxRatingLevel}
+          onChange={(event) => updatePolicy({
+            maxRatingLevel: Number(event.target.value),
+          })}
+        >
+          {EXTERNAL_RATING_BANDS.map((band) => (
+            <MenuItem key={band.level} value={band.level}>
+              {formatExternalRatingBand(band.level)}
+            </MenuItem>
+          ))}
+        </Select>
+        <Typography variant="caption" color="secondary">
+          Uses the video rating first, then the channel&apos;s manually assigned default.
+        </Typography>
+      </Box>
+
+      <Box className="space-y-2">
+        <Typography variant="subtitle2">Content access</Typography>
+        <FormControlLabel
+          control={<Switch checked={policy.allowUnrated} onChange={(event) =>
+            updatePolicy({ allowUnrated: event.target.checked })
+          } />}
+          label="Allow unrated or unrecognized ratings"
+        />
+        <Box className="flex flex-wrap gap-x-5 gap-y-2">
+          {(['video', 'short', 'livestream'] as MediaType[]).map((mediaType) => (
+            <FormControlLabel
+              key={mediaType}
+              control={<Switch
+                size="small"
+                checked={policy.allowedMediaTypes.includes(mediaType)}
+                onChange={() => toggleMedia(mediaType)}
+              />}
+              label={mediaType.charAt(0).toUpperCase() + mediaType.slice(1)}
+            />
+          ))}
+        </Box>
+      </Box>
+
+      <Box className="space-y-2">
+        <div className="flex items-center gap-2">
+          <Typography variant="subtitle2">Request permissions</Typography>
+          <Tooltip title="Catalog viewing and request-status access are included with every external key.">
+            <Chip
+              size="small"
+              variant="outlined"
+              icon={<ViewIcon size={13} />}
+              label="View included"
+            />
+          </Tooltip>
+        </div>
+        {([
+          {
+            permission: 'allowVideoRequests' as const,
+            autoApprove: 'autoApproveVideoRequests' as const,
+            label: 'Request videos',
+            description: 'Submit requests to download eligible videos.',
+          },
+          {
+            permission: 'allowChannelRequests' as const,
+            autoApprove: 'autoApproveChannelRequests' as const,
+            label: 'Request channels',
+            description: 'Submit requests to add supported YouTube channels.',
+          },
+          {
+            permission: 'allowDeleteVideoRequests' as const,
+            autoApprove: 'autoApproveDeleteRequests' as const,
+            label: 'Delete downloaded videos',
+            description: 'Submit approval-backed requests to remove downloaded video assets.',
+          },
+        ]).map((item) => {
+          const enabled = policy[item.permission];
+          return (
+            <Paper key={item.permission} className="border border-border bg-muted/20 p-3 shadow-none">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <Typography variant="body2" className="font-medium">{item.label}</Typography>
+                  <Typography variant="caption" color="secondary">{item.description}</Typography>
+                </div>
+                <Switch
+                  checked={enabled}
+                  onChange={(event) => togglePermission(
+                    item.permission,
+                    item.autoApprove,
+                    event.target.checked
+                  )}
+                  aria-label={item.label}
+                />
+              </div>
+              {enabled && (
+                <div className="mt-3 flex items-center justify-between gap-4 border-t border-border pt-3">
+                  <div>
+                    <Typography variant="body2">Auto-approve</Typography>
+                    <Typography variant="caption" color="secondary">
+                      Skip manual review when all current policy checks pass.
+                    </Typography>
+                  </div>
+                  <Switch
+                    checked={policy[item.autoApprove]}
+                    onChange={(event) => updatePolicy({
+                      [item.autoApprove]: event.target.checked,
+                    })}
+                    aria-label={`Auto-approve ${item.label.toLowerCase()}`}
+                  />
+                </div>
+              )}
+            </Paper>
+          );
+        })}
+      </Box>
     </Box>
   );
 };
@@ -235,10 +303,10 @@ interface ApiKeysSectionProps {
 }
 
 const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit, onRateLimitChange }) => {
-  const useApiKeyCards = useMediaQuery('(max-width: 1279px)');
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createKeyType, setCreateKeyType] = useState<'external' | 'legacy'>('external');
   const [createdKeyDialogOpen, setCreatedKeyDialogOpen] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
   const [newKeyPolicy, setNewKeyPolicy] = useState<ApiKeyPolicy>(defaultPolicy);
@@ -332,18 +400,18 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
     }
   };
 
-  const openCreateDialog = () => {
+  const openCreateDialog = (type: 'external' | 'legacy' = 'external') => {
+    setCreateKeyType(type);
     setCreateDialogOpen(true);
+    setNewKeyPolicy(defaultPolicy);
     setNewKeyChannelIds([]);
     setNewKeyChannelSearch('');
     setChannelOptions([]);
+    if (type === 'external') void loadAvailableChannels();
   };
 
   const changeNewKeyPolicy = (policy: ApiKeyPolicy) => {
-    const becomingExternal =
-      newKeyPolicy.role === 'legacy_download' && policy.role !== 'legacy_download';
     setNewKeyPolicy(policy);
-    if (becomingExternal) void loadAvailableChannels();
   };
 
   const handleCreateKey = async () => {
@@ -358,7 +426,7 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
         },
         body: JSON.stringify({
           name: newKeyName.trim(),
-          ...(newKeyPolicy.role === 'legacy_download'
+          ...(createKeyType === 'legacy'
             ? {}
             : { policy: newKeyPolicy, channelIds: newKeyChannelIds }),
         }),
@@ -368,7 +436,7 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
 
       if (response.ok && data.success) {
         setCreatedKey(data);
-        setCreatedKeyRole(newKeyPolicy.role);
+        setCreatedKeyRole(createKeyType === 'legacy' ? 'legacy_download' : newKeyPolicy.role);
         setCreateDialogOpen(false);
         setCreatedKeyDialogOpen(true);
         setNewKeyName('');
@@ -415,7 +483,10 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
   const saveExternalAccess = async () => {
     if (!token || !editKey) return;
     const increasesPrivilege =
-      ROLE_PRIVILEGE[editPolicy.role] > ROLE_PRIVILEGE[editKey.role] ||
+      (editPolicy.allowVideoRequests && !permissionsFromKey(editKey).allowVideoRequests) ||
+      (editPolicy.allowChannelRequests && !permissionsFromKey(editKey).allowChannelRequests) ||
+      (editPolicy.allowDeleteVideoRequests &&
+        !permissionsFromKey(editKey).allowDeleteVideoRequests) ||
       (editPolicy.autoApproveVideoRequests && !editKey.auto_approve_video_requests) ||
       (editPolicy.autoApproveChannelRequests && !editKey.auto_approve_channel_requests) ||
       (editPolicy.autoApproveDeleteRequests && !editKey.auto_approve_delete_requests) ||
@@ -510,43 +581,26 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
     );
   }
 
+  const externalKeys = apiKeys.filter((key) => key.role !== 'legacy_download');
+  const legacyKeys = apiKeys.filter((key) => key.role === 'legacy_download');
+
   return (
     <ConfigurationAccordion title="API Keys & External Access">
-      <Typography variant="body2" color="secondary" className="mb-4">
-        Legacy keys support the bookmarklet download endpoint. Constrained external keys can browse approved
-        channels and submit approval-backed requests through <code>/external-api/v1</code>.
-      </Typography>
-
-      {/* Rate Limit Setting */}
-      <Box className="flex items-center mb-6">
-        <TextField
-          type="number"
-          label="Rate Limit (requests/min)"
-          value={apiKeyRateLimit}
-          onChange={(e) => {
-            const val = parseInt(e.target.value, 10);
-            if (!isNaN(val) && val >= 1 && val <= 100) {
-              onRateLimitChange(val);
-            }
-          }}
-          inputProps={{ min: 1, max: 100 }}
-          size="small"
-          className="w-[200px]"
-        />
-        <InfoTooltip text="Maximum download requests per minute per API key. Helps prevent abuse." />
-      </Box>
-
-      <Divider className="mb-6" />
-
-      <Box className="flex justify-between items-center mb-4">
-        <Typography variant="subtitle1">Manage API Keys</Typography>
+      <Box className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <Typography variant="subtitle1">External access keys</Typography>
+          <Typography variant="body2" color="secondary" className="mt-1 max-w-2xl">
+            Every external key can view its approved channels. Add only the request permissions
+            the integration needs.
+          </Typography>
+        </div>
         <Button
           variant="contained"
           startIcon={<AddIcon size={16} />}
-          onClick={openCreateDialog}
+          onClick={() => openCreateDialog('external')}
           size="small"
         >
-          Create Key
+          Create external key
         </Button>
       </Box>
 
@@ -562,117 +616,128 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
         </Alert>
       )}
 
-      {apiKeys.length === 0 ? (
-        <Paper className="p-6 text-center">
+      {externalKeys.length === 0 ? (
+        <Paper className="border border-dashed border-border p-6 text-center shadow-none">
           <Typography color="secondary">
-            No API keys created yet. Create one to enable external integrations.
+            No external access keys yet.
           </Typography>
         </Paper>
       ) : (
-        <>
-          {!useApiKeyCards ? (
-          <div>
-            <TableContainer component={Paper}>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Key</TableCell>
-                    <TableCell>Role</TableCell>
-                    <TableCell>Created</TableCell>
-                    <TableCell>Last Used</TableCell>
-                    <TableCell align="center">Uses</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {apiKeys.map((key) => (
-                    <TableRow key={key.id}>
-                      <TableCell>{key.name}</TableCell>
-                      <TableCell>
+        <div className="grid gap-3" aria-label="External API key cards">
+          {externalKeys.map((key) => {
+            const permissions = permissionsFromKey(key);
+            const ratingBand = getExternalRatingBand(key.max_rating_level);
+            const movieCeiling = ratingBand.movieRatings[ratingBand.movieRatings.length - 1];
+            const tvCeiling = ratingBand.tvRatings[ratingBand.tvRatings.length - 1];
+            const permissionChips = [
+              permissions.allowVideoRequests && {
+                label: key.auto_approve_video_requests ? 'Videos · Auto' : 'Videos',
+                title: key.auto_approve_video_requests
+                  ? 'Video requests are enabled and auto-approved after policy checks.'
+                  : 'Video requests are enabled and require administrator approval.',
+                icon: <VideoIcon size={13} />,
+                auto: key.auto_approve_video_requests,
+              },
+              permissions.allowChannelRequests && {
+                label: key.auto_approve_channel_requests ? 'Channels · Auto' : 'Channels',
+                title: key.auto_approve_channel_requests
+                  ? 'Channel requests are enabled and auto-approved after policy checks.'
+                  : 'Channel requests are enabled and require administrator approval.',
+                icon: <ChannelIcon size={13} />,
+                auto: key.auto_approve_channel_requests,
+              },
+              permissions.allowDeleteVideoRequests && {
+                label: key.auto_approve_delete_requests ? 'Delete · Auto' : 'Delete video',
+                title: key.auto_approve_delete_requests
+                  ? 'Downloaded-video deletion requests are enabled and auto-approved after policy checks.'
+                  : 'Downloaded-video deletion requests are enabled and require administrator approval.',
+                icon: <DeleteIcon size={13} />,
+                auto: key.auto_approve_delete_requests,
+              },
+            ].filter(Boolean) as Array<{
+              label: string;
+              title: string;
+              icon: React.ReactElement;
+              auto: boolean;
+            }>;
+
+            return (
+              <Paper
+                key={key.id}
+                className="flex flex-col gap-3 border border-border p-4 shadow-none sm:flex-row sm:items-center"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Typography variant="subtitle2" className="mr-1 truncate">
+                      {key.name}
+                    </Typography>
+                    {key.revoked_at && (
+                      <Chip label="Revoked" size="small" color="error" variant="outlined" />
+                    )}
+                    <RatingBadge
+                      rating={movieCeiling}
+                      ratingSource={`Movie ceiling: ${ratingBand.movieRatings.join(' / ')}`}
+                      ariaLabel={`Movie rating ceiling ${movieCeiling}`}
+                    />
+                    <RatingBadge
+                      rating={tvCeiling}
+                      ratingSource={`TV ceiling: ${ratingBand.tvRatings.join(' / ')}`}
+                      ariaLabel={`TV rating ceiling ${tvCeiling}`}
+                    />
+                    {key.allow_unrated && (
+                      <RatingBadge rating={null} showNA ariaLabel="Unrated content allowed" />
+                    )}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    {permissionChips.length === 0 ? (
+                      <Tooltip title="Catalog viewing and request-status access only.">
                         <Chip
-                          label={`${key.key_prefix}...`}
+                          label="View only"
                           size="small"
                           variant="outlined"
+                          icon={<ViewIcon size={13} />}
                         />
-                      </TableCell>
-                      <TableCell>
+                      </Tooltip>
+                    ) : permissionChips.map((permission) => (
+                      <Tooltip key={permission.label} title={permission.title}>
                         <Chip
-                          label={key.revoked_at ? 'Revoked' : formatApiRole(key.role)}
+                          label={permission.label}
                           size="small"
-                          color={key.revoked_at ? 'error' : 'default'}
                           variant="outlined"
+                          color={permission.auto ? 'primary' : 'default'}
+                          icon={permission.auto
+                            ? <AutoApproveIcon size={13} />
+                            : permission.icon}
                         />
-                      </TableCell>
-                      <TableCell>{formatDate(key.created_at)}</TableCell>
-                      <TableCell>{formatDate(key.last_used_at)}</TableCell>
-                      <TableCell align="center">
-                        <Chip
-                          label={key.usage_count}
-                          size="small"
-                          color={key.usage_count > 0 ? 'primary' : 'default'}
-                          variant="outlined"
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        {key.role !== 'legacy_download' && !key.revoked_at && (
-                          <Tooltip title="Edit external access">
-                            <IconButton
-                              size="small"
-                              onClick={() => openEditDialog(key)}
-                              aria-label="Edit external access"
-                            >
-                              <EditIcon size={16} />
-                            </IconButton>
-                          </Tooltip>
-                        )}
-                        {!key.revoked_at && <Tooltip title="Revoke">
-                          <IconButton
-                            size="small"
-                            onClick={() => openDeleteConfirmDialog(key.id, key.name)}
-                            color="error"
-                            aria-label="Revoke"
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </div>
-          ) : (
-          <div className="grid gap-3" aria-label="API key cards">
-            {apiKeys.map((key) => (
-              <Paper key={key.id} className="space-y-3 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <Typography variant="subtitle2" className="truncate">{key.name}</Typography>
-                    <div className="mt-1 flex flex-wrap gap-1.5">
-                      <Chip label={`${key.key_prefix}...`} size="small" variant="outlined" />
-                      <Chip
-                        label={key.revoked_at ? 'Revoked' : formatApiRole(key.role)}
-                        size="small"
-                        color={key.revoked_at ? 'error' : 'default'}
-                        variant="outlined"
-                      />
+                      </Tooltip>
+                    ))}
+                    <Tooltip title={`${key.usage_count} authenticated requests recorded`}>
                       <Chip
                         label={`${key.usage_count} ${key.usage_count === 1 ? 'use' : 'uses'}`}
                         size="small"
-                        color={key.usage_count > 0 ? 'primary' : 'default'}
                         variant="outlined"
                       />
-                    </div>
+                    </Tooltip>
                   </div>
-                  <div className="flex shrink-0 items-center">
-                    {key.role !== 'legacy_download' && !key.revoked_at && (
+                </div>
+
+                <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">
+                  <div className="min-w-0 text-left sm:text-right">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground sm:justify-end">
+                      <ClockIcon size={13} aria-hidden="true" />
+                      Last used
+                    </div>
+                    <Typography variant="body2" className="whitespace-nowrap">
+                      {formatDate(key.last_used_at)}
+                    </Typography>
+                  </div>
+                  <div className="flex items-center">
+                    {!key.revoked_at && (
                       <Tooltip title="Edit external access">
                         <IconButton
                           size="small"
                           onClick={() => openEditDialog(key)}
-                          aria-label="Edit external access"
+                          aria-label={`Edit ${key.name} external access`}
                         >
                           <EditIcon size={16} />
                         </IconButton>
@@ -684,62 +749,129 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
                           size="small"
                           onClick={() => openDeleteConfirmDialog(key.id, key.name)}
                           color="error"
-                          aria-label="Revoke"
+                          aria-label={`Revoke ${key.name}`}
                         >
-                          <DeleteIcon fontSize="small" />
+                          <DeleteIcon size={16} />
                         </IconButton>
                       </Tooltip>
                     )}
                   </div>
                 </div>
-                {key.role !== 'legacy_download' && (
-                  <div className="rounded-[var(--radius-ui)] border border-border bg-muted/40 p-3">
-                    <Typography variant="caption" color="secondary">Rating ceiling</Typography>
-                    <div className="text-sm text-foreground">
-                      {formatExternalRatingBand(key.max_rating_level)}
-                    </div>
-                  </div>
-                )}
-                <dl className="grid grid-cols-2 gap-3 border-t border-border pt-3 text-sm">
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Created</dt>
-                    <dd className="text-foreground">{formatDate(key.created_at)}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-xs text-muted-foreground">Last used</dt>
-                    <dd className="text-foreground">{formatDate(key.last_used_at)}</dd>
-                  </div>
-                </dl>
               </Paper>
-            ))}
-          </div>
-          )}
-        </>
+            );
+          })}
+        </div>
+      )}
+
+      <Divider className="my-6" />
+
+      <Box className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <Typography variant="subtitle1">Legacy download keys</Typography>
+          <Typography variant="body2" color="secondary" className="mt-1 max-w-2xl">
+            For the deprecated bookmarklet and <code>/api/videos/download</code> workflow only.
+            Legacy keys cannot access <code>/external-api/v1</code>.
+          </Typography>
+        </div>
+        <Button
+          variant="outlined"
+          startIcon={<AddIcon size={16} />}
+          onClick={() => openCreateDialog('legacy')}
+          size="small"
+        >
+          Create legacy key
+        </Button>
+      </Box>
+
+      <Box className="mb-4 flex items-center">
+        <TextField
+          type="number"
+          label="Legacy rate limit (requests/min)"
+          value={apiKeyRateLimit}
+          onChange={(e) => {
+            const val = parseInt(e.target.value, 10);
+            if (!isNaN(val) && val >= 1 && val <= 100) {
+              onRateLimitChange(val);
+            }
+          }}
+          inputProps={{ min: 1, max: 100 }}
+          size="small"
+          className="w-[240px]"
+        />
+        <InfoTooltip text="Maximum bookmarklet download requests per minute for each legacy key." />
+      </Box>
+
+      {legacyKeys.length === 0 ? (
+        <Typography variant="body2" color="secondary">
+          No legacy download keys.
+        </Typography>
+      ) : (
+        <div className="grid gap-2" aria-label="Legacy API key rows">
+          {legacyKeys.map((key) => (
+            <Paper
+              key={key.id}
+              className="flex flex-wrap items-center justify-between gap-3 border border-border p-3 shadow-none"
+            >
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Typography variant="subtitle2" className="truncate">{key.name}</Typography>
+                  <Chip
+                    label={key.revoked_at ? 'Revoked' : 'Legacy download'}
+                    size="small"
+                    color={key.revoked_at ? 'error' : 'default'}
+                    variant="outlined"
+                  />
+                  <Chip
+                    label={`${key.usage_count} ${key.usage_count === 1 ? 'use' : 'uses'}`}
+                    size="small"
+                    variant="outlined"
+                  />
+                </div>
+                <Typography variant="caption" color="secondary">
+                  Last used {formatDate(key.last_used_at)}
+                </Typography>
+              </div>
+              {!key.revoked_at && (
+                <Tooltip title="Revoke">
+                  <IconButton
+                    size="small"
+                    onClick={() => openDeleteConfirmDialog(key.id, key.name)}
+                    color="error"
+                    aria-label={`Revoke ${key.name}`}
+                  >
+                    <DeleteIcon size={16} />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Paper>
+          ))}
+        </div>
       )}
 
       {/* Create Key Dialog */}
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Create API Key</DialogTitle>
+        <DialogTitle>
+          {createKeyType === 'legacy' ? 'Create Legacy Download Key' : 'Create External Access Key'}
+        </DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
             margin="dense"
             label="Key Name"
-            placeholder="e.g., iPhone Shortcut, Bookmarklet"
+            placeholder={createKeyType === 'legacy' ? 'e.g., Bookmarklet' : 'e.g., Plinx Family Room'}
             fullWidth
             value={newKeyName}
             onChange={(e) => setNewKeyName(e.target.value)}
             inputProps={{ maxLength: 100 }}
             helperText="A descriptive name to identify this key"
           />
-          <Typography variant="subtitle2" className="mt-4 mb-2">Key type and policy</Typography>
-          <PolicyEditor
-            policy={newKeyPolicy}
-            onChange={changeNewKeyPolicy}
-            includeLegacy
-          />
-          {newKeyPolicy.role !== 'legacy_download' && (
+          {createKeyType === 'external' && (
             <>
+              <Typography variant="subtitle2" className="mt-4 mb-2">Access policy</Typography>
+              <PolicyEditor
+                policy={newKeyPolicy}
+                onChange={changeNewKeyPolicy}
+              />
               <Divider className="my-5" />
               <Typography variant="subtitle2" className="mb-2">
                 Approved channels ({newKeyChannelIds.length})
@@ -811,7 +943,7 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
         <DialogTitle>Edit External Access — {editKey?.name}</DialogTitle>
         <DialogContent>
           <Alert severity="info" className="mb-4">
-            Role, policy, and channel grants are enforced by Youtarr on every request.
+            Permissions, policy, and channel grants are enforced by Youtarr on every request.
           </Alert>
           <PolicyEditor policy={editPolicy} onChange={setEditPolicy} />
           <Divider className="my-5" />
