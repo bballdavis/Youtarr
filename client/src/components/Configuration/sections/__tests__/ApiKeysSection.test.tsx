@@ -124,6 +124,7 @@ describe('ApiKeysSection', () => {
     expect(within(cards).getByText('Channels · Auto')).toBeInTheDocument();
     expect(within(cards).getByText('Delete video')).toBeInTheDocument();
     expect(within(cards).getByText(/Last used/i)).toBeInTheDocument();
+    expect(within(cards).queryByText('12 uses')).not.toBeInTheDocument();
     expect(screen.queryByText('plinx123...')).not.toBeInTheDocument();
   });
 

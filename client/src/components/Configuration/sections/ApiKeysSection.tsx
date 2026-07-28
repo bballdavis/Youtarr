@@ -711,13 +711,6 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
                         />
                       </Tooltip>
                     ))}
-                    <Tooltip title={`${key.usage_count} authenticated requests recorded`}>
-                      <Chip
-                        label={`${key.usage_count} ${key.usage_count === 1 ? 'use' : 'uses'}`}
-                        size="small"
-                        variant="outlined"
-                      />
-                    </Tooltip>
                   </div>
                 </div>
 
