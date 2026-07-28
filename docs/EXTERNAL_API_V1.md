@@ -15,26 +15,32 @@ Existing keys migrate as `legacy_download`. They continue to work only with
 legacy endpoint, so its direct-download behavior cannot bypass external
 policies or approval.
 
-The roles are cumulative:
+Every external key includes catalog and owner-request reads. Request
+capabilities are independently configurable:
 
-| Role | Effective scopes |
+| Permission | Added scope |
 | --- | --- |
-| `view` | `catalog:read`, `requests:read` |
-| `request` | view plus `video:request`, `channel:request` |
-| `delete` | request plus `video:delete` |
-| `admin` | same external scopes as `delete` |
+| Request videos | `video:request` |
+| Request channels | `channel:request` |
+| Delete downloaded videos | `video:delete` |
 
-`admin` is a policy superset only. It does not authorize remote approval.
-Review always requires a normal Youtarr administrator session.
+The `role` value remains as a backward-compatible summary for older clients,
+but `capabilities.scopes` is authoritative. Clients must not infer a
+permission that is absent from the scopes array. `admin` remains a policy
+summary only and does not authorize remote approval. Review always requires a
+normal Youtarr administrator session.
 
 ## Policy and grants
 
 Every external key has:
 
+- independent video-request, channel-request, and downloaded-video-deletion
+  permissions; catalog and owner-status reads are always included;
 - a maximum allowed movie/TV rating;
 - an allow/disallow decision for unrated or unrecognized ratings;
 - allowed media types (`video`, `short`, and/or `livestream`);
-- separate auto-approval decisions for video, channel, and deletion requests;
+- separate auto-approval decisions that are valid only when their parent
+  permission is enabled;
 - an explicit set of granted Youtarr channel database IDs.
 
 The HTTP contract retains a compact `maxRatingLevel` value, but the

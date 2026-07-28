@@ -23,8 +23,8 @@ any required row is pending or failed.
 | Responsive request-management tests | Passed | Desktop table, mobile request cards, media thumbnails, human-readable ratings, status capitalization, and API-key management shortcut |
 | Storybook build | Passed | Requests desktop/mobile/review stories and responsive API-key-card story included in `npm run build-storybook --prefix client` |
 | GitHub Actions coverage wiring | Passed | Existing CI runs backend and frontend coverage with 70% line thresholds, uploads LCOV summaries, builds Storybook, and runs the Storybook interaction suite; the new source/tests/stories are included by those existing jobs |
-| Full backend suite | Passed | 153 suites, 4,008 tests; serial `--detectOpenHandles` run completed cleanly |
-| Full frontend suite | Passed | 225 suites, 4,343 tests; serial run completed cleanly |
+| Full backend suite | Passed | 155 suites, 4,016 tests; serial `--detectOpenHandles` run completed cleanly |
+| Full frontend suite | Passed | 225 suites, 4,324 tests; serial run completed cleanly |
 | Focused changed-UI coverage | Passed | 38 tests; 77.68% lines across `RequestsPage`, `ApiKeysSection`, and the external rating policy helper |
 | Backend coverage | Passed | 87.64% lines, 87.20% statements, 88.32% functions, and 79.48% branches; all exceed the GitHub Actions 70% line gate |
 | Frontend coverage | Passed | 87.05% lines, 85.45% statements, 77.31% functions, and 79.18% branches; all exceed the GitHub Actions 70% line gate |
@@ -39,7 +39,7 @@ any required row is pending or failed.
 | --- | --- | --- |
 | Fresh isolated MariaDB and Youtarr | Passed | `youtarr-external-api-rc`; both services healthy on isolated volumes |
 | External key lifecycle and capabilities | Passed | Missing key rejected; constrained key created/authenticated; capabilities verified; revoked key rejected |
-| Upgrade from pre-feature schema | Passed | Reviewed down migrations restored the isolated pre-feature boundary; restart reapplied all five feature migrations and retained the legacy key classification |
+| Upgrade from pre-feature schema | Passed | Reviewed down migrations restored the isolated pre-feature boundary; restart reapplied all six feature migrations and retained the legacy key classification. Granular permission rollback revokes any key whose policy cannot be represented by a cumulative legacy role, preventing privilege expansion. |
 | Existing-schema idempotent migration | Passed | Same database volume remained healthy across forced Youtarr recreation |
 | Rollback and re-application | Passed | Request-type migration schema assertions passed in both directions |
 | Feature-off complete namespace 404 | Passed | Recreated candidate with `EXTERNAL_API_ENABLED=false`; capabilities returned normalized 404 |
@@ -61,8 +61,17 @@ Video and delete targets render a public YouTube thumbnail without attaching an
 API key. Channel requests render the channel identity and handle instead of a raw
 URL. The queue header links directly to API-key management.
 
-API-key policy controls present a human-readable four-level movie/TV scale while
-retaining the existing numeric wire contract:
+API-key cards use compact, responsive chip rows without exposing the key
+prefix. They show the name, reusable movie/TV rating badges, enabled
+video/channel/delete-video request permissions, auto-approval state, usage,
+and last-used time. Legacy keys and their legacy rate limit appear in a
+separate bottom section.
+
+The editor treats view access as the external-key baseline. Video requests,
+channel requests, and downloaded-video deletion requests are independent
+switches; each enabled permission reveals its own auto-approve switch, which
+defaults off. API-key policy controls present a human-readable four-level
+movie/TV scale while retaining the existing numeric wire contract:
 
 | Level | Movie ceiling | TV ceiling |
 | --- | --- | --- |

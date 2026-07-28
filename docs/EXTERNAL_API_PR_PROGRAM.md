@@ -16,7 +16,8 @@ Purpose: establish a disabled-by-default, constrained authentication boundary.
 Included:
 
 - `EXTERNAL_API_ENABLED` namespace gate;
-- legacy versus external key types and cumulative roles;
+- legacy versus external key types, implicit view access, independently
+  configurable request permissions, and backward-compatible role summaries;
 - strict key-policy validation and rate limits;
 - capabilities and normalized error envelope;
 - correlation IDs, log redaction, and zero-handle logger/config lifecycle;
@@ -146,8 +147,8 @@ policy.
 
 Included:
 
-- role, human-readable movie/TV rating ceiling, unrated, media, and
-  auto-approval controls;
+- independent request permissions, conditional auto-approval controls,
+  human-readable movie/TV rating ceiling, unrated, and media controls;
 - documented manual channel-default rating fallback used by the shared
   server-side eligibility path;
 - searchable enabled/non-terminated channel picker;

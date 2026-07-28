@@ -77,24 +77,28 @@ flowchart LR
 
 ## 4. Authorization model
 
-### Roles
+### Permissions
 
-| Role | Read catalog/status | Create video/channel request | Delete request | Review requests |
-|---|---:|---:|---:|---:|
-| `legacy_download` | No | Existing legacy endpoint only | No | No |
-| `view` | Yes | No | No | No |
-| `request` | Yes | Yes | No | No |
-| `delete` | Yes | Yes | Yes, approval-backed | No |
-| `admin` | Yes | Yes | Yes, approval-backed | No |
+| Key type / permission | Read catalog/status | Added capability | Review requests |
+|---|---:|---:|---:|
+| `legacy_download` | No | Existing legacy endpoint only | No |
+| External key baseline | Yes | None | No |
+| Request videos | Yes | `video:request` | No |
+| Request channels | Yes | `channel:request` | No |
+| Delete downloaded videos | Yes | `video:delete`, approval-backed | No |
 
-`admin` is an external policy superset, not remote review authority. Review
-always requires a Youtarr session.
+The stored role remains as a backward-compatible summary, while the
+capabilities response scopes are authoritative. `admin` is not remote review
+authority. Review always requires a Youtarr session.
 
 ### Policy fields
 
 - `autoApproveVideoRequests`
 - `autoApproveChannelRequests`
 - `autoApproveDeleteRequests`
+- `allowVideoRequests`
+- `allowChannelRequests`
+- `allowDeleteVideoRequests`
 - `maxRatingLevel` (`1...4`)
 - `allowUnrated`
 - `allowedMediaTypes`
