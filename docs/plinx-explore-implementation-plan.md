@@ -1,10 +1,21 @@
 # Youtarr + Plinx Explore implementation plan
 
-Status: implemented foundation and continuing roadmap  
-Testing branches: Youtarr `dev`, Plinx `dev`, Strimr `dev-plinx`  
-Youtarr base: latest upstream `dev` at branch creation  
-Youtarr delivery model: small, independently reviewable commits/PR slices  
-Plinx delivery model: one feature branch with reviewable conventional commits
+Status: Youtarr release candidate implemented locally; full-stack gate pending
+Testing branches: Youtarr `external-api-integration`, Plinx work parked
+Youtarr base: latest upstream `dev` at branch creation
+Youtarr delivery model: sequential independently reviewable PR slices
+Plinx delivery model: sequential PRs after the Youtarr contract is validated
+
+No PR is open. Youtarr automated suites, lint, TypeScript, production build,
+fresh Docker startup, pre-feature upgrade, immediate external-key
+authentication, idempotent restart, request-migration
+rollback/re-application, revocation, and feature shutdown pass locally.
+The Youtarr browser gate now covers constrained-key creation, policy editing,
+channel grants, revocation, and safe review/rejection of video, channel, and
+delete requests. The 5,000-video bounded-feed performance gate also passes.
+The downloader matrix, proxy, real-download, and LAN/dev evidence remain
+pending or blocked in `EXTERNAL_API_VALIDATION.md`. Plinx roadmap completion is
+not claimed.
 
 ## 1. Product outcome
 
@@ -74,7 +85,10 @@ flowchart LR
 | `view` | Yes | No | No | No |
 | `request` | Yes | Yes | No | No |
 | `delete` | Yes | Yes | Yes, approval-backed | No |
-| `admin` | Yes | Yes | Yes, approval-backed | Yes |
+| `admin` | Yes | Yes | Yes, approval-backed | No |
+
+`admin` is an external policy superset, not remote review authority. Review
+always requires a Youtarr session.
 
 ### Policy fields
 
@@ -134,26 +148,27 @@ if an old grant row exists.
 
 - `id`: opaque UUID exposed to clients
 - `api_key_id`: requesting key
-- `request_type`: `video`, `channel`, or later `delete_video`
+- `request_type`: `video`, `channel`, or `delete_video`
 - `status`: `pending`, `approved`, `processing`, `completed`, `rejected`,
   `failed`, `cancelled`
-- `target_key`: normalized deduplication key
+- `active_dedupe_key`: nullable unique key for active target deduplication
+- `idempotency_hash`: per-key hash of the optional client idempotency value
 - `youtube_id`: nullable
 - `channel_id`: nullable database channel reference
 - `channel_url`: nullable normalized URL
-- `requested_metadata`: bounded JSON containing only allowed client context
-- `decision_reason`: nullable, admin-facing and sanitized for external output
+- `grant_to_requesting_key`: persisted channel approval decision
+- `message`: nullable bounded terminal/rejection message
 - `job_id`: nullable existing Youtarr job reference
 - `created_at`, `updated_at`, `decided_at`, `completed_at`
-- `decided_by`: nullable admin/session audit identifier if available
 
 Indexes:
 
 - `(api_key_id, created_at)`
-- `(api_key_id, status, created_at)`
-- `(request_type, status, created_at)`
-- a uniqueness/idempotency strategy for active requests by
-  `(api_key_id, request_type, target_key)`
+- `(api_key_id, status)`
+- `(api_key_id, request_type, youtube_id, created_at, id)`
+- `(request_type, status, created_at, id)`
+- unique `active_dedupe_key`
+- unique `(api_key_id, idempotency_hash)`
 
 Request history remains after key revocation for audit purposes, but revoked
 keys cannot read it.

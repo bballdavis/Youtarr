@@ -123,23 +123,28 @@ API Keys provide persistent authentication for external integrations like bookma
 
 ### Key Features
 - **Persistent**: No expiration (unlike session tokens)
-- **Scoped**: Limited to single video downloads only
+- **Scoped**: Legacy keys are download-only; external keys have explicit
+  catalog/request roles, content policy, and channel grants
 - **Secure**: SHA-256 hashed, stored securely
 - **Rate Limited**: Configurable requests per minute
-- **Revocable**: Can be deleted instantly if compromised
+- **Revocable**: Can be revoked instantly if compromised
 
 ### Current Limitations
-- API keys can only download **individual videos**
-- Playlists, channels, and batch operations require the web UI
+- Legacy download keys can download only **individual videos**
+- External keys cannot directly invoke downloads; request actions follow their
+  configured policy and approval state
+- Playlists and batch operations require the web UI
 - Maximum of 20 active API keys per instance
 
 ### External API roles and revocation
 
 Existing keys migrate as `legacy_download`, preserving their download-only
-access. Administrators may create or update a key with an explicit external
+access. Administrators create constrained keys with an explicit external
 policy and one of the cumulative roles `view`, `request`, `delete`, or `admin`.
-Deleting a key now revokes it (`revoked_at` is retained for audit); the
-management endpoint keeps its existing success response. External API access
+Legacy and constrained key types cannot be converted into each other; revoke
+and replace a key when its type must change.
+Revoking a key sets `revoked_at` and retains its metadata for audit visibility.
+External API access
 is separately gated by `EXTERNAL_API_ENABLED=true` and never follows the
 `AUTH_ENABLED=false` bypass.
 
@@ -186,7 +191,7 @@ curl -X POST https://your-server.com/api/videos/download \
 
 #### Via Web UI
 - View all keys in Configuration → API Keys & External Access
-- Delete keys by clicking the trash icon
+- Revoke keys with the revoke action
 - See last usage time for each key
 
 #### Via Database (Advanced)
