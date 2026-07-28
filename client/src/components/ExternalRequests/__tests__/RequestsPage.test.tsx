@@ -1,6 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router-dom';
 import RequestsPage from '../RequestsPage';
 import { ExternalRequestReview } from '../../../types/externalRequest';
 
@@ -24,6 +25,7 @@ const pendingRequest = {
     channelTitle: 'Safe Channel',
     title: 'Safe video',
     mediaType: 'video',
+    rating: 'TV-PG',
   },
   job: null,
   createdAt: '2026-07-26T12:00:00.000Z',
@@ -40,6 +42,12 @@ const jsonResponse = (body: unknown, ok = true) => Promise.resolve({
   ok,
   json: async () => body,
 } as Response);
+
+const renderPage = () => render(
+  <MemoryRouter initialEntries={['/requests']}>
+    <RequestsPage token="session-token" />
+  </MemoryRouter>
+);
 
 describe('RequestsPage', () => {
   beforeEach(() => {
@@ -65,10 +73,15 @@ describe('RequestsPage', () => {
       .mockImplementationOnce(() => jsonResponse(page([processing])));
 
     const user = userEvent.setup();
-    render(<RequestsPage token="session-token" />);
+    renderPage();
 
     expect(await screen.findByText('Safe video')).toBeInTheDocument();
     expect(screen.getByText('External Client')).toBeInTheDocument();
+    expect(screen.getByText('Pending')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Manage API keys' }))
+      .toHaveAttribute('href', '/settings/api-keys');
+    expect(screen.getByRole('img', { name: 'Safe video thumbnail' }))
+      .toHaveAttribute('src', 'https://i.ytimg.com/vi/abcdefghijk/mqdefault.jpg');
     await user.click(screen.getByRole('button', { name: 'Details' }));
     expect(await screen.findByText('Request details')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Approve' }));
@@ -104,7 +117,7 @@ describe('RequestsPage', () => {
       .mockImplementationOnce(() => jsonResponse(page([])));
 
     const user = userEvent.setup();
-    render(<RequestsPage token="session-token" />);
+    renderPage();
 
     expect(await screen.findByText('Unable to read request queue')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Retry' }));
@@ -117,7 +130,7 @@ describe('RequestsPage', () => {
       .mockImplementationOnce(() => jsonResponse(pendingRequest));
 
     const user = userEvent.setup();
-    render(<RequestsPage token="session-token" />);
+    renderPage();
     await user.click(await screen.findByRole('button', { name: 'Details' }));
     await user.click(await screen.findByRole('button', { name: 'Reject' }));
 
@@ -125,5 +138,60 @@ describe('RequestsPage', () => {
     expect(confirm).toBeDisabled();
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Not approved' } });
     expect(confirm).toBeEnabled();
+  });
+
+  test('reviews channel requests and sends the grant decision', async () => {
+    const channelRequest: ExternalRequestReview = {
+      ...pendingRequest,
+      type: 'channel',
+      target: {
+        youtubeId: null,
+        channelId: null,
+        channelUrl: 'https://www.youtube.com/@safechannel',
+        youtubeChannelId: null,
+        channelTitle: null,
+        title: null,
+        mediaType: null,
+        rating: null,
+      },
+    };
+    const completed = {
+      ...channelRequest,
+      status: 'completed' as const,
+      target: {
+        ...channelRequest.target,
+        channelId: 12,
+        youtubeChannelId: 'UC1234567890123456789012',
+        channelTitle: 'Safe Channel',
+        rating: 'TV-PG',
+      },
+    };
+    (global.fetch as jest.Mock)
+      .mockImplementationOnce(() => jsonResponse(page([channelRequest])))
+      .mockImplementationOnce(() => jsonResponse(channelRequest))
+      .mockImplementationOnce(() => jsonResponse(completed))
+      .mockImplementationOnce(() => jsonResponse(page([completed])));
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: 'Details' }));
+    expect(screen.getAllByText('@safechannel').length).toBeGreaterThan(0);
+    expect(screen.queryByText('https://www.youtube.com/@safechannel')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open channel' }))
+      .toHaveAttribute('href', 'https://www.youtube.com/@safechannel');
+    await user.click(screen.getByRole('button', { name: 'Approve' }));
+    await user.click(screen.getByLabelText(
+      'Grant the provisioned channel to the requesting key'
+    ));
+    await user.click(screen.getByRole('button', { name: 'Confirm approval' }));
+
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+      `/api/external-requests/${requestId}/approve`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ grantToRequestingKey: false }),
+      })
+    ));
   });
 });
