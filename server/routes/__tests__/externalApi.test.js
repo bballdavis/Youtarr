@@ -5,6 +5,10 @@ const { createExternalApiRoutes } = require('../externalApi');
 
 function makeApp({ enabled = true, key, catalogService, requestService, writeLimiter } = {}) {
   const app = express();
+  app.use((req, _res, next) => {
+    req.id = 'request-123';
+    next();
+  });
   app.use(express.json());
   const validateApiKey = jest.fn().mockResolvedValue(key || null);
   if (enabled) {
@@ -17,7 +21,9 @@ function makeApp({ enabled = true, key, catalogService, requestService, writeLim
       requestService,
     }));
   } else {
-    app.use('/external-api', (_req, res) => res.status(404).json({ error: 'Not found' }));
+    app.use('/external-api', (_req, res) => res.status(404).json({
+      error: { code: 'not_found', message: 'External API route not found' },
+    }));
   }
   return { app, validateApiKey };
 }
@@ -32,14 +38,22 @@ const externalKey = (overrides = {}) => ({
 describe('external API capabilities', () => {
   test('returns 404 when feature flag is disabled', async () => {
     const { app } = makeApp({ enabled: false });
-    await request(app).get('/external-api/v1/capabilities').expect(404);
+    await request(app).get('/external-api/v1/capabilities').expect(404, {
+      error: { code: 'not_found', message: 'External API route not found' },
+    });
   });
 
   test('requires x-api-key even when application auth is disabled', async () => {
     const old = process.env.AUTH_ENABLED;
     process.env.AUTH_ENABLED = 'false';
     const { app } = makeApp({ key: externalKey() });
-    await request(app).get('/external-api/v1/capabilities').expect(401, { error: 'x-api-key is required' });
+    await request(app).get('/external-api/v1/capabilities').expect(401, {
+      error: {
+        code: 'missing_api_key',
+        message: 'x-api-key is required',
+        requestId: 'request-123',
+      },
+    });
     process.env.AUTH_ENABLED = old;
   });
 
@@ -64,8 +78,8 @@ describe('external API capabilities', () => {
         allowedMediaTypes: ['video'],
       },
       features: {
-        catalog: true, requests: true, channelRequests: false, deleteRequests: false,
-        recommendations: false, authenticatedAssets: true,
+        catalog: true, requests: true, channelRequests: true, deleteRequests: true,
+        recommendations: true, authenticatedAssets: true,
       },
     });
   });
@@ -98,6 +112,59 @@ describe('external API capabilities', () => {
       expect.objectContaining({ id: 4, role: 'request' }),
       { youtubeId: 'abcdefghijk', channelId: 8 }
     );
+  });
+
+  test('routes candidate, channel, and delete operations through constrained services', async () => {
+    const catalogService = {
+      listVideos: jest.fn().mockResolvedValue({
+        data: [],
+        pagination: { page: 1, pageSize: 100, total: 0, totalPages: 0 },
+        dataSource: 'cache',
+        isFullyIndexed: true,
+      }),
+    };
+    const requestService = {
+      createChannelRequest: jest.fn().mockResolvedValue({
+        outcome: 'created',
+        request: { type: 'channel', status: 'pending' },
+      }),
+      createDeleteVideoRequest: jest.fn().mockResolvedValue({
+        outcome: 'already_deleted',
+        request: null,
+      }),
+    };
+    const writeLimiter = jest.fn((_req, _res, next) => next());
+    const { app } = makeApp({
+      key: externalKey({ role: 'delete' }),
+      catalogService,
+      requestService,
+      writeLimiter,
+    });
+
+    await request(app).get('/external-api/v1/videos?page=1&pageSize=100')
+      .set('x-api-key', 'test-key').expect(200);
+    await request(app).post('/external-api/v1/requests/channels')
+      .set('x-api-key', 'test-key')
+      .send({ channelUrl: 'https://www.youtube.com/@safe' })
+      .expect(202);
+    await request(app).post('/external-api/v1/requests/delete-videos')
+      .set('x-api-key', 'test-key')
+      .send({ youtubeId: 'abcdefghijk', channelId: 8 })
+      .expect(200, { outcome: 'already_deleted', request: null });
+
+    expect(catalogService.listVideos).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 4, role: 'delete' }),
+      expect.objectContaining({ page: '1', pageSize: '100' })
+    );
+    expect(requestService.createChannelRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 4 }),
+      { channelUrl: 'https://www.youtube.com/@safe' }
+    );
+    expect(requestService.createDeleteVideoRequest).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 4 }),
+      { youtubeId: 'abcdefghijk', channelId: 8 }
+    );
+    expect(writeLimiter).toHaveBeenCalledTimes(2);
   });
 
   test('lists and reads only through the authenticated request service', async () => {
@@ -168,9 +235,21 @@ describe('external API capabilities', () => {
     };
     const { app } = makeApp({ key: externalKey(), catalogService });
     await request(app).get('/external-api/v1/channels/99/videos').set('x-api-key', 'test-key')
-      .expect(404, { error: 'Channel not found' });
+      .expect(404, {
+        error: {
+          code: 'not_found',
+          message: 'Channel not found',
+          requestId: 'request-123',
+        },
+      });
     await request(app).get('/external-api/v1/assets/channels/99/thumbnail').set('x-api-key', 'test-key')
-      .expect(404, { error: 'Thumbnail not found' });
+      .expect(404, {
+        error: {
+          code: 'not_found',
+          message: 'Thumbnail not found',
+          requestId: 'request-123',
+        },
+      });
   });
 
   test('serves granted channel artwork with private cache and nosniff headers', async () => {
