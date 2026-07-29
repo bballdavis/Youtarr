@@ -4,6 +4,7 @@ const { sanitizeNameLikeYtDlp } = require('../filesystem');
 const youtubeApi = require('../youtubeApi');
 const channelYtdlpExecutor = require('./channelYtdlpExecutor');
 const { logApiFallback } = require('./apiFallbackLogger');
+const { summarizeCommandArgs, safeUrlHost } = require('../safeCommandLogging');
 
 class ChannelMetadataFetcher {
   /**
@@ -43,11 +44,11 @@ class ChannelMetadataFetcher {
             entries,
           };
         }
-        logger.info({ channelUrl }, 'YouTube API getChannelInfo returned no items, falling back to yt-dlp');
+        logger.info('YouTube API getChannelInfo returned no items, falling back to yt-dlp');
       } catch (apiErr) {
         logApiFallback(
           apiErr,
-          { channelUrl },
+          { channelHost: safeUrlHost(channelUrl) },
           'YouTube API fetchChannelMetadata failed, falling back to yt-dlp'
         );
       }
@@ -59,7 +60,10 @@ class ChannelMetadataFetcher {
         playlistEnd: 1,
         skipSleepRequests: true,
       });
-      logger.info('fetchChannelMetadata executing yt-dlp with args' + JSON.stringify(args));
+      logger.info(
+        { command: summarizeCommandArgs(args) },
+        'fetchChannelMetadata executing yt-dlp'
+      );
       const content = await channelYtdlpExecutor.executeYtDlpCommand(args, outputFilePath);
       logger.info('fetchChannelMetadata received yt-dlp output of length ' + content.length);
 
@@ -108,7 +112,7 @@ class ChannelMetadataFetcher {
           { folder_name: folderName },
           { where: { channel_id: channel.channel_id } }
         );
-        logger.info({ channelId: channel.channel_id, folderName },
+        logger.info({ channelId: channel.channel_id },
           'Populated folder_name via yt-dlp fallback');
       } catch (updateErr) {
         logger.warn({ err: updateErr.message, channelId: channel.channel_id },

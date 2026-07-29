@@ -1,5 +1,5 @@
 {
-  "fixtureVersion": 1,
+  "fixtureVersion": 2,
   "capabilities": {
     "apiVersion": "1",
     "serverVersion": "1.77.0",
@@ -77,12 +77,12 @@
       "message": "Video is already deleted"
     }
   ],
-  "candidatePage": {
+  "catalogPage": {
     "data": [
       {
         "youtubeId": "abcdefghijk",
         "title": "Fixture candidate",
-        "thumbnailUrl": "https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg",
+        "thumbnailUrl": "/external-api/v1/assets/videos/abcdefghijk/thumbnail",
         "publishedAt": "2026-07-20T00:00:00.000Z",
         "duration": 120,
         "description": null,
@@ -100,11 +100,63 @@
       "page": 1,
       "pageSize": 100,
       "total": 1,
-      "totalPages": 1
+      "totalPages": 1,
+      "nextCursor": null
     },
     "dataSource": "cache",
     "isFullyIndexed": true,
     "lastIndexedAt": null,
     "indexingHint": null
+  },
+  "videoDetail": {
+    "youtubeId": "abcdefghijk",
+    "title": "Fixture candidate",
+    "thumbnailUrl": "/external-api/v1/assets/videos/abcdefghijk/thumbnail",
+    "publishedAt": "2026-07-20T00:00:00.000Z",
+    "duration": 120,
+    "isDownloaded": true,
+    "isRequested": false,
+    "requestStatus": "completed",
+    "rating": "TV-Y7",
+    "ratingSource": "manual",
+    "channelDatabaseId": 8,
+    "channelId": "UC0000000000000000000001",
+    "channelTitle": "Fixture channel",
+    "mediaType": "video",
+    "availability": "public",
+    "downloadedAt": "2026-07-27T12:00:00.000Z",
+    "fileSize": 123456789,
+    "audioFileSize": null,
+    "isProtected": false,
+    "videoResolution": "1920x1080",
+    "metadata": {
+      "description": "Complete fixture description for the one-video detail response.",
+      "viewCount": 1000,
+      "likeCount": 50,
+      "commentCount": 5,
+      "tags": ["fixture", "video"],
+      "categories": ["Education"],
+      "uploadDate": "20260720",
+      "resolution": "1920x1080",
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "aspectRatio": 1.78,
+      "language": "en",
+      "isLive": false,
+      "wasLive": false,
+      "availability": "public",
+      "channelFollowerCount": 10000,
+      "ageLimit": 0,
+      "webpageUrl": "https://www.youtube.com/watch?v=abcdefghijk",
+      "relatedFiles": [
+        {
+          "fileName": "captions.en.srt",
+          "fileSize": 2048,
+          "type": "Subtitles"
+        }
+      ],
+      "availableResolutions": [360, 720, 1080]
+    }
   }
 }

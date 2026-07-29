@@ -63,6 +63,9 @@ interface ApiKey {
   max_rating_level: number;
   allow_unrated: boolean;
   allowed_media_types: MediaType[];
+  max_active_jobs?: number;
+  hourly_write_limit?: number;
+  daily_write_limit?: number;
   revoked_at: string | null;
 }
 
@@ -80,6 +83,9 @@ interface ApiKeyPolicy {
   maxRatingLevel: number;
   allowUnrated: boolean;
   allowedMediaTypes: MediaType[];
+  maxActiveJobs: number;
+  hourlyWriteLimit: number;
+  dailyWriteLimit: number;
 }
 
 interface ChannelOption {
@@ -101,6 +107,9 @@ const defaultPolicy: ApiKeyPolicy = {
   maxRatingLevel: 3,
   allowUnrated: false,
   allowedMediaTypes: ['video'],
+  maxActiveJobs: 5,
+  hourlyWriteLimit: 30,
+  dailyWriteLimit: 200,
 };
 
 const legacyRolePermissions = (role: ApiKeyRole) => ({
@@ -135,6 +144,9 @@ const policyFromKey = (key: ApiKey): ApiKeyPolicy => ({
   maxRatingLevel: key.max_rating_level,
   allowUnrated: key.allow_unrated,
   allowedMediaTypes: key.allowed_media_types,
+  maxActiveJobs: key.max_active_jobs ?? 5,
+  hourlyWriteLimit: key.hourly_write_limit ?? 30,
+  dailyWriteLimit: key.daily_write_limit ?? 200,
 });
 
 const PolicyEditor: React.FC<{
@@ -282,6 +294,42 @@ const PolicyEditor: React.FC<{
             </Paper>
           );
         })}
+      </Box>
+
+      <Box className="space-y-2">
+        <Typography variant="subtitle2">Workload limits</Typography>
+        <Typography variant="caption" color="secondary">
+          Durable per-key ceilings. Limits can be reduced below the system defaults.
+        </Typography>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <TextField
+            type="number"
+            label="Active jobs"
+            value={policy.maxActiveJobs}
+            inputProps={{ min: 1, max: 5 }}
+            onChange={(event) => updatePolicy({
+              maxActiveJobs: Number(event.target.value),
+            })}
+          />
+          <TextField
+            type="number"
+            label="Writes per hour"
+            value={policy.hourlyWriteLimit}
+            inputProps={{ min: 1, max: 30 }}
+            onChange={(event) => updatePolicy({
+              hourlyWriteLimit: Number(event.target.value),
+            })}
+          />
+          <TextField
+            type="number"
+            label="Writes per day"
+            value={policy.dailyWriteLimit}
+            inputProps={{ min: 1, max: 200 }}
+            onChange={(event) => updatePolicy({
+              dailyWriteLimit: Number(event.target.value),
+            })}
+          />
+        </div>
       </Box>
     </Box>
   );
@@ -495,6 +543,9 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
       editPolicy.allowedMediaTypes.some(
         (mediaType) => !editKey.allowed_media_types.includes(mediaType)
       ) ||
+      editPolicy.maxActiveJobs > (editKey.max_active_jobs ?? 5) ||
+      editPolicy.hourlyWriteLimit > (editKey.hourly_write_limit ?? 30) ||
+      editPolicy.dailyWriteLimit > (editKey.daily_write_limit ?? 200) ||
       selectedChannelIds.some((channelId) => !originalChannelIds.includes(channelId));
     if (increasesPrivilege && !window.confirm(
       'This change may increase what the external integration can view or request. Continue?'

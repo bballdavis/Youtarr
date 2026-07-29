@@ -11,12 +11,35 @@ const REQUEST_STATUSES = [
 const ACTIVE_STATUSES = ['pending', 'approved', 'processing'];
 const VIDEO_ID_PATTERN = /^[A-Za-z0-9_-]{11}$/;
 const AUXILIARY_RECOVERY_DELAY_MS = 5 * 60 * 1000;
+const MAX_PAGE = 100;
 
 class RequestError extends Error {
-  constructor(message, status = 400) {
+  constructor(message, status = 400, code = null) {
     super(message);
     this.name = 'RequestError';
     this.status = status;
+    this.code = code;
+  }
+}
+
+function rethrowWorkLimit(error) {
+  if (error?.name === 'ExternalWorkLimitError') {
+    throw new RequestError(
+      'External API work capacity is temporarily unavailable',
+      503,
+      'work_queue_full'
+    );
+  }
+}
+
+function requireCurrentAutoApproval(key, requestType) {
+  const enabled = {
+    video: key.autoApproveVideoRequests,
+    channel: key.autoApproveChannelRequests,
+    delete_video: key.autoApproveDeleteRequests,
+  }[requestType];
+  if (enabled !== true) {
+    throw new RequestError('Request is no longer eligible', 403);
   }
 }
 
@@ -28,6 +51,46 @@ function parseInteger(value, fallback, minimum, maximum, name) {
     throw new RequestError(`${name} must be between ${minimum} and ${maximum}`);
   }
   return parsed;
+}
+
+function decodeCursor(value) {
+  if (value === undefined) return null;
+  if (typeof value !== 'string' || value.length > 200) {
+    throw new RequestError('cursor is invalid');
+  }
+  try {
+    const parsed = JSON.parse(Buffer.from(value, 'base64url').toString('utf8'));
+    if (parsed?.v !== 1 || !Number.isSafeInteger(parsed.page) ||
+        parsed.page < 1 || parsed.page > MAX_PAGE) {
+      throw new Error('invalid cursor');
+    }
+    return parsed.page;
+  } catch (_error) {
+    throw new RequestError('cursor is invalid');
+  }
+}
+
+function requestPagination(query) {
+  if (query.cursor !== undefined && query.page !== undefined) {
+    throw new RequestError('cursor and page cannot be used together');
+  }
+  const page = decodeCursor(query.cursor) ||
+    parseInteger(query.page, 1, 1, MAX_PAGE, 'page');
+  const pageSize = parseInteger(query.pageSize, 50, 1, 100, 'pageSize');
+  return { page, pageSize, offset: (page - 1) * pageSize };
+}
+
+function requestPaginationDto(page, pageSize, total) {
+  const totalPages = total === 0 ? 0 : Math.min(MAX_PAGE, Math.ceil(total / pageSize));
+  return {
+    page,
+    pageSize,
+    total,
+    totalPages,
+    nextCursor: page < totalPages
+      ? Buffer.from(JSON.stringify({ v: 1, page: page + 1 }), 'utf8').toString('base64url')
+      : null,
+  };
 }
 
 function normalizeIdempotencyKey(value) {
@@ -171,10 +234,37 @@ function createExternalRequestService({
   videoDeleter = require('./videoDeletionModule'),
   now = () => new Date(),
   sequelize = require('../db').sequelize,
+  quotaService = null,
+  workLimiter = require('./externalWorkLimiter').sharedExternalWorkLimiter,
 } = {}) {
   const {
     ExternalRequest, ApiKey, ApiKeyChannelGrant, Channel, ChannelVideo, Video, Job,
   } = models;
+  const quotas = quotaService ||
+    require('./externalQuotaService').createExternalQuotaService({ models, sequelize, now });
+
+  async function createReservedRequest(keyId, scope, buildValues) {
+    return sequelize.transaction(async (transaction) => {
+      const currentKey = await quotas.reserveWrite(keyId, scope, transaction);
+      const record = await ExternalRequest.create(
+        buildValues(currentKey),
+        { transaction }
+      );
+      return { currentKey, record };
+    });
+  }
+
+  async function failAuthorityChange(record) {
+    const timestamp = now();
+    await record.update({
+      status: 'failed',
+      active_dedupe_key: null,
+      message: 'Request is no longer eligible',
+      decided_at: record.decided_at || timestamp,
+      updated_at: timestamp,
+    });
+    return record;
+  }
 
   async function reconcile(records) {
     const processing = records.filter((record) => record.status === 'processing');
@@ -254,9 +344,18 @@ function createExternalRequestService({
     return true;
   }
 
-  async function validateTarget(key, youtubeId, channelId, transaction = null) {
+  async function validateTarget(
+    key,
+    youtubeId,
+    channelId,
+    transaction = null,
+    { lockVideo = true } = {}
+  ) {
     const policy = normalizePolicy(key);
     const queryOptions = transaction ? { transaction, lock: transaction.LOCK.UPDATE } : {};
+    const videoQueryOptions = transaction
+      ? { transaction, ...(lockVideo ? { lock: transaction.LOCK.UPDATE } : {}) }
+      : {};
     const grant = await ApiKeyChannelGrant.findOne({
       where: { api_key_id: key.id, channel_id: channelId },
       ...queryOptions,
@@ -277,19 +376,24 @@ function createExternalRequestService({
       throw new RequestError('Video not found', 404);
     }
     if (!isMediaTypeEligible(policy, cached.media_type)) {
-      throw new RequestError('Video is not eligible', 403);
+      throw new RequestError('Video not found', 404);
     }
     const storedVideo = await Video.findOne({
       where: { youtubeId },
-      attributes: ['youtubeId', 'normalized_rating', 'removed'],
-      ...queryOptions,
+      // Deletion execution reuses this locked instance in the deleter, so it
+      // needs the complete row (including id/filePath). Read-only validation
+      // keeps the narrower projection.
+      ...(!(transaction && lockVideo)
+        ? { attributes: ['youtubeId', 'normalized_rating', 'removed'] }
+        : {}),
+      ...videoQueryOptions,
     });
     if (storedVideo && storedVideo.removed !== true && storedVideo.removed !== false) {
-      throw new RequestError('Video is not eligible', 403);
+      throw new RequestError('Video not found', 404);
     }
     const downloaded = storedVideo?.removed === false ? storedVideo : null;
     if (!isRatingEligible(policy, storedVideo?.normalized_rating, channel.default_rating)) {
-      throw new RequestError('Video is not eligible', 403);
+      throw new RequestError('Video not found', 404);
     }
     return { channel, downloaded };
   }
@@ -376,21 +480,38 @@ function createExternalRequestService({
     return existing;
   }
 
-  async function dispatchAutoApproved(record, key, channel) {
+  async function dispatchAutoApproved(record, key) {
     try {
-      const jobId = await executor({
-        body: {
-          urls: [`https://www.youtube.com/watch?v=${record.youtube_id}`],
-          channelId: channel.channel_id,
-          ownerChannelMap: { [record.youtube_id]: channel.channel_id },
-          initiatedBy: { type: 'api_key', name: key.name },
-          jobLabel: 'External video request',
-          // The downloader uses this UUID as the job identity. A retry after a
-          // crash can therefore observe/reuse the accepted job instead of
-          // starting the same download twice.
-          externalRequestId: record.id,
-        },
-      });
+      const jobId = await workLimiter.run(() =>
+        sequelize.transaction(async (transaction) => {
+          const currentKey = await quotas.assertExecutionCapacity(
+            key.id,
+            'video:request',
+            record.id,
+            transaction
+          );
+          requireCurrentAutoApproval(currentKey, 'video');
+          const target = await validateTarget(
+            currentKey,
+            record.youtube_id,
+            record.channel_id,
+            transaction
+          );
+          return executor({
+            body: {
+              urls: [`https://www.youtube.com/watch?v=${record.youtube_id}`],
+              channelId: target.channel.channel_id,
+              ownerChannelMap: { [record.youtube_id]: target.channel.channel_id },
+              initiatedBy: { type: 'api_key', name: currentKey.name },
+              jobLabel: 'External video request',
+              // The downloader uses this UUID as the job identity. A retry after a
+              // crash can therefore observe/reuse the accepted job instead of
+              // starting the same download twice.
+              externalRequestId: record.id,
+            },
+          });
+        })
+      );
       const acceptedAt = now();
       await record.update({
         status: 'processing',
@@ -405,6 +526,7 @@ function createExternalRequestService({
         message: 'Download could not be queued',
         updated_at: failedAt,
       });
+      rethrowWorkLimit(error);
     }
     return record;
   }
@@ -426,7 +548,7 @@ function createExternalRequestService({
     if (input.channelId === undefined) throw new RequestError('channelId is required');
     const channelId = parseInteger(input.channelId, null, 1, Number.MAX_SAFE_INTEGER, 'channelId');
     const idempotencyHash = normalizeIdempotencyKey(input.idempotencyKey);
-    const { channel, downloaded } = await validateTarget(key, input.youtubeId, channelId);
+    const { downloaded } = await validateTarget(key, input.youtubeId, channelId);
     if (downloaded) return { outcome: 'already_downloaded', request: null };
 
     const activeDedupeKey = `${key.id}:video:${input.youtubeId}`;
@@ -438,27 +560,43 @@ function createExternalRequestService({
       // process stopped in that boundary, an idempotent client retry resumes
       // dispatch with the request UUID as the stable downloader job ID.
       if (existing.status === 'pending' && existing.decided_at && !existing.job_id) {
-        await dispatchAutoApproved(existing, key, channel);
+        try {
+          const currentKey = await quotas.assertExecutionCapacity(
+            key.id, 'video:request', existing.id
+          );
+          const currentTarget = await validateTarget(
+            currentKey,
+            input.youtubeId,
+            channelId
+          );
+          await dispatchAutoApproved(existing, currentKey, currentTarget.channel);
+        } catch (_error) {
+          await failAuthorityChange(existing);
+        }
       }
       return { outcome: 'duplicate', request: dto(existing) };
     }
 
     const timestamp = now();
-    const autoApprove = key.autoApproveVideoRequests === true;
+    let currentKey;
     let record;
     try {
-      record = await ExternalRequest.create({
-        api_key_id: key.id,
-        channel_id: channelId,
-        youtube_id: input.youtubeId,
-        request_type: 'video',
-        status: 'pending',
-        active_dedupe_key: activeDedupeKey,
-        idempotency_hash: idempotencyHash,
-        decided_at: autoApprove ? timestamp : null,
-        created_at: timestamp,
-        updated_at: timestamp,
-      });
+      ({ currentKey, record } = await createReservedRequest(
+        key.id,
+        'video:request',
+        (reservedKey) => ({
+          api_key_id: key.id,
+          channel_id: channelId,
+          youtube_id: input.youtubeId,
+          request_type: 'video',
+          status: 'pending',
+          active_dedupe_key: activeDedupeKey,
+          idempotency_hash: idempotencyHash,
+          decided_at: reservedKey.autoApproveVideoRequests ? timestamp : null,
+          created_at: timestamp,
+          updated_at: timestamp,
+        })
+      ));
     } catch (error) {
       if (!isUniqueConstraintError(error)) {
         throw error;
@@ -470,50 +608,77 @@ function createExternalRequestService({
       return { outcome: 'duplicate', request: dto(duplicate) };
     }
 
-    if (autoApprove) {
-      await dispatchAutoApproved(record, key, channel);
+    if (currentKey.autoApproveVideoRequests) {
+      try {
+        const finalKey = await quotas.assertExecutionCapacity(
+          key.id, 'video:request', record.id
+        );
+        const finalTarget = await validateTarget(finalKey, input.youtubeId, channelId);
+        await dispatchAutoApproved(record, finalKey, finalTarget.channel);
+      } catch (error) {
+        if (error?.status === 503) throw error;
+        await failAuthorityChange(record);
+      }
     }
     return { outcome: 'created', request: dto(record) };
   }
 
-  async function provisionChannelRequest(record, key, { grantToRequestingKey } = {}) {
+  async function provisionChannelRequest(
+    record,
+    key,
+    { grantToRequestingKey, requireAutoApproval = false } = {}
+  ) {
     if (!(await claimAuxiliaryRequest(record))) return record;
     const shouldGrant = grantToRequestingKey ??
       (record.grant_to_requesting_key !== false);
     try {
-      const result = await channelProvisioner.getChannelInfo(
-        record.channel_url,
-        false,
-        true,
-        {},
-        { skipTabDetection: true }
-      );
-      const channel = await Channel.findOne({
-        where: {
-          [Op.or]: [
-            { channel_id: result.channel_id || result.id },
-            { url: record.channel_url },
-          ],
-        },
-      });
-      if (!channel || channel.enabled !== true || channel.terminated_at) {
-        throw new Error('Provisioned channel is unavailable');
-      }
-      if (shouldGrant) {
-        await ApiKeyChannelGrant.findOrCreate({
-          where: { api_key_id: key.id, channel_id: channel.id },
-          defaults: { api_key_id: key.id, channel_id: channel.id },
+      await workLimiter.run(() => sequelize.transaction(async (transaction) => {
+        const currentKey = await quotas.assertExecutionCapacity(
+          key.id,
+          'channel:request',
+          record.id,
+          transaction
+        );
+        if (requireAutoApproval) {
+          requireCurrentAutoApproval(currentKey, 'channel');
+        }
+        const result = await channelProvisioner.getChannelInfo(
+          record.channel_url,
+          false,
+          true,
+          {},
+          { skipTabDetection: true }
+        );
+        const channel = await Channel.findOne({
+          where: {
+            [Op.or]: [
+              { channel_id: result.channel_id || result.id },
+              { url: record.channel_url },
+            ],
+          },
+          transaction,
+          lock: transaction.LOCK.UPDATE,
         });
-      }
-      const completedAt = now();
-      await record.update({
-        channel_id: channel.id,
-        status: 'completed',
-        active_dedupe_key: null,
-        completed_at: completedAt,
-        updated_at: completedAt,
-      });
-    } catch (_error) {
+        if (!channel || channel.enabled !== true || channel.terminated_at) {
+          throw new Error('Provisioned channel is unavailable');
+        }
+        if (shouldGrant) {
+          await ApiKeyChannelGrant.findOrCreate({
+            where: { api_key_id: currentKey.id, channel_id: channel.id },
+            defaults: { api_key_id: currentKey.id, channel_id: channel.id },
+            transaction,
+          });
+        }
+        const completedAt = now();
+        await record.update({
+          channel_id: channel.id,
+          status: 'completed',
+          active_dedupe_key: null,
+          completed_at: completedAt,
+          updated_at: completedAt,
+        }, { transaction });
+      }));
+    } catch (error) {
       const failedAt = now();
       await record.update({
         status: 'failed',
@@ -521,6 +686,7 @@ function createExternalRequestService({
         message: 'Channel could not be provisioned',
         updated_at: failedAt,
       });
+      rethrowWorkLimit(error);
     }
     return record;
   }
@@ -549,28 +715,41 @@ function createExternalRequestService({
     if (existing) {
       if (existing.decided_at &&
           ['pending', 'approved', 'processing'].includes(existing.status)) {
-        await provisionChannelRequest(existing, key);
+        try {
+          const currentKey = await quotas.assertExecutionCapacity(
+            key.id, 'channel:request', existing.id
+          );
+          await provisionChannelRequest(existing, currentKey, {
+            requireAutoApproval: existing.status !== 'approved',
+          });
+        } catch (_error) {
+          await failAuthorityChange(existing);
+        }
       }
       return { outcome: 'duplicate', request: dto(existing) };
     }
     const timestamp = now();
-    const autoApprove = key.autoApproveChannelRequests === true;
+    let currentKey;
     let record;
     try {
-      record = await ExternalRequest.create({
-        api_key_id: key.id,
-        channel_id: null,
-        youtube_id: null,
-        channel_url: channelUrl,
-        request_type: 'channel',
-        status: 'pending',
-        grant_to_requesting_key: true,
-        active_dedupe_key: activeDedupeKey,
-        idempotency_hash: idempotencyHash,
-        decided_at: autoApprove ? timestamp : null,
-        created_at: timestamp,
-        updated_at: timestamp,
-      });
+      ({ currentKey, record } = await createReservedRequest(
+        key.id,
+        'channel:request',
+        (reservedKey) => ({
+          api_key_id: key.id,
+          channel_id: null,
+          youtube_id: null,
+          channel_url: channelUrl,
+          request_type: 'channel',
+          status: 'pending',
+          grant_to_requesting_key: true,
+          active_dedupe_key: activeDedupeKey,
+          idempotency_hash: idempotencyHash,
+          decided_at: reservedKey.autoApproveChannelRequests ? timestamp : null,
+          created_at: timestamp,
+          updated_at: timestamp,
+        })
+      ));
     } catch (error) {
       if (!isUniqueConstraintError(error)) throw error;
       const duplicate = await findTypedDuplicate({
@@ -583,30 +762,61 @@ function createExternalRequestService({
       if (!duplicate) throw error;
       return { outcome: 'duplicate', request: dto(duplicate) };
     }
-    if (autoApprove) await provisionChannelRequest(record, key);
+    if (currentKey.autoApproveChannelRequests) {
+      try {
+        const finalKey = await quotas.assertExecutionCapacity(
+          key.id, 'channel:request', record.id
+        );
+        await provisionChannelRequest(record, finalKey, { requireAutoApproval: true });
+      } catch (error) {
+        if (error?.status === 503) throw error;
+        await failAuthorityChange(record);
+      }
+    }
     return { outcome: 'created', request: dto(record) };
   }
 
-  async function executeDeleteRequest(record) {
+  async function executeDeleteRequest(record, { requireAutoApproval = false } = {}) {
     if (!(await claimAuxiliaryRequest(record))) return record;
     try {
-      const result = await videoDeleter.deleteVideosByYoutubeIds([record.youtube_id]);
-      const failures = result?.failed || [];
-      const alreadyAbsent = failures.length > 0 && failures.every((failure) =>
-        /not found|already (?:marked as )?removed/i.test(failure?.error || '')
-      );
-      if ((failures.length > 0 || result?.success === false) && !alreadyAbsent) {
-        throw new Error('Deletion failed');
-      }
-      const completedAt = now();
-      await record.update({
-        status: 'completed',
-        active_dedupe_key: null,
-        ...(alreadyAbsent ? { message: 'Video is already deleted' } : {}),
-        completed_at: completedAt,
-        updated_at: completedAt,
-      });
-    } catch (_error) {
+      await workLimiter.run(() => sequelize.transaction(async (transaction) => {
+        const currentKey = await quotas.assertExecutionCapacity(
+          record.api_key_id,
+          'video:delete',
+          record.id,
+          transaction
+        );
+        if (requireAutoApproval) {
+          requireCurrentAutoApproval(currentKey, 'delete_video');
+        }
+        const target = await validateTarget(
+          currentKey,
+          record.youtube_id,
+          record.channel_id,
+          transaction
+        );
+        if (!target.downloaded) {
+          throw new RequestError('Video not found', 404);
+        }
+        const result = await videoDeleter.deleteVideoById(
+          target.downloaded.id,
+          { transaction, video: target.downloaded }
+        );
+        const alreadyAbsent = result?.success === false &&
+          /not found|already (?:marked as )?removed/i.test(result?.error || '');
+        if (result?.success === false && !alreadyAbsent) {
+          throw new Error('Deletion failed');
+        }
+        const completedAt = now();
+        await record.update({
+          status: 'completed',
+          active_dedupe_key: null,
+          ...(alreadyAbsent ? { message: 'Video is already deleted' } : {}),
+          completed_at: completedAt,
+          updated_at: completedAt,
+        }, { transaction });
+      }));
+    } catch (error) {
       const failedAt = now();
       await record.update({
         status: 'failed',
@@ -614,6 +824,7 @@ function createExternalRequestService({
         message: 'Video could not be deleted',
         updated_at: failedAt,
       });
+      rethrowWorkLimit(error);
     }
     return record;
   }
@@ -641,6 +852,11 @@ function createExternalRequestService({
     );
     const idempotencyHash = normalizeIdempotencyKey(input.idempotencyKey);
     const target = await validateTarget(key, input.youtubeId, channelId);
+    if (!target.downloaded) {
+      // Removed and never-downloaded targets are deliberately indistinguishable
+      // from every other hidden target state.
+      throw new RequestError('Video not found', 404);
+    }
     const activeDedupeKey = `${key.id}:delete_video:${input.youtubeId}`;
     const existing = await findTypedDuplicate({
       keyId: key.id,
@@ -653,29 +869,42 @@ function createExternalRequestService({
     if (existing) {
       if (existing.decided_at &&
           ['pending', 'approved', 'processing'].includes(existing.status)) {
-        await executeDeleteRequest(existing);
+        try {
+          const currentKey = await quotas.assertExecutionCapacity(
+            key.id, 'video:delete', existing.id
+          );
+          await validateTarget(currentKey, input.youtubeId, channelId);
+          await executeDeleteRequest(existing, {
+            requireAutoApproval: existing.status !== 'approved',
+          });
+        } catch (_error) {
+          await failAuthorityChange(existing);
+        }
       }
       return { outcome: 'duplicate', request: dto(existing) };
     }
     const timestamp = now();
-    const autoApprove = key.autoApproveDeleteRequests === true;
-    const alreadyDeleted = !target.downloaded;
+    let currentKey;
     let record;
     try {
-      record = await ExternalRequest.create({
-        api_key_id: key.id,
-        channel_id: channelId,
-        youtube_id: input.youtubeId,
-        request_type: 'delete_video',
-        status: alreadyDeleted ? 'completed' : 'pending',
-        active_dedupe_key: alreadyDeleted ? null : activeDedupeKey,
-        idempotency_hash: idempotencyHash,
-        message: alreadyDeleted ? 'Video is already deleted' : null,
-        decided_at: alreadyDeleted || autoApprove ? timestamp : null,
-        completed_at: alreadyDeleted ? timestamp : null,
-        created_at: timestamp,
-        updated_at: timestamp,
-      });
+      ({ currentKey, record } = await createReservedRequest(
+        key.id,
+        'video:delete',
+        (reservedKey) => ({
+          api_key_id: key.id,
+          channel_id: channelId,
+          youtube_id: input.youtubeId,
+          request_type: 'delete_video',
+          status: 'pending',
+          active_dedupe_key: activeDedupeKey,
+          idempotency_hash: idempotencyHash,
+          message: null,
+          decided_at: reservedKey.autoApproveDeleteRequests ? timestamp : null,
+          completed_at: null,
+          created_at: timestamp,
+          updated_at: timestamp,
+        })
+      ));
     } catch (error) {
       if (!isUniqueConstraintError(error)) throw error;
       const duplicate = await findTypedDuplicate({
@@ -689,16 +918,23 @@ function createExternalRequestService({
       if (!duplicate) throw error;
       return { outcome: 'duplicate', request: dto(duplicate) };
     }
-    if (alreadyDeleted) {
-      return { outcome: 'already_deleted', request: dto(record) };
+    if (currentKey.autoApproveDeleteRequests) {
+      try {
+        const finalKey = await quotas.assertExecutionCapacity(
+          key.id, 'video:delete', record.id
+        );
+        await validateTarget(finalKey, input.youtubeId, channelId);
+        await executeDeleteRequest(record, { requireAutoApproval: true });
+      } catch (error) {
+        if (error?.status === 503) throw error;
+        await failAuthorityChange(record);
+      }
     }
-    if (autoApprove) await executeDeleteRequest(record);
     return { outcome: 'created', request: dto(record) };
   }
 
   async function listRequests(key, query = {}) {
-    const page = parseInteger(query.page, 1, 1, 1000000, 'page');
-    const pageSize = parseInteger(query.pageSize, 50, 1, 100, 'pageSize');
+    const { page, pageSize, offset } = requestPagination(query);
     const status = query.status;
     if (status !== undefined && !REQUEST_STATUSES.includes(status)) {
       throw new RequestError(`status must be one of: ${REQUEST_STATUSES.join(', ')}`);
@@ -708,7 +944,7 @@ function createExternalRequestService({
       where,
       order: [['created_at', 'DESC'], ['id', 'DESC']],
       limit: pageSize,
-      offset: (page - 1) * pageSize,
+      offset,
     });
     await reconcile(result.rows);
     const reconciledResult = status
@@ -716,17 +952,12 @@ function createExternalRequestService({
         where,
         order: [['created_at', 'DESC'], ['id', 'DESC']],
         limit: pageSize,
-        offset: (page - 1) * pageSize,
+        offset,
       })
       : result;
     return {
       data: reconciledResult.rows.map(dto),
-      pagination: {
-        page,
-        pageSize,
-        total: reconciledResult.count,
-        totalPages: reconciledResult.count === 0 ? 0 : Math.ceil(reconciledResult.count / pageSize),
-      },
+      pagination: requestPaginationDto(page, pageSize, reconciledResult.count),
     };
   }
 
@@ -742,8 +973,7 @@ function createExternalRequestService({
   }
 
   async function listAdminRequests(query = {}) {
-    const page = parseInteger(query.page, 1, 1, 1000000, 'page');
-    const pageSize = parseInteger(query.pageSize, 50, 1, 100, 'pageSize');
+    const { page, pageSize, offset } = requestPagination(query);
     const status = query.status;
     if (status !== undefined && !REQUEST_STATUSES.includes(status)) {
       throw new RequestError(`status must be one of: ${REQUEST_STATUSES.join(', ')}`);
@@ -766,7 +996,7 @@ function createExternalRequestService({
       distinct: true,
       order: [['created_at', 'DESC'], ['id', 'DESC']],
       limit: pageSize,
-      offset: (page - 1) * pageSize,
+      offset,
     });
     await reconcile(result.rows);
     const reconciledResult = status
@@ -776,7 +1006,7 @@ function createExternalRequestService({
         distinct: true,
         order: [['created_at', 'DESC'], ['id', 'DESC']],
         limit: pageSize,
-        offset: (page - 1) * pageSize,
+        offset,
       })
       : result;
     const requesters = await ApiKey.findAll({
@@ -785,12 +1015,7 @@ function createExternalRequestService({
     });
     return {
       data: await adminDtos(reconciledResult.rows),
-      pagination: {
-        page,
-        pageSize,
-        total: reconciledResult.count,
-        totalPages: reconciledResult.count === 0 ? 0 : Math.ceil(reconciledResult.count / pageSize),
-      },
+      pagination: requestPaginationDto(page, pageSize, reconciledResult.count),
       filterOptions: {
         requesters: requesters.map((key) => {
           const value = key.toJSON ? key.toJSON() : key;
@@ -894,6 +1119,18 @@ function createExternalRequestService({
         await failApproval('Request is no longer eligible');
         return;
       }
+      try {
+        await quotas.assertExecutionCapacity(
+          record.api_key_id,
+          'video:request',
+          record.id,
+          transaction
+        );
+      } catch (error) {
+        if (error.name !== 'QuotaError') throw error;
+        await failApproval('Request exceeds the active job limit');
+        return;
+      }
 
       let target;
       try {
@@ -939,7 +1176,7 @@ function createExternalRequestService({
         }, { transaction });
       }
       try {
-        const jobId = await executor({
+        const jobId = await workLimiter.run(() => executor({
           body: {
             urls: [`https://www.youtube.com/watch?v=${record.youtube_id}`],
             channelId: target.channel.channel_id,
@@ -948,7 +1185,7 @@ function createExternalRequestService({
             jobLabel: 'External video request',
             externalRequestId: record.id,
           },
-        });
+        }));
         const acceptedAt = now();
         await record.update({
           status: 'processing',
@@ -1032,6 +1269,24 @@ function createExternalRequestService({
           status: 'failed',
           active_dedupe_key: null,
           message: 'Request is no longer eligible',
+          decided_at: decisionAt,
+          updated_at: decisionAt,
+        }, { transaction });
+        return;
+      }
+      try {
+        await quotas.assertExecutionCapacity(
+          record.api_key_id,
+          requiredScope,
+          record.id,
+          transaction
+        );
+      } catch (error) {
+        if (error.name !== 'QuotaError') throw error;
+        await record.update({
+          status: 'failed',
+          active_dedupe_key: null,
+          message: 'Request exceeds the active job limit',
           decided_at: decisionAt,
           updated_at: decisionAt,
         }, { transaction });

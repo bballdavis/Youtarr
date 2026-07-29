@@ -125,7 +125,11 @@ Channel.init(
     timestamps: false,
     tableName: 'channels',
     indexes: [
-      { fields: ['channel_id'], name: 'channels_external_channel_id_idx' },
+      {
+        fields: ['channel_id'],
+        unique: true,
+        name: 'channels_channel_id_uq',
+      },
       {
         fields: ['enabled', 'terminated_at', 'id'],
         name: 'channels_external_visibility_idx',

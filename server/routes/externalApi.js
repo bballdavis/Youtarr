@@ -1,19 +1,79 @@
 const express = require('express');
-const { sendExternalError } = require('../modules/externalApiResponse');
+const {
+  sendExternalError,
+  setExternalSecurityHeaders,
+} = require('../modules/externalApiResponse');
 const { scopesForExternalKey } = require('../modules/externalPermissions');
 
 function createExternalApiRoutes({
   externalApiAuth,
+  externalApiIngressLimiter = (_req, _res, next) => next(),
   externalApiLimiter,
   externalApiWriteLimiter = (_req, _res, next) => next(),
+  recordExternalApiUse = (_req, _res, next) => next(),
+  externalApiJsonParser = express.json({ limit: '16kb' }),
   serverVersion,
   catalogService = require('../modules/externalCatalogService'),
+  thumbnailProxy = require('../modules/externalThumbnailProxy'),
+  externalWorkLimiter = require('../modules/externalWorkLimiter').sharedExternalWorkLimiter,
   requestService = null,
+  quotaService = null,
 }) {
   const router = express.Router();
   const requests = () => requestService ||
     require('../modules/externalRequestService').createExternalRequestService();
-  router.use(externalApiAuth, externalApiLimiter);
+  const quotas = () => quotaService ||
+    require('../modules/externalQuotaService').createExternalQuotaService();
+  router.use((_req, res, next) => {
+    setExternalSecurityHeaders(res);
+    next();
+  });
+  router.use(externalApiIngressLimiter);
+  router.use((req, res, next) => {
+    if (!['GET', 'HEAD', 'POST'].includes(req.method)) {
+      return sendExternalError(res, 405, 'HTTP method is not allowed', {
+        code: 'method_not_allowed',
+        requestId: req.id,
+      });
+    }
+    return next();
+  });
+  router.use(externalApiAuth, externalApiLimiter, recordExternalApiUse);
+  router.use((req, res, next) => {
+    if (req.method !== 'POST') return next();
+    const contentEncoding = String(req.get('content-encoding') || 'identity').toLowerCase();
+    if (contentEncoding !== 'identity') {
+      return sendExternalError(res, 415, 'Compressed request bodies are not supported', {
+        code: 'unsupported_media_type',
+        requestId: req.id,
+      });
+    }
+    if (!req.is('application/json')) {
+      return sendExternalError(res, 415, 'Content-Type must be application/json', {
+        code: 'unsupported_media_type',
+        requestId: req.id,
+      });
+    }
+    return externalApiJsonParser(req, res, (error) => {
+      if (!error) return next();
+      if (error.type === 'entity.too.large') {
+        return sendExternalError(res, 413, 'Request body is too large', {
+          requestId: req.id,
+        });
+      }
+      if (error instanceof SyntaxError || error.type === 'entity.parse.failed') {
+        return sendExternalError(res, 400, 'Request body contains invalid JSON', {
+          requestId: req.id,
+        });
+      }
+      if (error.type === 'request.aborted') {
+        return sendExternalError(res, 400, 'Request body was aborted', {
+          requestId: req.id,
+        });
+      }
+      return next(error);
+    });
+  });
   /**
    * @swagger
    * /external-api/v1/capabilities:
@@ -29,33 +89,48 @@ function createExternalApiRoutes({
    *           application/json:
    *             schema: { $ref: '#/components/schemas/ExternalError' }
    */
-  router.get('/capabilities', (req, res) => {
+  router.get('/capabilities', async (req, res) => {
     const key = req.externalApiKey;
     const scopes = scopesForExternalKey(key) || [];
-    res.json({
-      apiVersion: '1',
-      serverVersion,
-      role: key.role,
-      scopes,
-      policy: {
-        allowVideoRequests: key.allowVideoRequests,
-        allowChannelRequests: key.allowChannelRequests,
-        allowDeleteVideoRequests: key.allowDeleteVideoRequests,
-        autoApproveVideoRequests: key.autoApproveVideoRequests,
-        autoApproveChannelRequests: key.autoApproveChannelRequests,
-        autoApproveDeleteRequests: key.autoApproveDeleteRequests,
-        maxRatingLevel: key.maxRatingLevel,
-        allowUnrated: key.allowUnrated,
-        allowedMediaTypes: key.allowedMediaTypes,
-      },
-      features: {
-        catalog: true, requests: true, channelRequests: true, deleteRequests: true,
-        recommendations: true, authenticatedAssets: true,
-      },
-    });
+    try {
+      const quota = await quotas().status(key);
+      return res.json({
+        apiVersion: '1',
+        serverVersion,
+        role: key.role,
+        scopes,
+        policy: {
+          allowVideoRequests: key.allowVideoRequests,
+          allowChannelRequests: key.allowChannelRequests,
+          allowDeleteVideoRequests: key.allowDeleteVideoRequests,
+          autoApproveVideoRequests: key.autoApproveVideoRequests,
+          autoApproveChannelRequests: key.autoApproveChannelRequests,
+          autoApproveDeleteRequests: key.autoApproveDeleteRequests,
+          maxRatingLevel: key.maxRatingLevel,
+          allowUnrated: key.allowUnrated,
+          allowedMediaTypes: key.allowedMediaTypes,
+        },
+        quota,
+        features: {
+          catalog: true, requests: true, channelRequests: true, deleteRequests: true,
+          recommendations: true, authenticatedAssets: true, videoDetails: true,
+        },
+      });
+    } catch (error) {
+      req.log?.error({ err: error }, 'External API quota status failed');
+      return sendExternalError(res, 500, 'External API capability lookup failed', {
+        requestId: req.id,
+      });
+    }
   });
 
   const sendCatalogError = (req, res, error) => {
+    if (error.name === 'ExternalWorkLimitError') {
+      return sendExternalError(res, 503, 'External API work queue is full', {
+        code: error.code,
+        requestId: req.id,
+      });
+    }
     if (error.name === 'CatalogError' && error.status >= 400 && error.status < 500) {
       return sendExternalError(res, error.status, error.message, {
         code: error.code,
@@ -67,7 +142,8 @@ function createExternalApiRoutes({
   };
 
   const sendRequestError = (req, res, error) => {
-    if (error.name === 'RequestError' && error.status >= 400 && error.status < 500) {
+    if (['RequestError', 'QuotaError'].includes(error.name) &&
+        error.status >= 400 && (error.status < 500 || error.status === 503)) {
       return sendExternalError(res, error.status, error.message, {
         code: error.code,
         requestId: req.id,
@@ -85,7 +161,8 @@ function createExternalApiRoutes({
    *     tags: [External API]
    *     security: [{ ExternalApiKeyAuth: [] }]
    *     parameters:
-   *       - { in: query, name: page, schema: { type: integer, minimum: 1 } }
+   *       - { in: query, name: cursor, description: Opaque cursor; mutually exclusive with page, schema: { type: string } }
+   *       - { in: query, name: page, schema: { type: integer, minimum: 1, maximum: 100 } }
    *       - { in: query, name: pageSize, schema: { type: integer, minimum: 1, maximum: 100 } }
    *       - { in: query, name: search, schema: { type: string, maxLength: 200 } }
    *       - { in: query, name: subfolder, schema: { type: string, maxLength: 255 } }
@@ -112,15 +189,18 @@ function createExternalApiRoutes({
    *     security: [{ ExternalApiKeyAuth: [] }]
    *     parameters:
    *       - { in: path, name: id, required: true, schema: { type: integer } }
-   *       - { in: query, name: page, schema: { type: integer, minimum: 1 } }
+   *       - { in: query, name: cursor, description: Opaque cursor; mutually exclusive with page, schema: { type: string } }
+   *       - { in: query, name: page, schema: { type: integer, minimum: 1, maximum: 100 } }
    *       - { in: query, name: pageSize, schema: { type: integer, minimum: 1, maximum: 100 } }
    *       - { in: query, name: search, schema: { type: string, maxLength: 200 } }
    *       - { in: query, name: tabType, schema: { type: string, enum: [videos, shorts, streams] } }
-   *       - { in: query, name: status, schema: { type: string, enum: [downloaded, available, requested] } }
+   *       - { in: query, name: status, schema: { type: string, enum: [all, requestable, available, downloaded, requested] } }
    *       - { in: query, name: minDuration, schema: { type: integer, minimum: 0 } }
    *       - { in: query, name: maxDuration, schema: { type: integer, minimum: 0 } }
    *       - { in: query, name: dateFrom, schema: { type: string, format: date-time } }
    *       - { in: query, name: dateTo, schema: { type: string, format: date-time } }
+   *       - { in: query, name: sortBy, schema: { type: string, enum: [date, title, duration] } }
+   *       - { in: query, name: sortOrder, schema: { type: string, enum: [asc, desc] } }
    *     responses:
    *       200: { description: Paginated policy-filtered cached videos }
    *       404:
@@ -138,20 +218,53 @@ function createExternalApiRoutes({
    * @swagger
    * /external-api/v1/videos:
    *   get:
-   *     summary: Read the bounded cross-channel recommendation candidate feed
-   *     description: At most three pages of 100 policy-filtered cached candidates are available.
+   *     summary: Browse the complete cached video catalog across all granted channels
+   *     description: Follow nextCursor to traverse every policy-filtered row without fetching channels individually. Use status=requestable to omit downloaded videos and active requests.
    *     tags: [External API]
    *     security: [{ ExternalApiKeyAuth: [] }]
    *     parameters:
-   *       - { in: query, name: page, schema: { type: integer, minimum: 1, maximum: 3 } }
+   *       - { in: query, name: cursor, description: Opaque cursor; mutually exclusive with page, schema: { type: string } }
+   *       - { in: query, name: page, description: Compatibility paging only; use cursor for complete traversal, schema: { type: integer, minimum: 1, maximum: 100 } }
    *       - { in: query, name: pageSize, schema: { type: integer, minimum: 1, maximum: 100 } }
-   *       - { in: query, name: status, schema: { type: string, enum: [downloaded, available, requested] } }
+   *       - { in: query, name: search, schema: { type: string, maxLength: 200 } }
+   *       - { in: query, name: tabType, schema: { type: string, enum: [videos, shorts, streams] } }
+   *       - { in: query, name: status, schema: { type: string, enum: [all, requestable, available, downloaded, requested] } }
+   *       - { in: query, name: minDuration, schema: { type: integer, minimum: 0 } }
+   *       - { in: query, name: maxDuration, schema: { type: integer, minimum: 0 } }
+   *       - { in: query, name: dateFrom, schema: { type: string, format: date-time } }
+   *       - { in: query, name: dateTo, schema: { type: string, format: date-time } }
+   *       - { in: query, name: sortBy, schema: { type: string, enum: [date, title, duration] } }
+   *       - { in: query, name: sortOrder, schema: { type: string, enum: [asc, desc] } }
    *     responses:
-   *       200: { description: Paginated candidates; no Plex-derived signal enters Youtarr }
+   *       200: { description: Complete cursor-paginated cached catalog; no Plex-derived signal enters Youtarr }
    */
   router.get('/videos', async (req, res) => {
     try {
       return res.json(await catalogService.listVideos(req.externalApiKey, req.query));
+    } catch (error) {
+      return sendCatalogError(req, res, error);
+    }
+  });
+
+  /**
+   * @swagger
+   * /external-api/v1/videos/{youtubeId}:
+   *   get:
+   *     summary: Read full curated metadata for one eligible cached video
+   *     description: Returns the catalog identity and status plus the metadata used by Youtarr's video detail modal.
+   *     tags: [External API]
+   *     security: [{ ExternalApiKeyAuth: [] }]
+   *     parameters:
+   *       - { in: path, name: youtubeId, required: true, schema: { type: string, minLength: 11, maxLength: 11 } }
+   *     responses:
+   *       200: { description: Full policy-filtered video detail }
+   *       404: { description: Missing, hidden, ungranted, or ineligible video }
+   */
+  router.get('/videos/:youtubeId', async (req, res) => {
+    try {
+      return res.json(await externalWorkLimiter.run(() =>
+        catalogService.getVideoDetail(req.externalApiKey, req.params.youtubeId)
+      ));
     } catch (error) {
       return sendCatalogError(req, res, error);
     }
@@ -174,9 +287,7 @@ function createExternalApiRoutes({
     try {
       const absolutePath = await catalogService.getChannelThumbnail(req.externalApiKey, req.params.id);
       res.set({
-        'Cache-Control': 'private, max-age=3600',
         'Content-Type': 'image/jpeg',
-        'X-Content-Type-Options': 'nosniff',
       });
       return res.sendFile(absolutePath);
     } catch (error) {
@@ -199,16 +310,27 @@ function createExternalApiRoutes({
    */
   router.get('/assets/videos/:youtubeId/thumbnail', async (req, res) => {
     try {
-      const absolutePath = await catalogService.getVideoThumbnail(
+      const asset = await catalogService.getVideoThumbnail(
         req.externalApiKey,
         req.params.youtubeId
       );
-      res.set({
-        'Cache-Control': 'private, max-age=3600',
-        'Content-Type': 'image/jpeg',
-        'X-Content-Type-Options': 'nosniff',
-      });
-      return res.sendFile(absolutePath);
+      if (typeof asset === 'string' || asset.source === 'local') {
+        res.set({ 'Content-Type': 'image/jpeg' });
+        return res.sendFile(typeof asset === 'string' ? asset : asset.absolutePath);
+      }
+      try {
+        const proxied = await thumbnailProxy.fetchExternalThumbnail(asset.url);
+        res.set({ 'Content-Type': proxied.contentType });
+        return res.send(proxied.body);
+      } catch (error) {
+        req.log?.warn(
+          { err: error, youtubeId: req.params.youtubeId },
+          'External video thumbnail proxy failed'
+        );
+        return sendExternalError(res, 404, 'Thumbnail not found', {
+          requestId: req.id,
+        });
+      }
     } catch (error) {
       return sendCatalogError(req, res, error);
     }
@@ -234,8 +356,8 @@ function createExternalApiRoutes({
    *               idempotencyKey: { type: string, maxLength: 200 }
    *     responses:
    *       202: { description: Request persisted }
-   *       403: { description: Scope or content policy denied the request }
-   *       404: { description: Granted cached video not found }
+   *       403: { description: Required caller scope is missing }
+   *       404: { description: Cached video is missing, hidden, or ineligible }
    *       409: { description: Idempotency key target conflict }
    */
   router.post('/requests/videos', externalApiWriteLimiter, async (req, res) => {
@@ -318,8 +440,12 @@ function createExternalApiRoutes({
    *     security: [{ ExternalApiKeyAuth: [] }]
    *     parameters:
    *       - in: query
+   *         name: cursor
+   *         description: Opaque cursor; mutually exclusive with page
+   *         schema: { type: string }
+   *       - in: query
    *         name: page
-   *         schema: { type: integer, minimum: 1, default: 1 }
+   *         schema: { type: integer, minimum: 1, maximum: 100, default: 1 }
    *       - in: query
    *         name: pageSize
    *         schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
@@ -362,6 +488,14 @@ function createExternalApiRoutes({
       return sendRequestError(req, res, error);
     }
   });
+
+  // Keep every request that entered the external namespace inside its JSON
+  // contract. Without this terminal handler, unknown GETs can fall through to
+  // the SPA wildcard and unknown writes can receive Express's HTML 404.
+  router.use((req, res) => sendExternalError(res, 404, 'External API route not found', {
+    requestId: req.id,
+  }));
+
   return router;
 }
 

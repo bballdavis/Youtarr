@@ -38,7 +38,9 @@ describe('external cached catalog', () => {
       videoCount: 12,
       downloadedCount: 3,
     }));
-    expect(result.pagination).toEqual({ page: 2, pageSize: 10, total: 1, totalPages: 1 });
+    expect(result.pagination).toEqual({
+      page: 2, pageSize: 10, total: 1, totalPages: 1, nextCursor: null,
+    });
     const listSql = sequelize.query.mock.calls[1][0];
     const options = sequelize.query.mock.calls[1][1];
     expect(listSql).toContain('INNER JOIN api_key_channel_grants');
@@ -82,6 +84,7 @@ describe('external cached catalog', () => {
 
     expect(result.data[0]).toEqual(expect.objectContaining({
       youtubeId: 'abc', rating: 'TV-Y', channelId: 'UCsafe', mediaType: 'short',
+      thumbnailUrl: '/external-api/v1/assets/videos/abc/thumbnail',
       isDownloaded: false, isRequested: true, requestStatus: 'processing',
     }));
     expect(result.isFullyIndexed).toBe(true);
@@ -94,13 +97,15 @@ describe('external cached catalog', () => {
     expect(listSql).toContain('cv.duration >= :minDuration');
     expect(listSql).toContain('cv.duration <= :maxDuration');
     expect(listSql).toContain('cv.publishedAt >= :dateFrom');
-    expect(listSql).toContain('ORDER BY cv.publishedAt DESC, cv.youtube_id ASC');
-    expect(listSql).toContain('LIMIT :pageSize OFFSET :offset');
+    expect(listSql).toContain(
+      'ORDER BY COALESCE(cv.publishedAt, \'\') DESC, c.id ASC, cv.youtube_id ASC'
+    );
+    expect(listSql).toContain('LIMIT :fetchLimit OFFSET :offset');
     expect(listSql).toContain('FROM external_requests er');
     expect(listSql).toContain('er.api_key_id = :keyId');
   });
 
-  test('returns a bounded deterministic cross-channel candidate feed', async () => {
+  test('returns the complete deterministic cross-channel catalog beyond the former three-page cap', async () => {
     sequelize.query
       .mockResolvedValueOnce([{ total: 1000 }])
       .mockResolvedValueOnce([{
@@ -135,25 +140,136 @@ describe('external cached catalog', () => {
         isRequested: false,
         requestStatus: 'failed',
       }],
-      pagination: { page: 3, pageSize: 100, total: 1000, totalPages: 3 },
+      pagination: {
+        page: 3, pageSize: 100, total: 1000, totalPages: 10, nextCursor: null,
+      },
       dataSource: 'cache',
       isFullyIndexed: true,
     });
     const listSql = sequelize.query.mock.calls[1][0];
     expect(listSql).toContain('INNER JOIN api_key_channel_grants');
     expect(listSql).toContain('c.terminated_at IS NULL');
-    expect(listSql).toContain('ORDER BY cv.publishedAt DESC, cv.youtube_id ASC');
-    expect(listSql).toContain('LIMIT :pageSize OFFSET :offset');
+    expect(listSql).toContain(
+      'ORDER BY COALESCE(cv.publishedAt, \'\') DESC, c.id ASC, cv.youtube_id ASC'
+    );
+    expect(listSql).toContain('LIMIT :fetchLimit OFFSET :offset');
     expect(sequelize.query.mock.calls[1][1].replacements).toMatchObject({
       keyId: 4,
-      pageSize: 100,
+      fetchLimit: 101,
       offset: 200,
     });
 
     sequelize.query.mockClear();
+    sequelize.query.mockResolvedValueOnce([{ total: 1000 }]).mockResolvedValueOnce([]);
     await expect(catalog.listVideos(key(), { page: '4', pageSize: '100' }))
-      .rejects.toThrow('page must be between 1 and 3');
+      .resolves.toMatchObject({ pagination: { page: 4, totalPages: 10 } });
+    sequelize.query.mockClear();
+    await expect(catalog.listVideos(key(), { page: '101', pageSize: '100' }))
+      .rejects.toThrow('page must be between 1 and 100');
     expect(sequelize.query).not.toHaveBeenCalled();
+  });
+
+  test('filters requestable rows server-side and keeps active requests in available results', async () => {
+    sequelize.query.mockResolvedValueOnce([{ total: 0 }]).mockResolvedValueOnce([]);
+    await catalog.listVideos(key(), {
+      status: 'requestable',
+      minDuration: '30',
+      maxDuration: '600',
+      dateFrom: '2026-01-01',
+      dateTo: '2026-07-31',
+    });
+    const requestableSql = sequelize.query.mock.calls[1][0];
+    expect(requestableSql).toContain('(v.id IS NULL OR v.removed = true)');
+    expect(requestableSql).toContain('NOT EXISTS');
+    expect(requestableSql).toContain('er2.status IN (\'pending\', \'approved\', \'processing\')');
+    expect(requestableSql).toContain('cv.duration >= :minDuration');
+    expect(requestableSql).toContain('cv.duration <= :maxDuration');
+    expect(requestableSql).toContain('cv.publishedAt >= :dateFrom');
+    expect(requestableSql).toContain('cv.publishedAt <= :dateTo');
+
+    sequelize.query.mockClear();
+    sequelize.query.mockResolvedValueOnce([{ total: 0 }]).mockResolvedValueOnce([]);
+    await catalog.listVideos(key(), { status: 'available' });
+    const availableSql = sequelize.query.mock.calls[1][0];
+    expect(availableSql).toContain('(v.id IS NULL OR v.removed = true)');
+    expect(availableSql).not.toContain('NOT EXISTS');
+  });
+
+  test('uses filter-bound keyset cursors and rejects changed filters or sorting', async () => {
+    const first = {
+      youtube_id: 'aaaaaaaaaaa',
+      title: 'Same title',
+      publishedAt: null,
+      published_at_source: 'approximate',
+      duration: null,
+      media_type: 'video',
+      downloaded_id: null,
+      downloaded_removed: null,
+      rating: 'TV-Y',
+      channel_database_id: 8,
+      channel_id: 'UCsafe',
+      channel_title: 'Safe Channel',
+      request_status: null,
+      cursor_sort_value: '',
+    };
+    const lookahead = {
+      ...first,
+      youtube_id: 'bbbbbbbbbbb',
+      channel_database_id: 9,
+      channel_id: 'UCother',
+      channel_title: 'Other Channel',
+    };
+    sequelize.query
+      .mockResolvedValueOnce([{ total: 2 }])
+      .mockResolvedValueOnce([first, lookahead]);
+
+    const firstPage = await catalog.listVideos(key(), {
+      pageSize: '1',
+      status: 'all',
+      sortBy: 'date',
+      sortOrder: 'desc',
+    });
+    expect(firstPage.data).toHaveLength(1);
+    expect(firstPage.pagination.nextCursor).toEqual(expect.any(String));
+
+    sequelize.query.mockClear();
+    sequelize.query
+      .mockResolvedValueOnce([{ total: 2 }])
+      .mockResolvedValueOnce([lookahead]);
+    const secondPage = await catalog.listVideos(key(), {
+      pageSize: '1',
+      status: 'all',
+      sortBy: 'date',
+      sortOrder: 'desc',
+      cursor: firstPage.pagination.nextCursor,
+    });
+    expect(secondPage.data[0].youtubeId).toBe('bbbbbbbbbbb');
+    const seekSql = sequelize.query.mock.calls[1][0];
+    expect(seekSql).toContain('COALESCE(cv.publishedAt, \'\') < :cursorSortValue');
+    expect(seekSql).toContain('c.id > :cursorChannelDatabaseId');
+    expect(seekSql).not.toContain('OFFSET :offset');
+
+    await expect(catalog.listVideos(key(), {
+      cursor: firstPage.pagination.nextCursor,
+      status: 'requestable',
+    })).rejects.toThrow('cursor is invalid');
+    await expect(catalog.listVideos(key(), {
+      cursor: firstPage.pagination.nextCursor,
+      status: 'all',
+      sortOrder: 'asc',
+    })).rejects.toThrow('cursor is invalid');
+    await expect(catalog.listVideos(key(), {
+      cursor: Buffer.from(JSON.stringify({ v: 1, page: 2 })).toString('base64url'),
+    })).rejects.toThrow('cursor is invalid');
+    await expect(catalog.listVideos(key(), {
+      cursor: 'not-a-cursor',
+    })).rejects.toThrow('cursor is invalid');
+    await expect(catalog.listVideos(key(), {
+      cursor: firstPage.pagination.nextCursor,
+      page: '2',
+      pageSize: '1',
+      status: 'all',
+    })).rejects.toThrow('cursor and page cannot be used together');
   });
 
   test('fails closed for invalid policy and disallowed media without querying', async () => {
@@ -182,6 +298,92 @@ describe('external cached catalog', () => {
       .rejects.toMatchObject({ status: 404, message: 'Channel not found' });
   });
 
+  test('returns one eligible video with full modal metadata and no filesystem paths', async () => {
+    sequelize.query.mockResolvedValueOnce([{
+      youtube_id: 'abcdefghijk',
+      title: 'Detailed video',
+      publishedAt: '2026-07-10T00:00:00.000Z',
+      published_at_source: 'exact',
+      duration: 120,
+      media_type: 'video',
+      availability: 'public',
+      description: 'database fallback',
+      downloaded_id: 42,
+      downloaded_removed: false,
+      last_downloaded_at: '2026-07-20T12:00:00.000Z',
+      fileSize: '12345',
+      audioFileSize: '678',
+      protected: true,
+      rating_source: 'manual',
+      video_resolution: '1920x1080',
+      rating: 'TV-Y7',
+      channel_database_id: 8,
+      channel_id: 'UCsafe',
+      channel_title: 'Safe Channel',
+      request_status: 'approved',
+    }]);
+    const metadataService = {
+      getVideoMetadata: jest.fn().mockResolvedValue({
+        description: 'full description',
+        viewCount: 1000,
+        likeCount: 50,
+        tags: ['one', 'two'],
+        relatedFiles: [{ fileName: 'captions.srt', fileSize: 30, type: 'Subtitles' }],
+      }),
+    };
+
+    const result = await catalog.getVideoDetail(key(), 'abcdefghijk', metadataService);
+
+    expect(result).toMatchObject({
+      youtubeId: 'abcdefghijk',
+      thumbnailUrl: '/external-api/v1/assets/videos/abcdefghijk/thumbnail',
+      isDownloaded: true,
+      isRequested: true,
+      requestStatus: 'approved',
+      downloadedAt: '2026-07-20T12:00:00.000Z',
+      fileSize: 12345,
+      audioFileSize: 678,
+      isProtected: true,
+      videoResolution: '1920x1080',
+      metadata: {
+        description: 'full description',
+        viewCount: 1000,
+        relatedFiles: [{ fileName: 'captions.srt', fileSize: 30, type: 'Subtitles' }],
+      },
+    });
+    expect(result).not.toHaveProperty('filePath');
+    expect(result).not.toHaveProperty('audioFilePath');
+    expect(metadataService.getVideoMetadata).toHaveBeenCalledWith('abcdefghijk');
+    expect(sequelize.query.mock.calls[0][0]).toContain('INNER JOIN api_key_channel_grants');
+  });
+
+  test('returns 404 without fetching metadata when video is not eligible', async () => {
+    sequelize.query.mockResolvedValueOnce([]);
+    const metadataService = { getVideoMetadata: jest.fn() };
+
+    await expect(catalog.getVideoDetail(key(), 'abcdefghijk', metadataService))
+      .rejects.toMatchObject({ status: 404, message: 'Video not found' });
+    expect(metadataService.getVideoMetadata).not.toHaveBeenCalled();
+  });
+
+  test('falls back to the stored description when extended metadata has none', async () => {
+    sequelize.query.mockResolvedValueOnce([{
+      youtube_id: 'abcdefghijk',
+      title: 'Detailed video',
+      media_type: 'video',
+      description: 'database fallback',
+      channel_database_id: 8,
+      channel_id: 'UCsafe',
+      channel_title: 'Safe Channel',
+    }]);
+    const metadataService = {
+      getVideoMetadata: jest.fn().mockResolvedValue({ description: null }),
+    };
+
+    const result = await catalog.getVideoDetail(key(), 'abcdefghijk', metadataService);
+    expect(result.metadata.description).toBe('database fallback');
+  });
+
   test('rejects unsafe cached thumbnail identifiers without exposing a path', async () => {
     sequelize.query.mockResolvedValueOnce([{ channel_id: '../../secret' }]);
     await expect(catalog.getChannelThumbnail(key(), '8'))
@@ -193,5 +395,22 @@ describe('external cached catalog', () => {
     expect(catalog.publicVideoThumbnail('http://i.ytimg.com/vi/abc/hqdefault.jpg')).toBeNull();
     expect(catalog.publicVideoThumbnail('https://example.com/tracker.jpg')).toBeNull();
     expect(catalog.publicVideoThumbnail('/images/local-secret.jpg')).toBeNull();
+  });
+
+  test('uses the API asset route for every catalog video thumbnail', () => {
+    expect(catalog.videoThumbnailUrl('abcdefghijk'))
+      .toBe('/external-api/v1/assets/videos/abcdefghijk/thumbnail');
+  });
+
+  test('falls back through Youtarr to a safe upstream thumbnail when no local image exists', async () => {
+    sequelize.query.mockResolvedValueOnce([{
+      youtube_id: 'abcdefghijk',
+      thumbnail: 'https://i.ytimg.com/vi/abcdefghijk/mqdefault.jpg',
+    }]);
+
+    await expect(catalog.getVideoThumbnail(key(), 'abcdefghijk')).resolves.toEqual({
+      source: 'upstream',
+      url: 'https://i.ytimg.com/vi/abcdefghijk/mqdefault.jpg',
+    });
   });
 });

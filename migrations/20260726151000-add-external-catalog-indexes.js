@@ -22,6 +22,18 @@ const INDEXES = [
     name: 'channelvideos_external_candidates_idx',
   },
   {
+    table: 'channelvideos',
+    fields: [
+      'youtube_removed',
+      'ignored',
+      { name: 'media_type', length: 20 },
+      { name: 'publishedAt', length: 40 },
+      { name: 'youtube_id', length: 32 },
+      { name: 'channel_id', length: 64 },
+    ],
+    name: 'channelvideos_external_catalog_seek_idx',
+  },
+  {
     table: 'channels',
     fields: ['channel_id'],
     name: 'channels_external_channel_id_idx',

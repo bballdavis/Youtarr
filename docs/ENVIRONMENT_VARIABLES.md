@@ -107,7 +107,10 @@ To use an external database:
 
 Leave this disabled until an administrator has assigned an API key an external
 role and policy. Existing API keys migrate as `legacy_download` and cannot use
-the versioned API.
+the versioned API. For endpoint-only public access, keep the Youtarr origin port
+private and publish only the exact v1 path through a TLS reverse proxy. Exposing
+the complete port also exposes unrelated application routes; see
+[External API operations](EXTERNAL_API_OPERATIONS.md).
 
 ### AUTH_PRESET_USERNAME
 **Required**: No
@@ -135,8 +138,10 @@ the versioned API.
 **Recommendations**:
 - Set `TRUST_PROXY=false` when Youtarr is exposed directly without a reverse proxy
 - Leave unset only if you want the historical Express proxy-header trust behavior; Youtarr's rate-limit, session, and setup audit IPs will still key on the direct peer IP until `TRUST_PROXY` is explicitly configured
-- Set `TRUST_PROXY=1` when Youtarr is behind one trusted reverse proxy and you want per-client rate limits
-- Prefer a specific hop count or trusted subnet over broad `true` when exposing Youtarr through a proxy you control
+- Set `TRUST_PROXY=1` only when Youtarr is behind exactly one trusted reverse
+  proxy and you want per-client rate limits
+- Prefer the exact proxy IP/subnet over broad `true`; the origin must not be
+  reachable in a way that lets a client bypass the trusted proxy
 
 ## User and Permissions
 

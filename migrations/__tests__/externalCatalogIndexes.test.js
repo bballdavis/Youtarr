@@ -25,6 +25,18 @@ describe('external catalog query indexes', () => {
       ['enabled', 'terminated_at', { name: 'sub_folder', length: 191 }],
       { name: 'channels_external_subfolder_idx' }
     );
+    expect(qi.addIndex).toHaveBeenCalledWith(
+      'channelvideos',
+      [
+        'youtube_removed',
+        'ignored',
+        { name: 'media_type', length: 20 },
+        { name: 'publishedAt', length: 40 },
+        { name: 'youtube_id', length: 32 },
+        { name: 'channel_id', length: 64 },
+      ],
+      { name: 'channelvideos_external_catalog_seek_idx' }
+    );
 
     qi.addIndex.mockClear();
     await migration.up(qi);

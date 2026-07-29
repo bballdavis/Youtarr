@@ -73,6 +73,18 @@ ApiKey.init(
         }
       },
     },
+    max_active_jobs: {
+      type: DataTypes.INTEGER, allowNull: false, defaultValue: 5,
+      validate: { min: 1, max: 5 },
+    },
+    hourly_write_limit: {
+      type: DataTypes.INTEGER, allowNull: false, defaultValue: 30,
+      validate: { min: 1, max: 30 },
+    },
+    daily_write_limit: {
+      type: DataTypes.INTEGER, allowNull: false, defaultValue: 200,
+      validate: { min: 1, max: 200 },
+    },
     revoked_at: { type: DataTypes.DATE, allowNull: true },
   },
   {
