@@ -18,6 +18,10 @@ module.exports = function createApiKeyRoutes({ verifyToken }) {
     error.message.includes('Unsupported') ||
     error.message.includes('allowedMediaTypes') ||
     error.message.includes('maxRatingLevel') ||
+    error.message.includes('maxActiveJobs') ||
+    error.message.includes('hourlyWriteLimit') ||
+    error.message.includes('dailyWriteLimit') ||
+    error.message.includes('requires allow') ||
     error.message.includes('external API key types') ||
     error.message.includes('channelIds') ||
     error.message.includes('enabled channel') ||

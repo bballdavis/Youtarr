@@ -148,6 +148,7 @@ assert_json_value "$TEMP_DIR/capabilities.json" role delete
 assert_json_value "$TEMP_DIR/capabilities.json" features.channelRequests true
 assert_json_value "$TEMP_DIR/capabilities.json" features.deleteRequests true
 assert_json_value "$TEMP_DIR/capabilities.json" features.recommendations true
+assert_json_value "$TEMP_DIR/capabilities.json" features.videoDetails true
 
 echo "Exercising the MariaDB rollback/re-application boundary..."
 docker compose -p "$PROJECT_NAME" -f "$COMPOSE_FILE" exec -T youtarr node - <<'NODE'

@@ -13,12 +13,14 @@ const POLICY_FIELDS = [
   'role', 'autoApproveVideoRequests', 'autoApproveChannelRequests',
   'autoApproveDeleteRequests', 'allowVideoRequests', 'allowChannelRequests',
   'allowDeleteVideoRequests', 'maxRatingLevel', 'allowUnrated', 'allowedMediaTypes',
+  'maxActiveJobs', 'hourlyWriteLimit', 'dailyWriteLimit',
 ];
 const MANAGEMENT_ATTRIBUTES = [
   'id', 'name', 'key_prefix', 'created_at', 'last_used_at', 'is_active', 'usage_count', 'role',
   'auto_approve_video_requests', 'auto_approve_channel_requests', 'auto_approve_delete_requests',
   'allow_video_requests', 'allow_channel_requests', 'allow_delete_video_requests',
   'max_rating_level', 'allow_unrated', 'allowed_media_types', 'revoked_at',
+  'max_active_jobs', 'hourly_write_limit', 'daily_write_limit',
 ];
 
 function serializeApiKey(apiKey) {
@@ -51,8 +53,28 @@ function validatePolicy(policy) {
     policy.allowedMediaTypes.some((type) => !MEDIA_TYPES.includes(type)))) {
     throw new Error('allowedMediaTypes must contain only video, short, or livestream');
   }
+  const quotaFields = [
+    ['maxActiveJobs', 5],
+    ['hourlyWriteLimit', 30],
+    ['dailyWriteLimit', 200],
+  ];
+  for (const [field, maximum] of quotaFields) {
+    if (field in policy &&
+        (!Number.isInteger(policy[field]) || policy[field] < 1 || policy[field] > maximum)) {
+      throw new Error(`${field} must be an integer from 1 to ${maximum}`);
+    }
+  }
   const permissions = normalizeExternalPermissions(policy);
   if (!permissions) throw new Error('Invalid external request permissions');
+  for (const [autoField, permissionField] of [
+    ['autoApproveVideoRequests', 'allowVideoRequests'],
+    ['autoApproveChannelRequests', 'allowChannelRequests'],
+    ['autoApproveDeleteRequests', 'allowDeleteVideoRequests'],
+  ]) {
+    if (policy[autoField] === true && permissions[permissionField] !== true) {
+      throw new Error(`${autoField} requires ${permissionField}`);
+    }
+  }
   return {
     role: roleForExternalPermissions(permissions, policy.role),
     allow_video_requests: permissions.allowVideoRequests,
@@ -67,6 +89,9 @@ function validatePolicy(policy) {
     max_rating_level: policy.maxRatingLevel ?? 4,
     allow_unrated: policy.allowUnrated ?? false,
     allowed_media_types: policy.allowedMediaTypes ?? ['video'],
+    max_active_jobs: policy.maxActiveJobs ?? 5,
+    hourly_write_limit: policy.hourlyWriteLimit ?? 30,
+    daily_write_limit: policy.dailyWriteLimit ?? 200,
   };
 }
 
@@ -127,7 +152,7 @@ class ApiKeyModule {
    * @param {string} key - The raw API key to validate
    * @returns {Object|null} The API key record if valid, null otherwise
    */
-  async validateApiKey(key) {
+  async validateApiKey(key, { recordUsage = true } = {}) {
     if (!key || typeof key !== 'string' || key.length < 8) {
       return null;
     }
@@ -147,13 +172,29 @@ class ApiKeyModule {
 
       if (storedHashBuffer.length === providedHashBuffer.length &&
           crypto.timingSafeEqual(storedHashBuffer, providedHashBuffer)) {
-        // Update last_used_at (download_count is incremented separately on successful download)
-        await candidate.update({ last_used_at: new Date() });
+        if (recordUsage) await this.markApiKeyUsed(candidate.id);
         return candidate;
       }
     }
 
     return null;
+  }
+
+  async markApiKeyUsed(id, timestamp = new Date()) {
+    const { Op } = require('sequelize');
+    const cutoff = new Date(timestamp.getTime() - 60 * 1000);
+    await ApiKey.update(
+      { last_used_at: timestamp },
+      {
+        where: {
+          id,
+          [Op.or]: [
+            { last_used_at: null },
+            { last_used_at: { [Op.lt]: cutoff } },
+          ],
+        },
+      }
+    );
   }
 
   /**

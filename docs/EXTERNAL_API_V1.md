@@ -41,6 +41,8 @@ Every external key has:
 - allowed media types (`video`, `short`, and/or `livestream`);
 - separate auto-approval decisions that are valid only when their parent
   permission is enabled;
+- durable workload ceilings, defaulting to 5 active jobs, 30 accepted writes
+  per UTC hour, and 200 per UTC day (administrators may select lower values);
 - an explicit set of granted Youtarr channel database IDs.
 
 The HTTP contract retains a compact `maxRatingLevel` value, but the
@@ -57,25 +59,26 @@ YouTube usually does not supply a useful content rating. Youtarr therefore
 uses the video's explicit/manual rating when present, then the channel's
 manually assigned default rating. If neither is recognized, the key's
 `allowUnrated` decision applies. The same calculation is used for catalog
-visibility, counts, assets, candidates, request creation, and approval
+visibility, counts, assets, catalog rows, request creation, and approval
 revalidation.
 
 Youtarr applies one server-side eligibility decision to lists, counts, direct
-IDs, assets, candidate feeds, request creation, and approval revalidation.
+IDs, assets, catalog feeds, request creation, and approval revalidation.
 Disabled or terminated channels never qualify. A missing grant is treated the
 same as a nonexistent target.
 
 ## Error contract
 
-All responses under `/external-api/*`, including feature-off and unknown-route
-404 responses, use:
+All JSON responses under `/external-api/*`, including feature-off and
+unknown-route responses, use private, no-store cache headers and vary on
+`x-api-key`. Errors use:
 
 ```json
 {
   "error": {
     "code": "not_found",
     "message": "External API route not found",
-    "requestId": "optional-correlation-identifier"
+    "requestId": "server-generated-identifier"
   }
 }
 ```
@@ -83,6 +86,12 @@ All responses under `/external-api/*`, including feature-off and unknown-route
 Clients must treat unknown additive fields and unknown enum values as
 forward-compatible. They must not infer target existence from 403/404
 differences.
+
+The standardized statuses are 400 (malformed or invalid request), 401
+(authentication), 403 (missing scope), 404 (unknown or hidden resource), 405
+(method), 413 (body size), 415 (content type), 429 (rate/quota), 500
+(unexpected failure), and 503 (bounded downstream capacity). Compressed
+request bodies are not accepted. CORS is disabled.
 
 The sanitized cross-client decoding fixture is
 `fixtures/external-api-v1/contract.json`; its reviewable checksum is recorded
@@ -95,8 +104,9 @@ deployment address, or Plex-derived data.
 
 `GET /external-api/v1/capabilities`
 
-Returns the API/server version, effective role/scopes, policy, and feature
-flags. Clients should call this before presenting optional actions.
+Returns the API/server version, effective role/scopes, policy, feature flags,
+and effective quota limits/remaining allowance. Clients should call this
+before presenting optional actions.
 
 ### Granted catalog
 
@@ -104,7 +114,7 @@ flags. Clients should call this before presenting optional actions.
 
 Query parameters:
 
-- `page` (default 1), `pageSize` (1–100);
+- `cursor` (opaque) or `page` (default 1), plus `pageSize` (1–100);
 - `search` (maximum 200 characters);
 - `subfolder` (exact match, maximum 255 characters);
 - `sortBy`: `title`, `videoCount`, `downloadedCount`, or `id`;
@@ -114,27 +124,96 @@ Query parameters:
 
 Query parameters:
 
-- `page`, `pageSize`, and `search`;
+- `cursor` (preferred) or `page` (compatibility only), plus `pageSize` and
+  `search`;
 - `tabType`: `videos`, `shorts`, or `streams`;
-- `status`: `downloaded`, `available`, or `requested`;
+- `status`: `all`, `requestable`, `available`, `downloaded`, or `requested`;
 - `minDuration`, `maxDuration`, `dateFrom`, and `dateTo`;
 - `sortBy`: `date`, `title`, or `duration`;
 - `sortOrder`: `asc` or `desc`.
 
-Both endpoints read Youtarr's cache. They do not trigger YouTube network
-fetches.
+Video status has these exact meanings:
 
-### Recommendation candidates
+- `all` (or omitted): every policy-eligible cached row;
+- `requestable`: not downloaded and without a `pending`, `approved`, or
+  `processing` video request owned by the calling key;
+- `available`: not downloaded, including rows with an active request;
+- `downloaded`: a `Videos` row exists with `removed=false`;
+- `requested`: an active request exists for the calling key.
+
+Responses include an opaque `nextCursor` while more rows remain. Video cursors
+are stable keyset cursors bound to the calling key, endpoint, filters, and
+sorting used to create them. A client must restart at the first page after
+changing any filter, sort, or page size. Cursors avoid offset drift but do not
+freeze a database snapshot, so a newly indexed or state-changing row may
+appear only on a later refresh.
+
+Existing numeric `page` parameters remain supported through page 100 for
+compatibility. Use cursors whenever completeness matters. Clients must not use
+`total` to preallocate a fixed snapshot. Catalog endpoints read Youtarr's cache
+and do not trigger YouTube network fetches.
+
+### Cross-channel video catalog
 
 `GET /external-api/v1/videos`
 
-Returns policy-filtered candidates across all granted channels. `pageSize` is
-limited to 100 and `page` is limited to 1–3, bounding one refresh to 300 rows.
-It accepts `search`, `tabType`, `status`, `sortBy`, and `sortOrder` with the
+Returns the complete policy-filtered catalog across every channel granted to
+the calling key. One cursor chain combines dozens of channels; clients must not
+list channels and request each channel's videos unless they are rendering
+channel-specific screens. `pageSize` is limited to 100. It accepts `search`,
+`tabType`, `status`, duration/date bounds, `sortBy`, and `sortOrder` with the
 same meanings as the channel video catalog.
+
+Complete catalog traversal:
+
+```http
+GET /external-api/v1/videos?pageSize=100
+GET /external-api/v1/videos?pageSize=100&cursor={nextCursor}
+```
+
+Only immediately requestable videos:
+
+```http
+GET /external-api/v1/videos?status=requestable&pageSize=100
+```
+
+Not downloaded, including pending/approved/processing requests:
+
+```http
+GET /external-api/v1/videos?status=available&pageSize=100
+```
+
+Downloaded inventory:
+
+```http
+GET /external-api/v1/videos?status=downloaded&pageSize=100
+```
+
+Pass each response's `nextCursor` back with the same filters and sorting until
+it is `null`. Request creation remains idempotent and revalidates current
+download/request state, closing the race between reading a page and submitting
+a request.
 
 Youtarr supplies candidates only. Plex history, scoring signals, and ranking
 must remain on the client and must never be sent to Youtarr.
+
+### Video detail
+
+`GET /external-api/v1/videos/{youtubeId}`
+
+Returns one policy-filtered video with the catalog identity and request status
+plus the full curated metadata used by Youtarr's video detail modal. This
+includes the complete description, engagement counts, tags, categories,
+availability, upload data, technical video fields, related-file summaries, and
+available resolutions. The lookup is intentionally one video at a time and may
+populate Youtarr's metadata cache when no cached `.info.json` exists. These
+lookups share Youtarr's bounded external-work queue and return 503 when that
+queue is full.
+
+Downloaded-video details include timestamps, sizes, protection state, and
+resolution. Youtarr filesystem paths are never exposed because they are neither
+safe nor usable by a remote client. Missing, hidden, ungranted, and
+policy-ineligible videos all return the same 404 contract.
 
 ### Assets
 
@@ -146,8 +225,12 @@ policy as their catalog row. Youtarr rejects unsafe identifiers, traversal,
 symlinks, and resources outside its image directory. Responses are private and
 do not redirect.
 
-Public HTTPS thumbnails are returned only for known YouTube/Google image
-hosts. A client must fetch those public URLs without the API key.
+Catalog responses always return these Youtarr API asset paths, never a direct
+Google/YouTube image URL. The client fetches the image bytes with the same
+`x-api-key` header used for JSON requests. Youtarr serves its optimized local
+JPEG when available; otherwise the video asset endpoint securely fetches an
+allow-listed YouTube/Google thumbnail without redirecting the client. Upstream
+responses are bounded by timeout, content type, and size.
 
 ### Create requests
 
@@ -212,8 +295,9 @@ already-terminal targets return HTTP 200 with `duplicate`,
 - `GET /external-api/v1/requests`
 - `GET /external-api/v1/requests/{requestId}`
 
-Reads expose only records owned by the calling key. List paging is limited to
-100 rows and accepts an exact `status` filter.
+Reads expose only records owned by the calling key. List paging accepts either
+an opaque `cursor` or the compatible `page` parameter, is limited to 100 rows,
+rejects pages beyond 100, and accepts an exact `status` filter.
 
 Statuses are `pending`, `approved`, `processing`, `completed`, `rejected`,
 `failed`, or `cancelled`. Youtarr reconciles downloader state before returning

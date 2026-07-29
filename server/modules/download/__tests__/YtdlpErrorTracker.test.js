@@ -22,6 +22,7 @@ const {
   extractYoutubeIdFromYtdlpError,
   extractChannelIdFromYtdlpError,
 } = require('../YtdlpErrorTracker');
+const logger = require('../../../logger');
 
 const TERMINATED_CHANNEL_ID = 'UCabcdefghijklmnopqrstuv';
 const TERMINATED_LINE = `ERROR: [youtube:tab] ${TERMINATED_CHANNEL_ID}: This account has been terminated for a violation of YouTube's Terms of Service.`;
@@ -55,6 +56,21 @@ describe('YtdlpErrorTracker', () => {
       expect(tracker.expectedSkipCount).toBe(0);
       expect(tracker.unexpectedErrorCount).toBe(0);
       expect(tracker.failedVideos.size).toBe(0);
+    });
+
+    it('redacts header secrets before logging or persisting an error', () => {
+      const { tracker } = createTracker();
+      tracker.trackVideoStart('abc123def45');
+
+      tracker.handleErrorLine(
+        'ERROR: request failed Authorization: Bearer sentinel-secret',
+        'stderr'
+      );
+
+      expect(tracker.lastErrorMessage).not.toContain('sentinel-secret');
+      expect(tracker.failedVideos.get('abc123def45').error).not.toContain('sentinel-secret');
+      expect(JSON.stringify(logger.warn.mock.calls)).not.toContain('sentinel-secret');
+      expect(JSON.stringify(logger.info.mock.calls)).not.toContain('sentinel-secret');
     });
 
     it('counts an expected-skip ERROR without recording a failed video', () => {

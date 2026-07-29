@@ -85,7 +85,23 @@ class ChannelProvisioning {
       if (initialSettings.title_filter_regex != null) updateData.title_filter_regex = initialSettings.title_filter_regex;
       if (initialSettings.audio_format != null) updateData.audio_format = initialSettings.audio_format;
 
-      channel = await Channel.create(updateData);
+      try {
+        channel = await Channel.create(updateData);
+      } catch (error) {
+        // A second worker (including another process) may have resolved a
+        // different URL/handle to the same canonical channel ID. The database
+        // uniqueness invariant is the serialization point; reuse its winner.
+        if (error?.name !== 'SequelizeUniqueConstraintError') {
+          throw error;
+        }
+        channel = await Channel.findOne({
+          where: { channel_id: channelData.id }
+        });
+        if (!channel) {
+          throw error;
+        }
+        await channel.update(updateData);
+      }
     }
 
     return channel;
@@ -158,7 +174,7 @@ class ChannelProvisioning {
       folder_name: folderName,
     }, enableChannel, null, initialSettings);
 
-    // Now process thumbnail using the proper channel ID (uses metadata URL, falls back to yt-dlp)
+    // Process optional artwork only through the bounded, validated HTTP path.
     logger.info('Processing channel thumbnail');
     await channelThumbnails.processChannelThumbnail(channelData, properChannelId, channelUrl);
     logger.info('Channel thumbnail processed successfully');

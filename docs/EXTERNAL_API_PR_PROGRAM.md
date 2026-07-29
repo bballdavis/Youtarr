@@ -167,23 +167,25 @@ Storybook states, and the live public-video channel-rating fallback result.
 Rollback: revoke affected keys first; transactional validation ensures a
 partial policy/grant update cannot commit.
 
-## Y8 — `codex/external-recommendation-feed`
+## Y8 — `codex/external-video-catalog`
 
-Purpose: provide a bounded private candidate set without receiving Plex data.
+Purpose: provide a complete private cross-channel catalog without receiving
+Plex data.
 
 Included:
 
 - cross-channel `GET /external-api/v1/videos`;
-- maximum three pages and 100 rows per page;
-- stable ordering, filters, policy/grant enforcement, and private asset
-  fallback;
+- stable keyset traversal with 100 rows per page and compatibility pages
+  bounded to 100;
+- full-catalog and requestable-only filters, policy/grant enforcement, and
+  private asset fallback;
 - active versus terminal request-state semantics;
 - candidate query indexes and privacy contract.
 
 Excluded: scoring, ranking, Plex history, and recommendation logs.
 
-Evidence: candidate bound/filter tests plus the Docker thousands-row query
-plan and timing record.
+Evidence: full traversal/requestable filter tests plus the Docker
+thousands-row query plan and timing record.
 
 Rollback: disable the capabilities flag/route; no recommendation state is
 stored in Youtarr.

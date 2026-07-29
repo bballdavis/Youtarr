@@ -43,19 +43,24 @@ Only keys assigned a non-legacy external role (`view`, `request`, `delete`, or
 work only with `POST /api/videos/download`. An administrator must also grant
 each external key access to specific enabled channel database IDs. No grant
 means no catalog visibility. `GET /external-api/v1/capabilities` is the
-authoritative source for granted scopes, policy, and implemented features.
+authoritative source for granted scopes, policy, implemented features, and
+effective workload quota/remaining allowance.
 
 The cached read API currently includes:
 
 - `GET /external-api/v1/channels` with bounded paging, search, and sorting.
 - `GET /external-api/v1/channels/{databaseId}/videos` with bounded paging,
   status, tab, duration, date, search, and sorting filters.
-- `GET /external-api/v1/videos` for at most three 100-row pages of
-  cross-channel recommendation candidates.
+- `GET /external-api/v1/videos` for a complete cursor-paginated catalog across
+  all granted channels. Use `status=requestable` to omit downloaded videos and
+  the calling key's active requests.
+- `GET /external-api/v1/videos/{youtubeId}` for the full curated metadata used
+  by Youtarr's one-video detail modal, bounded by the external-work queue.
 - `GET /external-api/v1/assets/channels/{databaseId}/thumbnail` for
   authenticated same-origin channel artwork.
 - `GET /external-api/v1/assets/videos/{youtubeId}/thumbnail` for eligible
-  cached video artwork.
+  video artwork, preferring Youtarr's optimized local JPEG and securely
+  proxying the approved upstream thumbnail as a fallback.
 - `POST /external-api/v1/requests/videos` to persist a request for an eligible
   cached video.
 - `POST /external-api/v1/requests/channels` to request canonical channel
@@ -69,8 +74,19 @@ The cached read API currently includes:
 All catalog responses come from Youtarr's local cache. Rating and media-type
 policy is applied on the server before rows and counts are returned. Local
 filesystem paths, API-key hashes, and ungranted channel existence are never
-included in responses. Recommendation scoring and Plex-derived signals remain
-outside Youtarr.
+included in responses. Video and channel `thumbnailUrl` values always point
+back to authenticated Youtarr API asset routes; remote clients never need
+direct access to Google/YouTube image hosts. Recommendation scoring and
+Plex-derived signals remain outside Youtarr.
+
+For a complete integration, follow `nextCursor` from
+`GET /external-api/v1/videos` until it is `null`; do not fetch every channel
+individually. Omit `status` (or use `all`) for the whole catalog. Use
+`requestable` for immediately actionable rows, `available` for every
+not-downloaded row including active requests, `downloaded` for Youtarr's
+present-file inventory, and `requested` for the calling key's active requests.
+Catalog cursors are bound to their filters, sorting, and page size, so restart
+traversal instead of reusing a cursor after any of them changes.
 
 Video requests require the `video:request` scope. Youtarr rechecks the key's
 channel grant, the enabled channel, cached video membership, removal/ignore
@@ -97,9 +113,15 @@ Youtarr's normal manual-download machinery and channel-owned settings.
 
 Request status is one of `pending`, `approved`, `processing`, `completed`,
 `rejected`, `failed`, or `cancelled`. Processing requests are lazily reconciled
-to completed when the downloaded `Videos` record appears. List responses use
-`page` and `pageSize` (maximum 100) and accept one exact `status` filter.
-Reads are always restricted to records created by the calling API key.
+to completed when the downloaded `Videos` record appears. List responses
+accept an opaque `cursor` (preferred) or the compatible `page` parameter, plus
+`pageSize` (maximum 100), and one exact `status` filter. Reads are always
+restricted to records created by the calling API key.
+
+Each external key defaults to at most 5 active jobs, 30 accepted writes per
+UTC hour, and 200 per UTC day. Administrators may configure lower limits.
+Rate and workload rejection uses the standard external JSON error envelope.
+All external responses are private, non-cacheable, and vary on `x-api-key`.
 
 ### Administrator request review API
 

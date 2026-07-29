@@ -12,7 +12,8 @@ authentication, idempotent restart, request-migration
 rollback/re-application, revocation, and feature shutdown pass locally.
 The Youtarr browser gate now covers constrained-key creation, policy editing,
 channel grants, revocation, and safe review/rejection of video, channel, and
-delete requests. The 5,000-video bounded-feed performance gate also passes.
+delete requests. The 5,000-video full-catalog and requestable-only performance
+gate also passes.
 The downloader matrix, proxy, real-download, and LAN/dev evidence remain
 pending or blocked in `EXTERNAL_API_VALIDATION.md`. Plinx roadmap completion is
 not claimed.
@@ -258,7 +259,7 @@ Each item:
 
 - `youtubeId`
 - `title`
-- thumbnail URL
+- authenticated Youtarr API thumbnail URL
 - `publishedAt`
 - duration in seconds
 - bounded description when cached
@@ -280,21 +281,31 @@ Metadata:
 The route reads cached/database records. It never performs a synchronous
 YouTube or yt-dlp refresh.
 
+### Video detail
+
+`GET /external-api/v1/videos/:youtubeId`
+
+Returns one eligible video's catalog identity and request state plus the full
+curated metadata used by Youtarr's video detail modal. The request is made only
+when the remote client opens its More Info view. It may populate Youtarr's
+metadata cache, but never exposes local filesystem paths.
+
 ### Authenticated assets
 
 - `GET /external-api/v1/assets/channels/:id/thumbnail`
-- `GET /external-api/v1/assets/videos/:youtubeId/thumbnail` when a local image
-  exists
+- `GET /external-api/v1/assets/videos/:youtubeId/thumbnail`
 
 Asset rules:
 
 - require the same API key and resource grant;
 - validate identifiers before building a filesystem path;
 - resolve and verify the final path remains inside the configured image root;
-- use explicit MIME type, ETag/Last-Modified, bounded cache headers, and 404;
+- use an explicit allow-listed image MIME type, bounded private response
+  headers, and 404;
 - never expose local paths or distinguish absent from unauthorized resources;
-- return public YouTube thumbnail URLs in catalog JSON when no local asset
-  needs protection, allowing Plinx to fetch without a key.
+- return only Youtarr API asset URLs in catalog JSON;
+- prefer the optimized local JPEG and securely fetch the allow-listed upstream
+  thumbnail through Youtarr when no local image exists.
 
 ### Video request
 
@@ -493,8 +504,8 @@ No raw Plex signal is included in Youtarr requests.
 1. Start with eligible videos from granted channels.
 2. Exclude items blocked by either Youtarr policy or Plinx safety policy.
 3. Exclude completed Plex/Youtarr matches where confidence is high.
-4. Prefer cached catalog pages and a bounded recommendation feed endpoint only
-   if it returns policy-filtered candidates without receiving Plex history.
+4. Traverse the cached cross-channel catalog with stable cursors, using
+   `status=requestable` when only actionable candidates are needed.
 
 ### Initial scoring
 

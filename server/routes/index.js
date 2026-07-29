@@ -63,8 +63,10 @@ function registerRoutes(app, deps) {
     getClientAddress,
     isWslEnvironment,
     externalApiAuth,
+    externalApiIngressLimiter,
     externalApiLimiter,
     externalApiWriteLimiter,
+    recordExternalApiUse,
     externalRequestReviewLimiter,
     serverVersion,
   } = deps;
@@ -135,8 +137,10 @@ function registerRoutes(app, deps) {
   if (process.env.EXTERNAL_API_ENABLED === 'true') {
     app.use('/external-api/v1', createExternalApiRoutes({
       externalApiAuth,
+      externalApiIngressLimiter,
       externalApiLimiter,
       externalApiWriteLimiter,
+      recordExternalApiUse,
       serverVersion,
     }));
   }

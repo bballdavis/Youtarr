@@ -105,6 +105,36 @@ describe('channelProvisioning', () => {
       expect(result).toBe(mockChannel);
     });
 
+    test('reuses the database winner when another worker creates the channel', async () => {
+      const winner = { update: jest.fn().mockResolvedValue() };
+      Channel.findOne
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(winner);
+      Channel.create.mockRejectedValue(
+        Object.assign(new Error('duplicate channel identity'), {
+          name: 'SequelizeUniqueConstraintError',
+        })
+      );
+      const channelData = {
+        id: 'UC_RACE',
+        title: 'Race Winner',
+        description: '',
+        uploader: 'Uploader',
+        url: 'https://youtube.com/@race',
+      };
+
+      await expect(channelProvisioning.upsertChannel(channelData, true))
+        .resolves.toBe(winner);
+      expect(Channel.findOne).toHaveBeenLastCalledWith({
+        where: { channel_id: channelData.id },
+      });
+      expect(winner.update).toHaveBeenCalledWith(expect.objectContaining({
+        channel_id: channelData.id,
+        enabled: true,
+      }));
+    });
+
     test('should default sub_folder to global-default sentinel when no initialSettings provided', async () => {
       const mockChannel = { ...mockChannelData };
       Channel.findOne.mockResolvedValueOnce(null); // Not found by channel_id

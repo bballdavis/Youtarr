@@ -62,12 +62,18 @@ function fixture(overrides = {}) {
         role: 'request',
         is_active: true,
         revoked_at: null,
+        allow_video_requests: true,
+        allow_channel_requests: true,
+        allow_delete_video_requests: false,
         auto_approve_video_requests: false,
         auto_approve_channel_requests: false,
         auto_approve_delete_requests: false,
         max_rating_level: 2,
         allow_unrated: false,
         allowed_media_types: ['video'],
+        max_active_jobs: 5,
+        hourly_write_limit: 30,
+        daily_write_limit: 200,
       }),
       findAll: jest.fn().mockResolvedValue([]),
     },
@@ -82,6 +88,52 @@ function fixture(overrides = {}) {
   };
   const videoDeleter = overrides.videoDeleter || {
     deleteVideosByYoutubeIds: jest.fn().mockResolvedValue({ success: true, failed: [] }),
+    deleteVideoById: jest.fn().mockResolvedValue({ success: true }),
+  };
+  const quotaService = overrides.quotaService || {
+    reserveWrite: jest.fn(async () => ({
+      id: 4,
+      name: 'Plinx',
+      role: 'request',
+      isActive: true,
+      autoApproveVideoRequests: overrides.key?.autoApproveVideoRequests ?? false,
+      autoApproveChannelRequests: overrides.key?.autoApproveChannelRequests ?? false,
+      autoApproveDeleteRequests: overrides.key?.autoApproveDeleteRequests ?? false,
+      allowVideoRequests: overrides.key?.allowVideoRequests ?? true,
+      allowChannelRequests: overrides.key?.allowChannelRequests ?? true,
+      allowDeleteVideoRequests: overrides.key?.allowDeleteVideoRequests ?? false,
+      maxRatingLevel: 2,
+      allowUnrated: false,
+      allowedMediaTypes: ['video'],
+    })),
+    reloadAuthorizedKey: jest.fn(async () => ({
+      id: 4,
+      name: 'Plinx',
+      role: 'request',
+      autoApproveVideoRequests: overrides.key?.autoApproveVideoRequests ?? false,
+      autoApproveChannelRequests: overrides.key?.autoApproveChannelRequests ?? false,
+      autoApproveDeleteRequests: overrides.key?.autoApproveDeleteRequests ?? false,
+      allowVideoRequests: overrides.key?.allowVideoRequests ?? true,
+      allowChannelRequests: overrides.key?.allowChannelRequests ?? true,
+      allowDeleteVideoRequests: overrides.key?.allowDeleteVideoRequests ?? false,
+      maxRatingLevel: 2,
+      allowUnrated: false,
+      allowedMediaTypes: ['video'],
+    })),
+    assertExecutionCapacity: jest.fn(async () => ({
+      id: 4,
+      name: 'Plinx',
+      role: 'request',
+      autoApproveVideoRequests: overrides.key?.autoApproveVideoRequests ?? false,
+      autoApproveChannelRequests: overrides.key?.autoApproveChannelRequests ?? false,
+      autoApproveDeleteRequests: overrides.key?.autoApproveDeleteRequests ?? false,
+      allowVideoRequests: overrides.key?.allowVideoRequests ?? true,
+      allowChannelRequests: overrides.key?.allowChannelRequests ?? true,
+      allowDeleteVideoRequests: overrides.key?.allowDeleteVideoRequests ?? false,
+      maxRatingLevel: 2,
+      allowUnrated: false,
+      allowedMediaTypes: ['video'],
+    })),
   };
   const service = createExternalRequestService({
     models,
@@ -90,6 +142,8 @@ function fixture(overrides = {}) {
     videoDeleter,
     now: overrides.now || (() => timestamp),
     sequelize: overrides.sequelize || sequelize,
+    quotaService,
+    workLimiter: overrides.workLimiter,
   });
   const key = {
     id: 4,
@@ -105,13 +159,13 @@ function fixture(overrides = {}) {
   };
   return {
     service, models, executor, key, created, sequelize, transaction,
-    channelProvisioner, videoDeleter,
+    channelProvisioner, videoDeleter, quotaService,
   };
 }
 
 describe('external video request service', () => {
   test('persists a pending request without executing a download', async () => {
-    const { service, models, executor, key } = fixture();
+    const { service, models, executor, key, transaction, quotaService } = fixture();
     const result = await service.createVideoRequest(key, { youtubeId, channelId: 8 });
     expect(result).toMatchObject({
       outcome: 'created',
@@ -121,12 +175,17 @@ describe('external video request service', () => {
       api_key_id: 4,
       active_dedupe_key: `4:video:${youtubeId}`,
       status: 'pending',
-    }));
+    }), { transaction });
+    expect(quotaService.reserveWrite).toHaveBeenCalledWith(
+      4,
+      'video:request',
+      transaction
+    );
     expect(executor).not.toHaveBeenCalled();
   });
 
   test('auto-approval queues only the canonical URL and server-owned channel mapping', async () => {
-    const { service, models, executor, key } = fixture({
+    const { service, models, executor, key, transaction } = fixture({
       key: { autoApproveVideoRequests: true },
     });
     const result = await service.createVideoRequest(key, {
@@ -136,7 +195,7 @@ describe('external video request service', () => {
       status: 'pending',
       decided_at: timestamp,
       idempotency_hash: expect.stringMatching(/^[a-f0-9]{64}$/),
-    }));
+    }), { transaction });
     expect(executor).toHaveBeenCalledWith({
       body: {
         urls: [`https://www.youtube.com/watch?v=${youtubeId}`],
@@ -148,6 +207,67 @@ describe('external video request service', () => {
       },
     });
     expect(result.request.status).toBe('processing');
+  });
+
+  test('returns service unavailable when the shared work queue is full', async () => {
+    const workError = Object.assign(new Error('full'), {
+      name: 'ExternalWorkLimitError',
+    });
+    const limited = fixture({
+      key: { autoApproveVideoRequests: true },
+      workLimiter: { run: jest.fn().mockRejectedValue(workError) },
+    });
+    await expect(limited.service.createVideoRequest(limited.key, {
+      youtubeId,
+      channelId: 8,
+    })).rejects.toMatchObject({
+      name: 'RequestError',
+      status: 503,
+      code: 'work_queue_full',
+    });
+    expect(limited.created.update).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'failed',
+      active_dedupe_key: null,
+    }));
+  });
+
+  test('revalidates a channel grant inside the work slot before enqueue', async () => {
+    const raced = fixture({
+      key: { autoApproveVideoRequests: true },
+    });
+    raced.models.ApiKeyChannelGrant.findOne
+      .mockResolvedValueOnce({ api_key_id: 4, channel_id: 8 })
+      .mockResolvedValueOnce({ api_key_id: 4, channel_id: 8 })
+      .mockResolvedValueOnce(null);
+
+    const result = await raced.service.createVideoRequest(raced.key, {
+      youtubeId,
+      channelId: 8,
+    });
+
+    expect(raced.executor).not.toHaveBeenCalled();
+    expect(raced.created.update).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'failed',
+      active_dedupe_key: null,
+    }));
+    expect(result.request.status).toBe('failed');
+  });
+
+  test('does not enqueue when video auto-approval is disabled before execution', async () => {
+    const raced = fixture({ key: { autoApproveVideoRequests: true } });
+    raced.quotaService.assertExecutionCapacity.mockResolvedValue({
+      ...raced.key,
+      allowVideoRequests: true,
+      autoApproveVideoRequests: false,
+    });
+
+    const result = await raced.service.createVideoRequest(raced.key, {
+      youtubeId,
+      channelId: 8,
+    });
+
+    expect(raced.executor).not.toHaveBeenCalled();
+    expect(result.request.status).toBe('failed');
   });
 
   test('resumes an interrupted auto-approved dispatch with the stable request job id', async () => {
@@ -189,7 +309,7 @@ describe('external video request service', () => {
     });
     await expect(unknownMedia.service.createVideoRequest(
       unknownMedia.key, { youtubeId, channelId: 8 }
-    )).rejects.toMatchObject({ status: 403 });
+    )).rejects.toMatchObject({ status: 404, message: 'Video not found' });
 
     const mature = fixture();
     mature.models.Channel.findByPk.mockResolvedValue({
@@ -197,7 +317,7 @@ describe('external video request service', () => {
     });
     await expect(mature.service.createVideoRequest(
       mature.key, { youtubeId, channelId: 8 }
-    )).rejects.toMatchObject({ status: 403 });
+    )).rejects.toMatchObject({ status: 404, message: 'Video not found' });
   });
 
   test('returns downloaded and concurrent duplicate outcomes without a second row', async () => {
@@ -249,7 +369,7 @@ describe('external video request service', () => {
       request_type: 'channel',
       status: 'pending',
       idempotency_hash: expect.stringMatching(/^[a-f0-9]{64}$/),
-    }));
+    }), { transaction: pending.transaction });
     expect(result).toMatchObject({
       outcome: 'created',
       request: {
@@ -277,12 +397,29 @@ describe('external video request service', () => {
     expect(approved.models.ApiKeyChannelGrant.findOrCreate).toHaveBeenCalledWith({
       where: { api_key_id: 4, channel_id: 8 },
       defaults: { api_key_id: 4, channel_id: 8 },
+      transaction: approved.transaction,
     });
     expect(result.request).toMatchObject({
       type: 'channel',
       status: 'completed',
       target: { channelId: 8 },
     });
+  });
+
+  test('does not provision when channel auto-approval is disabled before execution', async () => {
+    const raced = fixture({ key: { autoApproveChannelRequests: true } });
+    raced.quotaService.assertExecutionCapacity.mockResolvedValue({
+      ...raced.key,
+      allowChannelRequests: true,
+      autoApproveChannelRequests: false,
+    });
+
+    const result = await raced.service.createChannelRequest(raced.key, {
+      channelUrl: 'https://www.youtube.com/@safe',
+    });
+
+    expect(raced.channelProvisioner.getChannelInfo).not.toHaveBeenCalled();
+    expect(result.request.status).toBe('failed');
   });
 
   test('returns the winning channel request when a concurrent create wins', async () => {
@@ -333,7 +470,7 @@ describe('external video request service', () => {
     });
   });
 
-  test('delete requests are role-bound and absent targets create an auditable completion', async () => {
+  test('delete requests are role-bound and hide absent targets', async () => {
     const forbidden = fixture();
     await expect(forbidden.service.createDeleteVideoRequest(forbidden.key, {
       youtubeId,
@@ -344,22 +481,9 @@ describe('external video request service', () => {
     await expect(absent.service.createDeleteVideoRequest(absent.key, {
       youtubeId,
       channelId: 8,
-    })).resolves.toMatchObject({
-      outcome: 'already_deleted',
-      request: {
-        type: 'delete_video',
-        status: 'completed',
-        message: 'Video is already deleted',
-      },
-    });
-    expect(absent.models.ExternalRequest.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: 'completed',
-        active_dedupe_key: null,
-        completed_at: timestamp,
-      })
-    );
-    expect(absent.videoDeleter.deleteVideosByYoutubeIds).not.toHaveBeenCalled();
+    })).rejects.toMatchObject({ status: 404, message: 'Video not found' });
+    expect(absent.models.ExternalRequest.create).not.toHaveBeenCalled();
+    expect(absent.videoDeleter.deleteVideoById).not.toHaveBeenCalled();
   });
 
   test('auto-approved deletion reaches a completed terminal state', async () => {
@@ -367,6 +491,7 @@ describe('external video request service', () => {
       key: { role: 'delete', autoApproveDeleteRequests: true },
     });
     deleting.models.Video.findOne.mockResolvedValue({
+      id: 91,
       youtubeId,
       normalized_rating: 'TV-Y',
       removed: false,
@@ -378,25 +503,57 @@ describe('external video request service', () => {
       idempotencyKey: 'delete-1',
     });
 
-    expect(deleting.videoDeleter.deleteVideosByYoutubeIds).toHaveBeenCalledWith([youtubeId]);
+    expect(deleting.videoDeleter.deleteVideoById).toHaveBeenCalledWith(
+      91,
+      expect.objectContaining({
+        transaction: deleting.transaction,
+        video: expect.objectContaining({ id: 91, youtubeId }),
+      })
+    );
     expect(result).toMatchObject({
       outcome: 'created',
       request: { type: 'delete_video', status: 'completed' },
     });
   });
 
+  test('does not delete when delete auto-approval is disabled before execution', async () => {
+    const raced = fixture({
+      key: { role: 'delete', autoApproveDeleteRequests: true },
+    });
+    raced.models.Video.findOne.mockResolvedValue({
+      id: 91,
+      youtubeId,
+      normalized_rating: 'TV-Y',
+      removed: false,
+    });
+    raced.quotaService.assertExecutionCapacity.mockResolvedValue({
+      ...raced.key,
+      role: 'delete',
+      allowDeleteVideoRequests: true,
+      autoApproveDeleteRequests: false,
+    });
+
+    const result = await raced.service.createDeleteVideoRequest(raced.key, {
+      youtubeId,
+      channelId: 8,
+    });
+
+    expect(raced.videoDeleter.deleteVideoById).not.toHaveBeenCalled();
+    expect(result.request.status).toBe('failed');
+  });
+
   test('deletion completes idempotently when the target disappears during execution', async () => {
     const deleting = fixture({
       key: { role: 'delete', autoApproveDeleteRequests: true },
       videoDeleter: {
-        deleteVideosByYoutubeIds: jest.fn().mockResolvedValue({
+        deleteVideoById: jest.fn().mockResolvedValue({
           success: false,
-          deleted: [],
-          failed: [{ youtubeId, error: 'Video not found in database' }],
+          error: 'Video not found in database',
         }),
       },
     });
     deleting.models.Video.findOne.mockResolvedValue({
+      id: 91,
       youtubeId,
       normalized_rating: 'TV-Y',
       removed: false,
@@ -425,6 +582,7 @@ describe('external video request service', () => {
       key: { role: 'delete', autoApproveDeleteRequests: true },
     });
     deleting.models.Video.findOne.mockResolvedValue({
+      id: 91,
       youtubeId,
       normalized_rating: 'TV-Y',
       removed: false,
@@ -436,7 +594,10 @@ describe('external video request service', () => {
       channelId: 8,
     });
 
-    expect(deleting.videoDeleter.deleteVideosByYoutubeIds).toHaveBeenCalledWith([youtubeId]);
+    expect(deleting.videoDeleter.deleteVideoById).toHaveBeenCalledWith(
+      91,
+      expect.objectContaining({ transaction: deleting.transaction })
+    );
     expect(result).toMatchObject({
       outcome: 'duplicate',
       request: { type: 'delete_video', status: 'completed' },

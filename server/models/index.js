@@ -16,6 +16,7 @@ const MediaServerUser = require('./mediaserveruser');
 const WatchStatusSyncCursor = require('./watchstatussynccursor');
 const ApiKeyChannelGrant = require('./apikeychannelgrant');
 const ExternalRequest = require('./externalrequest');
+const ExternalApiUsageBucket = require('./externalapiusagebucket');
 
 Job.hasMany(JobVideo, { foreignKey: 'job_id', as: 'jobVideos' });
 Job.hasMany(JobVideoDownload, { foreignKey: 'job_id', as: 'jobVideoDownloads' });
@@ -42,6 +43,8 @@ Channel.hasMany(ApiKeyChannelGrant, { foreignKey: 'channel_id', as: 'apiKeyGrant
 ApiKeyChannelGrant.belongsTo(Channel, { foreignKey: 'channel_id', as: 'channel' });
 ApiKey.hasMany(ExternalRequest, { foreignKey: 'api_key_id', as: 'externalRequests' });
 ExternalRequest.belongsTo(ApiKey, { foreignKey: 'api_key_id', as: 'apiKey' });
+ApiKey.hasMany(ExternalApiUsageBucket, { foreignKey: 'api_key_id', as: 'externalUsageBuckets' });
+ExternalApiUsageBucket.belongsTo(ApiKey, { foreignKey: 'api_key_id', as: 'apiKey' });
 Channel.hasMany(ExternalRequest, { foreignKey: 'channel_id', as: 'externalRequests' });
 ExternalRequest.belongsTo(Channel, { foreignKey: 'channel_id', as: 'channel' });
 Job.hasMany(ExternalRequest, { foreignKey: 'job_id', as: 'externalRequests' });
@@ -65,4 +68,5 @@ module.exports = {
   WatchStatusSyncCursor,
   ApiKeyChannelGrant,
   ExternalRequest,
+  ExternalApiUsageBucket,
 };

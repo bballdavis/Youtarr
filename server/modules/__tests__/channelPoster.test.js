@@ -187,10 +187,7 @@ describe('Channel Poster Functionality', () => {
       await channelModule.backfillChannelPosters(channels);
 
       expect(logger.error).toHaveBeenCalledWith(
-        expect.objectContaining({
-          err: testError,
-          channelFolderName: 'Test Channel'
-        }),
+        { errorCode: undefined },
         'Error backfilling poster for channel'
       );
     });

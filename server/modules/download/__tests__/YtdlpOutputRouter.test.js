@@ -23,6 +23,7 @@ jest.mock('../../../models', () => ({
 const MessageEmitter = require('../../messageEmitter');
 const { JobVideoDownload } = require('../../../models');
 const YtdlpOutputRouter = require('../YtdlpOutputRouter');
+const logger = require('../../../logger');
 
 const makeMonitor = () => ({
   hasError: false,
@@ -150,7 +151,7 @@ describe('YtdlpOutputRouter', () => {
     });
 
     it('sets botDetected and broadcasts an error message on bot detection', () => {
-      router.handleStderrChunk('Sign in to confirm you\'re not a bot');
+      router.handleStderrChunk('Sign in to confirm you\'re not a bot\n');
 
       expect(router.botDetected).toBe(true);
       expect(MessageEmitter.emitMessage).toHaveBeenCalledWith(
@@ -173,13 +174,25 @@ describe('YtdlpOutputRouter', () => {
     });
 
     it('detects 403s on stderr and emits the cookies suggestion', () => {
-      router.handleStderrChunk('HTTP Error 403: Forbidden');
+      router.handleStderrChunk('HTTP Error 403: Forbidden\n');
 
       expect(router.httpForbiddenDetected).toBe(true);
       const cookieCalls = MessageEmitter.emitMessage.mock.calls.filter(
         (call) => call[4] && call[4].errorCode === 'COOKIES_RECOMMENDED'
       );
       expect(cookieCalls).toHaveLength(1);
+    });
+
+    it('redacts a header secret split across stream chunks', () => {
+      router.handleStderrChunk('ERROR: Authorization: Bearer ');
+      router.handleStderrChunk('split-sentinel-secret\n');
+
+      expect(router.stderrBuffer).not.toContain('split-sentinel-secret');
+      expect(errorTracker.handleErrorLine).toHaveBeenCalledWith(
+        'ERROR: Authorization: [REDACTED]',
+        'stderr'
+      );
+      expect(JSON.stringify(logger.debug.mock.calls)).not.toContain('split-sentinel-secret');
     });
   });
 
@@ -205,7 +218,7 @@ describe('YtdlpOutputRouter', () => {
     });
 
     it('suggests refreshing or disabling cookies on 403 instead of enabling them', () => {
-      cookiesRouter.handleStderrChunk('HTTP Error 403: Forbidden');
+      cookiesRouter.handleStderrChunk('HTTP Error 403: Forbidden\n');
 
       const call = MessageEmitter.emitMessage.mock.calls.find(
         (c) => c[4] && c[4].errorCode === 'COOKIES_MAY_BE_STALE'
@@ -221,7 +234,7 @@ describe('YtdlpOutputRouter', () => {
     });
 
     it('suggests refreshing cookies on bot detection instead of setting them', () => {
-      cookiesRouter.handleStderrChunk('Sign in to confirm you\'re not a bot');
+      cookiesRouter.handleStderrChunk('Sign in to confirm you\'re not a bot\n');
 
       const call = MessageEmitter.emitMessage.mock.calls.find(
         (c) => c[4] && c[4].progress && c[4].progress.state === 'bot_detected'
