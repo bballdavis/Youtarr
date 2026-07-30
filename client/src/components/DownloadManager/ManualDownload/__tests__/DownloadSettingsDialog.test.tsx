@@ -633,7 +633,7 @@ describe('DownloadSettingsDialog', () => {
 
       // Find the backdrop by test id
       const backdrop = screen.getByTestId('dialog-backdrop');
-      fireEvent.click(backdrop);
+      fireEvent.pointerDown(backdrop);
 
       expect(mockOnClose).toHaveBeenCalledTimes(1);
     });

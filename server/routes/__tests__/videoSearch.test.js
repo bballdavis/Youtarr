@@ -145,17 +145,27 @@ describe('POST /api/videos/search request cancellation', () => {
 
     try {
       const port = server.address().port;
-      await new Promise((resolve) => {
+      await new Promise((resolve, reject) => {
         const clientReq = http.request(
           { port, path: '/api/videos/search', method: 'POST', headers: { 'Content-Type': 'application/json' } },
           () => {}
         );
         clientReq.on('error', () => {}); // ECONNRESET from our own destroy
         clientReq.end(JSON.stringify({ query: 'slow' }));
-        setTimeout(() => {
-          clientReq.destroy();
-          resolve();
-        }, 50);
+        const deadline = Date.now() + 2000;
+        const disconnectOnceSearchStarts = () => {
+          if (capturedSignal) {
+            clientReq.destroy();
+            resolve();
+            return;
+          }
+          if (Date.now() > deadline) {
+            reject(new Error('search did not start before disconnect deadline'));
+            return;
+          }
+          setTimeout(disconnectOnceSearchStarts, 10);
+        };
+        disconnectOnceSearchStarts();
       });
 
       await new Promise((resolve, reject) => {

@@ -14,6 +14,7 @@ const Channel = require('../../models/channel');
 const ChannelVideo = require('../../models/channelvideo');
 const logger = require('../../logger');
 const { buildYtdlpEnv } = require('./ytdlpEnvBuilder');
+const { summarizeCommandArgs, redactSensitiveText } = require('../safeCommandLogging');
 const DownloadTimeoutController = require('./DownloadTimeoutController');
 const { YtdlpErrorTracker } = require('./YtdlpErrorTracker');
 
@@ -175,7 +176,7 @@ class DownloadExecutor {
       await this.checkOutputDirectoryHealth(configModule.directoryPath);
     } catch (error) {
       const errorMsg = `Output directory is not accessible: ${error.message}`;
-      logger.error({ err: error, outputDir: configModule.directoryPath }, errorMsg);
+      logger.error({ errorCode: error?.code }, 'Output directory is not accessible');
 
       await jobModule.updateJob(jobId, {
         status: 'Error',
@@ -206,7 +207,11 @@ class DownloadExecutor {
     }
 
     return new Promise((resolve, reject) => {
-      logger.info({ jobType, args, subfolderOverride }, 'Running yt-dlp');
+      logger.info({
+        jobType,
+        command: summarizeCommandArgs(args),
+        hasSubfolderOverride: subfolderOverride !== null && subfolderOverride !== undefined,
+      }, 'Running yt-dlp');
       const procEnv = buildYtdlpEnv({
         jobId,
         tempBasePath: tempPathManager.getTempBasePath(),
@@ -351,7 +356,10 @@ class DownloadExecutor {
         reject(err);
       });
     }).catch(async (error) => {
-      logger.error({ err: error }, 'Download process error');
+      logger.error({
+        errorCode: error?.code,
+        error: redactSensitiveText(error?.message),
+      }, 'Download process error');
 
       // Clean up temporary channels file on error
       if (this.tempChannelsFile) {

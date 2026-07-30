@@ -21,11 +21,11 @@ ChannelVideo.init(
     },
     title: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
     thumbnail: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
     },
     duration: {
       type: DataTypes.INTEGER,
@@ -84,6 +84,31 @@ ChannelVideo.init(
     modelName: 'ChannelVideo',
     tableName: 'channelvideos',
     timestamps: false,
+    indexes: [
+      {
+        fields: ['channel_id', 'media_type', 'youtube_removed', 'ignored'],
+        name: 'channelvideos_external_channel_idx',
+      },
+      {
+        fields: ['youtube_id', 'channel_id'],
+        name: 'channelvideos_external_youtube_idx',
+      },
+      {
+        fields: ['youtube_removed', 'ignored', 'media_type', 'publishedAt'],
+        name: 'channelvideos_external_candidates_idx',
+      },
+      {
+        fields: [
+          'youtube_removed',
+          'ignored',
+          { name: 'media_type', length: 20 },
+          { name: 'publishedAt', length: 40 },
+          { name: 'youtube_id', length: 32 },
+          { name: 'channel_id', length: 64 },
+        ],
+        name: 'channelvideos_external_catalog_seek_idx',
+      },
+    ],
   }
 );
 

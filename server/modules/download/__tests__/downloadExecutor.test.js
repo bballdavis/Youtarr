@@ -1260,7 +1260,15 @@ describe('DownloadExecutor', () => {
       setTimeout(() => { mockProcess.emit('exit', 0, null); }, 10);
       await executor.doDownload(mockArgs, mockJobId, mockJobType, 0, null, false, false, { subfolderOverride: 'MyFolder' });
       expect(logger.info).toHaveBeenCalledWith(
-        { jobType: mockJobType, args: mockArgs, subfolderOverride: 'MyFolder' },
+        {
+          jobType: mockJobType,
+          command: {
+            argumentCount: 3,
+            flags: ['--format'],
+            targetHosts: ['youtube.com']
+          },
+          hasSubfolderOverride: true
+        },
         'Running yt-dlp'
       );
     });
@@ -1711,7 +1719,7 @@ describe('DownloadExecutor', () => {
       await executor.doDownload(mockArgs, mockJobId, mockJobType);
 
       expect(logger.debug).toHaveBeenCalledWith(
-        { currentVideoId: 'xyz789ABC_d', destPath: '/output/Channel - Title [xyz789ABC_d].mp4' },
+        { currentVideoId: 'xyz789ABC_d' },
         'Updated current video ID from destination'
       );
     });
@@ -1946,11 +1954,11 @@ describe('DownloadExecutor', () => {
 
       // Should track video ID change
       expect(logger.debug).toHaveBeenCalledWith(
-        { currentVideoId: 'first', url: 'https://youtube.com/watch?v=first' },
+        { currentVideoId: 'first' },
         'Tracking video extraction'
       );
       expect(logger.debug).toHaveBeenCalledWith(
-        { currentVideoId: 'second', url: 'https://youtube.com/watch?v=second' },
+        { currentVideoId: 'second' },
         'Tracking video extraction'
       );
     });

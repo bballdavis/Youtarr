@@ -27,15 +27,70 @@ describe('external API key policies', () => {
     expect(apiKeyModule.validatePolicy({
       role: 'view', allowedMediaTypes: ['video', 'short', 'livestream'],
     }).allowed_media_types).toEqual(['video', 'short', 'livestream']);
+    expect(() => apiKeyModule.validatePolicy({
+      role: 'view',
+      allowVideoRequests: false,
+      allowChannelRequests: false,
+      allowDeleteVideoRequests: false,
+      autoApproveVideoRequests: true,
+      autoApproveChannelRequests: true,
+      autoApproveDeleteRequests: true,
+    })).toThrow('requires');
+    expect(() => apiKeyModule.validatePolicy({
+      role: 'request',
+      allowVideoRequests: true,
+      allowChannelRequests: false,
+      allowDeleteVideoRequests: false,
+      autoApproveVideoRequests: true,
+      autoApproveChannelRequests: true,
+    })).toThrow('autoApproveChannelRequests');
+    expect(apiKeyModule.validatePolicy({
+      role: 'request',
+      allowVideoRequests: true,
+      allowChannelRequests: false,
+      allowDeleteVideoRequests: false,
+      autoApproveVideoRequests: true,
+      autoApproveChannelRequests: false,
+    })).toEqual(expect.objectContaining({
+      role: 'request',
+      allow_video_requests: true,
+      allow_channel_requests: false,
+      allow_delete_video_requests: false,
+      auto_approve_video_requests: true,
+      auto_approve_channel_requests: false,
+    }));
   });
 
   test('updates an existing key policy', async () => {
-    const key = { id: 1, name: 'External', key_hash: 'must-not-leak', key_prefix: '12345678', update: jest.fn().mockResolvedValue() };
+    const key = {
+      id: 1, name: 'External', key_hash: 'must-not-leak', key_prefix: '12345678',
+      role: 'view', is_active: true, revoked_at: null, update: jest.fn().mockResolvedValue(),
+    };
     ApiKey.findByPk.mockResolvedValue(key);
     const result = await apiKeyModule.updateApiKey(1, { role: 'request' });
     expect(result).toEqual(expect.objectContaining({ id: 1, name: 'External', key_prefix: '12345678' }));
     expect(result).not.toHaveProperty('key_hash');
     expect(key.update).toHaveBeenCalledWith(expect.objectContaining({ role: 'request' }));
+  });
+
+  test('does not convert between legacy and constrained key types', async () => {
+    ApiKey.findByPk.mockResolvedValue({
+      id: 1,
+      role: 'legacy_download',
+      is_active: true,
+      revoked_at: null,
+    });
+    await expect(apiKeyModule.updateApiKey(1, { role: 'view' }))
+      .rejects.toThrow('cannot be converted');
+
+    ApiKey.findByPk.mockResolvedValue({
+      id: 2,
+      role: 'view',
+      is_active: true,
+      revoked_at: null,
+    });
+    await expect(apiKeyModule.updateApiKey(2, { role: 'legacy_download' }))
+      .rejects.toThrow('cannot be converted');
   });
 
   test('uses the management response contract for lists without key hashes', async () => {
@@ -45,15 +100,18 @@ describe('external API key policies', () => {
     ]);
   });
 
-  test('omits soft-revoked keys from the operational list while retaining storage records', async () => {
+  test('retains soft-revoked keys in the management list for audit visibility', async () => {
     const key = { id: 1, name: 'Revoked', key_prefix: '12345678', revoked_at: null, update: jest.fn().mockResolvedValue() };
     ApiKey.findByPk.mockResolvedValue(key);
     await apiKeyModule.deleteApiKey(1);
-    ApiKey.findAll.mockResolvedValue([]);
-    await expect(apiKeyModule.listApiKeys()).resolves.toEqual([]);
-    expect(ApiKey.findAll).toHaveBeenCalledWith(expect.objectContaining({
-      where: { is_active: true, revoked_at: null },
-    }));
+    ApiKey.findAll.mockResolvedValue([{
+      id: 1, name: 'Revoked', key_prefix: '12345678',
+      is_active: false, revoked_at: new Date('2026-07-26T00:00:00.000Z'),
+    }]);
+    await expect(apiKeyModule.listApiKeys()).resolves.toEqual([
+      expect.objectContaining({ id: 1, name: 'Revoked', is_active: false }),
+    ]);
+    expect(ApiKey.findAll).toHaveBeenCalledWith(expect.not.objectContaining({ where: expect.anything() }));
     expect(key.update).toHaveBeenCalledWith(expect.objectContaining({ revoked_at: expect.any(Date) }));
   });
 

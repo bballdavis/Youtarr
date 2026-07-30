@@ -74,3 +74,16 @@ client/build-storybook/
 # Storybook test artifacts
 .out_storybook_
 .storyshots
+
+# Local review graph database
+.code-review-graph/
+
+# External API planning and validation artifacts
+docs/validation/
+docs/EXTERNAL_API_OPERATIONS.md
+docs/EXTERNAL_API_PR_PROGRAM.md
+docs/EXTERNAL_API_V1.md
+docs/EXTERNAL_API_VALIDATION.md
+docs/PRD_EXTERNAL_REQUEST_API.md
+scripts/validate-external-api-ingress.sh
+scripts/validate-external-api-rc.sh

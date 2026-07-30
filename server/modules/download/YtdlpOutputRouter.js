@@ -4,6 +4,7 @@
 // WebSocket emission. One instance per yt-dlp run.
 const path = require('path');
 const logger = require('../../logger');
+const { redactSensitiveText } = require('../safeCommandLogging');
 const MessageEmitter = require('../messageEmitter');
 const filesystem = require('../filesystem');
 const { JobVideoDownload } = require('../../models');
@@ -24,6 +25,7 @@ class YtdlpOutputRouter {
     // Per-run detection state, read by the executor/finalizer after exit
     this.partialDestinations = new Set();
     this.stderrBuffer = '';
+    this.stderrPending = '';
     this.botDetected = false;
     this.httpForbiddenDetected = false;
     this.cookiesSuggestionEmitted = false;
@@ -41,7 +43,7 @@ class YtdlpOutputRouter {
       .map((line) => line.trim())
       .filter(Boolean)
       .forEach((line) => {
-        logger.info({ source: 'yt-dlp' }, line);
+        logger.debug({ source: 'yt-dlp' }, 'yt-dlp output received');
 
         this.timeoutController.noteLine(line);
 
@@ -63,7 +65,9 @@ class YtdlpOutputRouter {
             const idMatch = url.match(/[?&]v=([^&]+)|youtu\.be\/([^?&]+)|\/watch\/([^?&]+)|\/([a-zA-Z0-9_-]{10,12})$/);
             if (idMatch) {
               this.errorTracker.trackVideoStart(idMatch[1] || idMatch[2] || idMatch[3] || idMatch[4]);
-              logger.debug({ currentVideoId: this.errorTracker.currentVideoId, url }, 'Tracking video extraction');
+              logger.debug({
+                currentVideoId: this.errorTracker.currentVideoId,
+              }, 'Tracking video extraction');
             }
           }
         }
@@ -80,7 +84,9 @@ class YtdlpOutputRouter {
               // Update current video ID if we can extract it from the path
               if (filesystem.isMainVideoFile(destPath)) {
                 this.errorTracker.trackVideoFromDestination(youtubeId);
-                logger.debug({ currentVideoId: this.errorTracker.currentVideoId, destPath }, 'Updated current video ID from destination');
+                logger.debug({
+                  currentVideoId: this.errorTracker.currentVideoId,
+                }, 'Updated current video ID from destination');
               }
 
               const videoDir = path.dirname(destPath);
@@ -106,7 +112,10 @@ class YtdlpOutputRouter {
         // (expected skip or termination).
         let suppressErrorLine = false;
         if (line.includes('ERROR:')) {
-          suppressErrorLine = this.errorTracker.handleErrorLine(line, 'stdout');
+          suppressErrorLine = this.errorTracker.handleErrorLine(
+            redactSensitiveText(line),
+            'stdout'
+          );
         }
 
         if (suppressErrorLine) {
@@ -140,32 +149,29 @@ class YtdlpOutputRouter {
   }
 
   handleStderrChunk(data) {
-    const dataStr = data.toString();
-    this.stderrBuffer += dataStr;
-    logger.info({ source: 'yt-dlp-stderr' }, dataStr);
+    const lines = `${this.stderrPending}${data.toString()}`.split(/\r?\n/);
+    this.stderrPending = lines.pop() || '';
+    lines.forEach((line) => this.processStderrLine(line));
+  }
 
-    const lowerData = dataStr.toLowerCase();
-    if (!this.httpForbiddenDetected && (lowerData.includes('http error 403') || lowerData.includes('403: forbidden'))) {
+  processStderrLine(line) {
+    const safeLine = redactSensitiveText(line);
+    this.stderrBuffer += `${safeLine}\n`;
+    logger.debug({ source: 'yt-dlp-stderr' }, 'yt-dlp stderr received');
+
+    const lowerLine = line.toLowerCase();
+    if (!this.httpForbiddenDetected &&
+        (lowerLine.includes('http error 403') || lowerLine.includes('403: forbidden'))) {
       this.httpForbiddenDetected = true;
       this.emitCookiesSuggestion();
     }
 
-    // Detect and track ERROR messages from stderr. Node streams can
-    // coalesce multiple lines into one chunk, so iterate per line rather
-    // than running a single regex over the whole chunk (which would only
-    // catch the first ERROR: occurrence).
-    if (dataStr.includes('ERROR:')) {
-      dataStr
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line.includes('ERROR:'))
-        .forEach(line => {
-          this.errorTracker.handleErrorLine(line, 'stderr');
-        });
+    if (line.includes('ERROR:')) {
+      this.errorTracker.handleErrorLine(safeLine.trim(), 'stderr');
     }
 
     // Check for bot detection message (handle different quote types and patterns)
-    if (dataStr.includes('Sign in to confirm') && dataStr.includes('not a bot')) {
+    if (line.includes('Sign in to confirm') && line.includes('not a bot')) {
       this.botDetected = true;
       const botMessage = this.cookiesEnabled
         ? 'Bot detection encountered even though cookies are configured - they are likely expired or rotated. Re-export fresh cookies from your browser and upload them again.'
@@ -347,6 +353,10 @@ class YtdlpOutputRouter {
 
   // Flush any pending throttled message before the final status broadcast.
   dispose() {
+    if (this.stderrPending) {
+      this.processStderrLine(this.stderrPending);
+      this.stderrPending = '';
+    }
     if (this.progressFlushTimer) {
       clearTimeout(this.progressFlushTimer);
       this.progressFlushTimer = null;

@@ -23,99 +23,19 @@ Youtarr provides an API endpoint that allows you to add YouTube videos to your d
 - **Home Assistant/n8n**: Smart home and automation integrations
 - **CLI Scripts**: Download individual videos
 
-> **Note**: API keys currently support **single video downloads only**. Playlists, channels, and batch operations are not supported via the API at this time. Use the web UI for those features.
+> **Legacy endpoint note**: `POST /api/videos/download` supports single videos
+> only. The separately enabled `/external-api/v1` uses constrained external
+> keys for cached browsing and approval-backed video, channel, and deletion
+> requests.
 
 ## Authentication
 
-### Versioned External API (preview foundation)
+### Versioned External API
 
-Set `EXTERNAL_API_ENABLED=true` to expose the versioned external API.
-This prefix always requires an `x-api-key`, including when `AUTH_ENABLED=false`.
-Only keys assigned a non-legacy external role (`view`, `request`, `delete`, or
-`admin`) can use it; existing keys retain `legacy_download` and continue to
-work only with `POST /api/videos/download`. An administrator must also grant
-each external key access to specific enabled channel database IDs. No grant
-means no catalog visibility. `GET /external-api/v1/capabilities` is the
-authoritative source for granted scopes, policy, and implemented features.
-
-The cached read API currently includes:
-
-- `GET /external-api/v1/channels` with bounded paging, search, and sorting.
-- `GET /external-api/v1/channels/{databaseId}/videos` with bounded paging,
-  tab, duration, date, search, and sorting filters.
-- `GET /external-api/v1/assets/channels/{databaseId}/thumbnail` for
-  authenticated same-origin channel artwork.
-- `POST /external-api/v1/requests/videos` to persist a request for an eligible
-  cached video.
-- `GET /external-api/v1/requests` and
-  `GET /external-api/v1/requests/{requestId}` to read the calling key's own
-  request history and status.
-
-All catalog responses come from Youtarr's local cache. Rating and media-type
-policy is applied on the server before rows and counts are returned. Local
-filesystem paths, API-key hashes, and ungranted channel existence are never
-included in responses. Channel-request, delete-request, and recommendation
-operations are not implemented yet.
-
-Video requests require the `video:request` scope. Youtarr rechecks the key's
-channel grant, the enabled channel, cached video membership, removal/ignore
-state, media type, and rating policy at request time. Request bodies cannot
-override resolution, folders, ratings, audio format, or file structure.
-
-`POST /external-api/v1/requests/videos` accepts:
-
-```json
-{
-  "youtubeId": "abcdefghijk",
-  "channelId": 8,
-  "idempotencyKey": "optional-client-operation-id"
-}
-```
-
-`channelId` is the numeric database ID returned by the channel catalog. The
-optional idempotency key is limited to 200 characters and stored only as a
-SHA-256 digest. Responses use an `outcome` of `created`, `duplicate`, or
-`already_downloaded`, plus a bounded request DTO when a request record exists.
-Pending requests appear in Youtarr's session-authenticated **Requests** area. Keys with
-video auto-approval enabled immediately queue the canonical YouTube URL through
-Youtarr's normal manual-download machinery and channel-owned settings.
-
-Request status is one of `pending`, `approved`, `processing`, `completed`,
-`rejected`, `failed`, or `cancelled`. Processing requests are lazily reconciled
-to completed when the downloaded `Videos` record appears. List responses use
-`page` and `pageSize` (maximum 100) and accept one exact `status` filter.
-Reads are always restricted to records created by the calling API key.
-
-### Administrator request review API
-
-The Youtarr web application uses session-authenticated administrator endpoints
-under `/api/external-requests`. These endpoints never accept external API keys
-and never return key hashes or secret values:
-
-- `GET /api/external-requests` lists all video requests with bounded
-  `page`/`pageSize` paging and exact `status` and `apiKeyId` filters.
-- `GET /api/external-requests/{requestId}` returns safe requester, target, and
-  downloader-job metadata.
-- `POST /api/external-requests/{requestId}/approve` confirms and queues a
-  pending request.
-- `POST /api/external-requests/{requestId}/reject` accepts
-  `{"reason":"1 to 300 characters"}` and terminally rejects a pending request.
-
-Approve and reject actions have a dedicated 30-per-minute session/IP rate
-limit. Only `pending -> rejected` and
-`pending -> approved -> processing|completed|failed` transitions are allowed.
-Before approval, Youtarr re-reads and locks the request and current API-key
-policy, then rechecks active/revoked state, role, channel grant, enabled
-channel, cached catalog membership, removal/ignore state, media type, rating,
-downloaded state, and active duplicates. The request UUID is the stable
-downloader job boundary. `processing` and `job_id` are stored only after the
-queue accepts the job. Validation and queue failures are terminal and clear
-the active dedupe key so the client may submit a later request.
-
-Session-authenticated key-management clients can read or replace the complete
-allow-list with `GET` or `PUT /api/keys/{id}/channels`; the PUT body is
-`{"channelIds":[1,2]}`. Only active external-role keys and enabled channels
-are accepted.
+The versioned API, including its endpoints, roles, request lifecycle, and
+deployment configuration, is documented exclusively in
+[Youtarr External API](EXTERNAL_API.md). This guide remains for the legacy
+single-video endpoint and client setup examples below.
 
 ### API Keys
 
@@ -235,7 +155,7 @@ Create a new API key.
 ```
 
 #### DELETE /api/keys/:id
-Delete an API key.
+Revoke an API key while retaining its metadata for audit visibility.
 
 ## Rate Limiting
 

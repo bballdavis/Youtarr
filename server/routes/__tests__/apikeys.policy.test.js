@@ -1,10 +1,17 @@
 jest.mock('../../modules/apiKeyModule', () => ({
+  createApiKey: jest.fn(),
+  logApiKeyCreated: jest.fn(),
   updateApiKey: jest.fn(),
   serializeApiKey: jest.fn((key) => ({ id: key.id, name: key.name, key_prefix: key.key_prefix })),
 }));
 jest.mock('../../modules/apiKeyChannelGrantModule', () => ({
   getChannelGrants: jest.fn(),
   replaceChannelGrants: jest.fn(),
+}));
+jest.mock('../../db', () => ({
+  sequelize: {
+    transaction: jest.fn(async (callback) => callback({ id: 'transaction' })),
+  },
 }));
 
 const express = require('express');
@@ -28,6 +35,13 @@ describe('PATCH /api/keys/:id policy management', () => {
 
   test('is session-only', async () => {
     await request(createApp('api_key')).patch('/api/keys/1').send({ policy: { role: 'view' } })
+      .expect(403, { error: 'API keys cannot manage other API keys' });
+  });
+
+  test('rejects an API-key header even when upstream auth is bypassed', async () => {
+    await request(createApp())
+      .get('/api/keys')
+      .set('x-api-key', 'external-key')
       .expect(403, { error: 'API keys cannot manage other API keys' });
   });
 
@@ -69,5 +83,103 @@ describe('API key channel grant management', () => {
     );
     await request(createApp()).put('/api/keys/1/channels').send({ channelIds: [2] })
       .expect(400, { error: 'Only active external API keys can receive channel grants' });
+  });
+});
+
+describe('transactional external access management', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  test('creates an external key and its exact grants in one transaction', async () => {
+    apiKeyModule.createApiKey.mockResolvedValue({
+      id: 9,
+      name: 'External Client',
+      key: 'one-time-secret',
+      prefix: '12345678',
+    });
+    grantModule.replaceChannelGrants.mockResolvedValue({
+      keyId: 9,
+      channelIds: [2, 4],
+    });
+
+    const response = await request(createApp()).post('/api/keys').send({
+      name: 'External Client',
+      policy: { role: 'request' },
+      channelIds: [4, 2],
+    }).expect(200);
+
+    expect(response.body).toEqual(expect.objectContaining({
+      id: 9,
+      key: 'one-time-secret',
+    }));
+    expect(apiKeyModule.createApiKey).toHaveBeenCalledWith(
+      'External Client',
+      { role: 'request' },
+      { transaction: { id: 'transaction' }, logEvent: false }
+    );
+    expect(grantModule.replaceChannelGrants).toHaveBeenCalledWith(
+      9,
+      [4, 2],
+      { transaction: { id: 'transaction' } }
+    );
+    expect(apiKeyModule.logApiKeyCreated).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 9, prefix: '12345678' })
+    );
+  });
+
+  test('still returns the one-time key if post-commit audit logging fails', async () => {
+    apiKeyModule.createApiKey.mockResolvedValue({
+      id: 9,
+      name: 'External Client',
+      key: 'one-time-secret',
+      prefix: '12345678',
+    });
+    grantModule.replaceChannelGrants.mockResolvedValue({
+      keyId: 9,
+      channelIds: [],
+    });
+    apiKeyModule.logApiKeyCreated.mockImplementationOnce(() => {
+      throw new Error('logger unavailable');
+    });
+
+    await request(createApp()).post('/api/keys').send({
+      name: 'External Client',
+      policy: { role: 'view' },
+      channelIds: [],
+    }).expect(200).expect((response) => {
+      expect(response.body.key).toBe('one-time-secret');
+    });
+  });
+
+  test('updates policy and grants through the atomic endpoint', async () => {
+    apiKeyModule.updateApiKey.mockResolvedValue({
+      id: 9,
+      name: 'External Client',
+      key_prefix: '12345678',
+    });
+    grantModule.replaceChannelGrants.mockResolvedValue({
+      keyId: 9,
+      channelIds: [3],
+    });
+
+    const response = await request(createApp())
+      .put('/api/keys/9/external-access')
+      .send({ policy: { role: 'delete' }, channelIds: [3] })
+      .expect(200);
+
+    expect(response.body).toEqual({
+      success: true,
+      key: { id: 9, name: 'External Client', key_prefix: '12345678' },
+      channelIds: [3],
+    });
+    expect(apiKeyModule.updateApiKey).toHaveBeenCalledWith(
+      9,
+      { role: 'delete' },
+      { transaction: { id: 'transaction' } }
+    );
+    expect(grantModule.replaceChannelGrants).toHaveBeenCalledWith(
+      9,
+      [3],
+      { transaction: { id: 'transaction' } }
+    );
   });
 });

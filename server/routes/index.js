@@ -19,6 +19,7 @@ const createMaintenanceRoutes = require('./maintenance');
 const createSubfolderRoutes = require('./subfolders');
 const createExternalRequestReviewRoutes = require('./externalRequests');
 const { createExternalApiRoutes } = require('./externalApi');
+const { sendExternalError } = require('../modules/externalApiResponse');
 const videoMetadataModule = require('../modules/videoMetadataModule');
 const videoOembedEnricher = require('../modules/videoOembedEnricher');
 const playlistModule = require('../modules/playlistModule');
@@ -30,6 +31,11 @@ const ratingMapper = require('../modules/ratingMapper');
 const subfolderModule = require('../modules/subfolderModule');
 const playlistVideoFilters = require('../modules/playlistVideoFilters');
 const models = require('../models');
+const externalCatalogService = require('../modules/externalCatalogService');
+const externalThumbnailProxy = require('../modules/externalThumbnailProxy');
+const { sharedExternalWorkLimiter } = require('../modules/externalWorkLimiter');
+const { createExternalRequestService } = require('../modules/externalRequestService');
+const { createExternalQuotaService } = require('../modules/externalQuotaService');
 
 /**
  * Registers all route modules with the Express app
@@ -37,6 +43,8 @@ const models = require('../models');
  * @param {Object} deps - Dependencies to inject into route modules
  */
 function registerRoutes(app, deps) {
+  const externalRequestService = createExternalRequestService();
+  const externalQuotaService = createExternalQuotaService();
   const {
     verifyToken,
     loginLimiter,
@@ -62,8 +70,10 @@ function registerRoutes(app, deps) {
     getClientAddress,
     isWslEnvironment,
     externalApiAuth,
+    externalApiIngressLimiter,
     externalApiLimiter,
     externalApiWriteLimiter,
+    recordExternalApiUse,
     externalRequestReviewLimiter,
     serverVersion,
   } = deps;
@@ -111,6 +121,7 @@ function registerRoutes(app, deps) {
   app.use(createExternalRequestReviewRoutes({
     verifyToken,
     reviewLimiter: externalRequestReviewLimiter,
+    requestService: externalRequestService,
   }));
 
   // Subscription import routes
@@ -134,14 +145,26 @@ function registerRoutes(app, deps) {
   if (process.env.EXTERNAL_API_ENABLED === 'true') {
     app.use('/external-api/v1', createExternalApiRoutes({
       externalApiAuth,
+      externalApiIngressLimiter,
       externalApiLimiter,
       externalApiWriteLimiter,
+      recordExternalApiUse,
       serverVersion,
+      catalogService: externalCatalogService,
+      thumbnailProxy: externalThumbnailProxy,
+      externalWorkLimiter: sharedExternalWorkLimiter,
+      requestService: externalRequestService,
+      quotaService: externalQuotaService,
     }));
-  } else {
-    // Do not allow the SPA fallback to make an enabled-looking external API.
-    app.use('/external-api', (_req, res) => res.status(404).json({ error: 'Not found' }));
   }
+  // Do not allow unknown or disabled external routes to fall through to the
+  // SPA. Keep the public namespace on the same versioned error contract.
+  app.use('/external-api', (req, res) =>
+    sendExternalError(res, 404, 'External API route not found', {
+      code: 'not_found',
+      requestId: req.id,
+    })
+  );
 
   // Defensive redirect: /channels -> /subscriptions (frontend handles client-side routing,
   // this fallback covers direct server-side hits during the transition period)

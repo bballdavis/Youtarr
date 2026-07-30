@@ -441,6 +441,9 @@ class ConfigModule extends EventEmitter {
         }, 100); // 100ms debounce delay
       }
     });
+    // Keep hot reload active without preventing CLI commands or Jest from
+    // exiting after their useful work is complete.
+    this.configWatcher.unref?.();
   }
 
   stopWatchingConfig() {
