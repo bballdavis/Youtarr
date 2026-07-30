@@ -3,11 +3,10 @@ const express = require('express');
 function createExternalRequestReviewRoutes({
   verifyToken,
   reviewLimiter = (_req, _res, next) => next(),
-  requestService = null,
+  requestService,
 }) {
   const router = express.Router();
-  const requests = () => requestService ||
-    require('../modules/externalRequestService').createExternalRequestService();
+  const requests = () => requestService;
 
   const sessionOnly = (req, res, next) => {
     if (req.authType !== 'session') {

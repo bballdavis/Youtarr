@@ -28,7 +28,7 @@ function makeApp({
       serverVersion: '1.77.0',
       catalogService,
       thumbnailProxy,
-      externalWorkLimiter,
+      externalWorkLimiter: externalWorkLimiter || { run: (operation) => operation() },
       requestService,
       quotaService: {
         status: jest.fn().mockResolvedValue({

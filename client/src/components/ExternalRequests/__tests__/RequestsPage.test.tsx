@@ -2,8 +2,18 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
+import axios from 'axios';
 import RequestsPage from '../RequestsPage';
 import { ExternalRequestReview } from '../../../types/externalRequest';
+
+jest.mock('axios', () => ({
+  get: jest.fn(),
+  post: jest.fn(),
+  isAxiosError: (error: unknown) => Boolean((error as { response?: unknown })?.response),
+  isCancel: () => false,
+}));
+
+const mockedAxios = axios as jest.Mocked<typeof axios>;
 
 const requestId = '9b89e5bc-8c90-4e72-b245-270fed2eacc2';
 const pendingRequest = {
@@ -39,10 +49,10 @@ const page = (data: ExternalRequestReview[] = [pendingRequest]) => ({
   filterOptions: { requesters: [pendingRequest.requester] },
 });
 
-const jsonResponse = (body: unknown, ok = true) => Promise.resolve({
-  ok,
-  json: async () => body,
-} as Response);
+const axiosResponse = <T,>(data: T) => ({ data });
+const axiosError = (message: string) => Object.assign(new Error(message), {
+  response: { data: { error: message } },
+});
 
 const renderPage = () => render(
   <MemoryRouter initialEntries={['/requests']}>
@@ -52,7 +62,8 @@ const renderPage = () => render(
 
 describe('RequestsPage', () => {
   beforeEach(() => {
-    global.fetch = jest.fn();
+    mockedAxios.get.mockReset();
+    mockedAxios.post.mockReset();
   });
 
   test('loads the queue, opens details, confirms approval, and refreshes status', async () => {
@@ -67,11 +78,11 @@ describe('RequestsPage', () => {
         startedAt: pendingRequest.createdAt,
       },
     };
-    (global.fetch as jest.Mock)
-      .mockImplementationOnce(() => jsonResponse(page()))
-      .mockImplementationOnce(() => jsonResponse(pendingRequest))
-      .mockImplementationOnce(() => jsonResponse(processing))
-      .mockImplementationOnce(() => jsonResponse(page([processing])));
+    mockedAxios.get
+      .mockResolvedValueOnce(axiosResponse(page()))
+      .mockResolvedValueOnce(axiosResponse(pendingRequest))
+      .mockResolvedValueOnce(axiosResponse(page([processing])));
+    mockedAxios.post.mockResolvedValueOnce(axiosResponse(processing));
 
     const user = userEvent.setup();
     renderPage();
@@ -89,22 +100,20 @@ describe('RequestsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm approval' }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(mockedAxios.post).toHaveBeenCalledWith(
         `/api/external-requests/${requestId}/approve`,
+        {},
         expect.objectContaining({
-          method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
             'x-access-token': 'session-token',
           },
-          body: '{}',
         })
       );
     });
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledTimes(4);
+      expect(mockedAxios.get).toHaveBeenCalledTimes(3);
     });
-    expect(global.fetch).toHaveBeenLastCalledWith(
+    expect(mockedAxios.get).toHaveBeenLastCalledWith(
       expect.stringContaining('/api/external-requests?'),
       expect.objectContaining({
         headers: { 'x-access-token': 'session-token' },
@@ -113,9 +122,9 @@ describe('RequestsPage', () => {
   });
 
   test('shows empty and retryable error states', async () => {
-    (global.fetch as jest.Mock)
-      .mockImplementationOnce(() => jsonResponse({ error: 'Unable to read request queue' }, false))
-      .mockImplementationOnce(() => jsonResponse(page([])));
+    mockedAxios.get
+      .mockRejectedValueOnce(axiosError('Unable to read request queue'))
+      .mockResolvedValueOnce(axiosResponse(page([])));
 
     const user = userEvent.setup();
     renderPage();
@@ -126,9 +135,9 @@ describe('RequestsPage', () => {
   });
 
   test('requires a rejection reason before submission', async () => {
-    (global.fetch as jest.Mock)
-      .mockImplementationOnce(() => jsonResponse(page()))
-      .mockImplementationOnce(() => jsonResponse(pendingRequest));
+    mockedAxios.get
+      .mockResolvedValueOnce(axiosResponse(page()))
+      .mockResolvedValueOnce(axiosResponse(pendingRequest));
 
     const user = userEvent.setup();
     renderPage();
@@ -167,11 +176,11 @@ describe('RequestsPage', () => {
         rating: 'TV-PG',
       },
     };
-    (global.fetch as jest.Mock)
-      .mockImplementationOnce(() => jsonResponse(page([channelRequest])))
-      .mockImplementationOnce(() => jsonResponse(channelRequest))
-      .mockImplementationOnce(() => jsonResponse(completed))
-      .mockImplementationOnce(() => jsonResponse(page([completed])));
+    mockedAxios.get
+      .mockResolvedValueOnce(axiosResponse(page([channelRequest])))
+      .mockResolvedValueOnce(axiosResponse(channelRequest))
+      .mockResolvedValueOnce(axiosResponse(page([completed])));
+    mockedAxios.post.mockResolvedValueOnce(axiosResponse(completed));
 
     const user = userEvent.setup();
     renderPage();
@@ -187,20 +196,20 @@ describe('RequestsPage', () => {
     ));
     await user.click(screen.getByRole('button', { name: 'Confirm approval' }));
 
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
+    await waitFor(() => expect(mockedAxios.post).toHaveBeenCalledWith(
       `/api/external-requests/${requestId}/approve`,
+      { grantToRequestingKey: false },
       expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({ grantToRequestingKey: false }),
+        headers: { 'x-access-token': 'session-token' },
       })
     ));
   });
 
   test('renders compact request metadata and starts approval from the review column', async () => {
-    (global.fetch as jest.Mock)
-      .mockImplementationOnce(() => jsonResponse(page()))
-      .mockImplementationOnce(() => jsonResponse({ ...pendingRequest, status: 'processing' }))
-      .mockImplementationOnce(() => jsonResponse(page([{ ...pendingRequest, status: 'processing' }])));
+    mockedAxios.get
+      .mockResolvedValueOnce(axiosResponse(page()))
+      .mockResolvedValueOnce(axiosResponse(page([{ ...pendingRequest, status: 'processing' }])));
+    mockedAxios.post.mockResolvedValueOnce(axiosResponse({ ...pendingRequest, status: 'processing' }));
 
     const user = userEvent.setup();
     renderPage();
@@ -221,16 +230,17 @@ describe('RequestsPage', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm approval' }));
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(
+      expect(mockedAxios.post).toHaveBeenCalledWith(
         `/api/external-requests/${requestId}/approve`,
-        expect.objectContaining({ method: 'POST' })
+        {},
+        expect.objectContaining({ headers: { 'x-access-token': 'session-token' } })
       );
     });
   });
 
   test('keeps review controls aligned but disables decisions for a completed request', async () => {
     const completed = { ...pendingRequest, status: 'completed' as const };
-    (global.fetch as jest.Mock).mockImplementationOnce(() => jsonResponse(page([completed])));
+    mockedAxios.get.mockResolvedValueOnce(axiosResponse(page([completed])));
 
     renderPage();
 
@@ -245,12 +255,14 @@ describe('RequestsPage', () => {
       id: '8b89e5bc-8c90-4e72-b245-270fed2eacc2',
       target: { ...pendingRequest.target, title: 'Other video' },
     };
-    let resolveDetails!: (response: Response) => void;
-    const deferredDetails = new Promise<Response>((resolve) => { resolveDetails = resolve; });
-    (global.fetch as jest.Mock)
-      .mockImplementationOnce(() => jsonResponse(page([pendingRequest, other])))
-      .mockImplementationOnce(() => deferredDetails)
-      .mockImplementationOnce(() => jsonResponse({ ...other, status: 'approved' }));
+    let resolveDetails!: (response: { data: ExternalRequestReview }) => void;
+    const deferredDetails = new Promise<{ data: ExternalRequestReview }>((resolve) => {
+      resolveDetails = resolve;
+    });
+    mockedAxios.get
+      .mockResolvedValueOnce(axiosResponse(page([pendingRequest, other])))
+      .mockImplementationOnce(() => deferredDetails);
+    mockedAxios.post.mockResolvedValueOnce(axiosResponse({ ...other, status: 'approved' }));
 
     const user = userEvent.setup();
     renderPage();
@@ -258,11 +270,11 @@ describe('RequestsPage', () => {
     await user.click(within(screen.getByTestId(`request-card-${requestId}`)).getByRole('button', { name: 'Details' }));
     await user.click(within(screen.getByRole('dialog')).getByText('Close', { selector: 'button' }));
     await user.click(within(screen.getByTestId(`request-card-${other.id}`)).getByRole('button', { name: 'Approve request' }));
-    resolveDetails({ ok: true, json: async () => pendingRequest } as Response);
+    resolveDetails(axiosResponse(pendingRequest));
     await user.click(screen.getByRole('button', { name: 'Confirm approval' }));
 
-    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith(
-      `/api/external-requests/${other.id}/approve`, expect.objectContaining({ method: 'POST' })
+    await waitFor(() => expect(mockedAxios.post).toHaveBeenCalledWith(
+      `/api/external-requests/${other.id}/approve`, {}, expect.anything()
     ));
   });
 });

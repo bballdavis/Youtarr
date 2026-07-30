@@ -13,17 +13,15 @@ function createExternalApiRoutes({
   recordExternalApiUse = (_req, _res, next) => next(),
   externalApiJsonParser = express.json({ limit: '16kb' }),
   serverVersion,
-  catalogService = require('../modules/externalCatalogService'),
-  thumbnailProxy = require('../modules/externalThumbnailProxy'),
-  externalWorkLimiter = require('../modules/externalWorkLimiter').sharedExternalWorkLimiter,
-  requestService = null,
-  quotaService = null,
+  catalogService,
+  thumbnailProxy,
+  externalWorkLimiter,
+  requestService,
+  quotaService,
 }) {
   const router = express.Router();
-  const requests = () => requestService ||
-    require('../modules/externalRequestService').createExternalRequestService();
-  const quotas = () => quotaService ||
-    require('../modules/externalQuotaService').createExternalQuotaService();
+  const requests = () => requestService;
+  const quotas = () => quotaService;
   router.use((_req, res, next) => {
     setExternalSecurityHeaders(res);
     next();

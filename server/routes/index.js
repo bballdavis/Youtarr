@@ -31,6 +31,11 @@ const ratingMapper = require('../modules/ratingMapper');
 const subfolderModule = require('../modules/subfolderModule');
 const playlistVideoFilters = require('../modules/playlistVideoFilters');
 const models = require('../models');
+const externalCatalogService = require('../modules/externalCatalogService');
+const externalThumbnailProxy = require('../modules/externalThumbnailProxy');
+const { sharedExternalWorkLimiter } = require('../modules/externalWorkLimiter');
+const { createExternalRequestService } = require('../modules/externalRequestService');
+const { createExternalQuotaService } = require('../modules/externalQuotaService');
 
 /**
  * Registers all route modules with the Express app
@@ -38,6 +43,8 @@ const models = require('../models');
  * @param {Object} deps - Dependencies to inject into route modules
  */
 function registerRoutes(app, deps) {
+  const externalRequestService = createExternalRequestService();
+  const externalQuotaService = createExternalQuotaService();
   const {
     verifyToken,
     loginLimiter,
@@ -114,6 +121,7 @@ function registerRoutes(app, deps) {
   app.use(createExternalRequestReviewRoutes({
     verifyToken,
     reviewLimiter: externalRequestReviewLimiter,
+    requestService: externalRequestService,
   }));
 
   // Subscription import routes
@@ -142,6 +150,11 @@ function registerRoutes(app, deps) {
       externalApiWriteLimiter,
       recordExternalApiUse,
       serverVersion,
+      catalogService: externalCatalogService,
+      thumbnailProxy: externalThumbnailProxy,
+      externalWorkLimiter: sharedExternalWorkLimiter,
+      requestService: externalRequestService,
+      quotaService: externalQuotaService,
     }));
   }
   // Do not allow unknown or disabled external routes to fall through to the

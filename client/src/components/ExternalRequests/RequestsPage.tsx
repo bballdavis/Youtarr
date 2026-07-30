@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import axios from 'axios';
 import {
   ExternalLink,
   Download,
@@ -216,6 +217,16 @@ interface RequestsPageProps {
 
 type ReviewAction = 'approve' | 'reject';
 
+interface ApiErrorResponse {
+  error?: string;
+}
+
+const errorMessage = (error: unknown, fallback: string) => (
+  axios.isAxiosError<ApiErrorResponse>(error) && error.response?.data?.error
+    ? error.response.data.error
+    : fallback
+);
+
 const RequestsPage: React.FC<RequestsPageProps> = ({ token }) => {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [requests, setRequests] = useState<ExternalRequestReview[]>([]);
@@ -245,22 +256,17 @@ const RequestsPage: React.FC<RequestsPageProps> = ({ token }) => {
     if (apiKeyId) params.set('apiKeyId', apiKeyId);
     if (requestType) params.set('requestType', requestType);
     try {
-      const response = await fetch(`/api/external-requests?${params}`, {
+      const response = await axios.get<ExternalRequestReviewPage>(`/api/external-requests?${params}`, {
         headers: { 'x-access-token': token },
         signal,
       });
-      const body = await response.json().catch(() => null) as ExternalRequestReviewPage | { error?: string } | null;
-      if (!response.ok || !body || !('data' in body)) {
-        throw new Error(body && 'error' in body && body.error
-          ? body.error
-          : 'Unable to load requests');
-      }
+      const body = response.data;
       setRequests(body.data);
       setRequesters(body.filterOptions.requesters);
       setTotalPages(body.pagination.totalPages);
     } catch (loadError) {
-      if ((loadError as Error).name !== 'AbortError') {
-        setError(loadError instanceof Error ? loadError.message : 'Unable to load requests');
+      if (!axios.isCancel(loadError) && !signal?.aborted) {
+        setError(errorMessage(loadError, 'Unable to load requests'));
       }
     } finally {
       if (!signal?.aborted) setLoading(false);
@@ -279,21 +285,13 @@ const RequestsPage: React.FC<RequestsPageProps> = ({ token }) => {
     setDetailLoading(true);
     setActionError(null);
     try {
-      const response = await fetch(`/api/external-requests/${request.id}`, {
+      const response = await axios.get<ExternalRequestReview>(`/api/external-requests/${request.id}`, {
         headers: { 'x-access-token': token },
       });
-      const body = await response.json().catch(() => null) as ExternalRequestReview | { error?: string } | null;
-      if (!response.ok || !body || !('status' in body)) {
-        throw new Error(body && 'error' in body && body.error
-          ? body.error
-          : 'Unable to load request details');
-      }
-      if (requestSequence === detailRequestRef.current) setSelected(body);
+      if (requestSequence === detailRequestRef.current) setSelected(response.data);
     } catch (detailError) {
       if (requestSequence === detailRequestRef.current) {
-        setActionError(detailError instanceof Error
-          ? detailError.message
-          : 'Unable to load request details');
+        setActionError(errorMessage(detailError, 'Unable to load request details'));
       }
     } finally {
       if (requestSequence === detailRequestRef.current) setDetailLoading(false);
@@ -341,30 +339,23 @@ const RequestsPage: React.FC<RequestsPageProps> = ({ token }) => {
     setSubmitting(true);
     setActionError(null);
     try {
-      const response = await fetch(`/api/external-requests/${selected.id}/${action}`, {
-        method: 'POST',
+      const response = await axios.post<ExternalRequestReview>(
+        `/api/external-requests/${selected.id}/${action}`,
+        action === 'reject'
+          ? { reason }
+          : (selected.type === 'channel' ? { grantToRequestingKey } : {}),
+        {
         headers: {
-          'Content-Type': 'application/json',
           'x-access-token': token,
         },
-        body: JSON.stringify(action === 'reject'
-          ? { reason }
-          : (selected.type === 'channel' ? { grantToRequestingKey } : {})),
-      });
-      const body = await response.json().catch(() => null) as ExternalRequestReview | { error?: string } | null;
-      if (!response.ok || !body || !('status' in body)) {
-        throw new Error(body && 'error' in body && body.error
-          ? body.error
-          : `Unable to ${action} request`);
-      }
-      setSelected(body);
+        }
+      );
+      setSelected(response.data);
       setAction(null);
       setReason('');
       setReloadToken((value) => value + 1);
     } catch (reviewError) {
-      setActionError(reviewError instanceof Error
-        ? reviewError.message
-        : `Unable to ${action} request`);
+      setActionError(errorMessage(reviewError, `Unable to ${action} request`));
     } finally {
       setSubmitting(false);
     }
