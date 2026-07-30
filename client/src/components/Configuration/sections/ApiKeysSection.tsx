@@ -22,8 +22,9 @@ import {
   Skeleton,
   Snackbar,
   Divider,
+  Switch,
 } from '../../ui';
-import { Trash2 as DeleteIcon, Plus as AddIcon, Copy as ContentCopyIcon, AlertTriangle as WarningIcon } from 'lucide-react';
+import { Trash2 as DeleteIcon, Plus as AddIcon, Copy as ContentCopyIcon, AlertTriangle as WarningIcon, Pencil as EditIcon } from 'lucide-react';
 import { ConfigurationAccordion } from '../common/ConfigurationAccordion';
 import { InfoTooltip } from '../common/InfoTooltip';
 
@@ -37,7 +38,40 @@ interface ApiKey {
   last_used_at: string | null;
   is_active: boolean;
   usage_count: number;
+  role?: string;
+  auto_approve_video_requests?: boolean;
+  auto_approve_channel_requests?: boolean;
+  auto_approve_delete_requests?: boolean;
+  max_rating_level?: number;
+  allow_unrated?: boolean;
+  allowed_media_types?: string[];
 }
+
+type PolicyDraft = {
+  role: string;
+  autoApproveVideoRequests: boolean;
+  autoApproveChannelRequests: boolean;
+  autoApproveDeleteRequests: boolean;
+  maxRatingLevel: number;
+  allowUnrated: boolean;
+  allowedMediaTypes: string[];
+};
+
+const DEFAULT_POLICY: PolicyDraft = {
+  role: 'legacy_download',
+  autoApproveVideoRequests: false,
+  autoApproveChannelRequests: false,
+  autoApproveDeleteRequests: false,
+  maxRatingLevel: 4,
+  allowUnrated: false,
+  allowedMediaTypes: ['video'],
+};
+
+const roleAllows = (role: string, capability: 'video:request' | 'channel:request' | 'video:delete') => {
+  if (role === 'admin') return true;
+  if (role === 'delete') return true;
+  return role === 'request' && capability !== 'video:delete';
+};
 
 interface ApiKeyCreatedResponse {
   success: boolean;
@@ -71,6 +105,9 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
   const [isHttpWarning] = useState(
     locationUtils.getProtocol() !== 'https:' && locationUtils.getHostname() !== 'localhost'
   );
+  const [editingKey, setEditingKey] = useState<ApiKey | null>(null);
+  const [policyDraft, setPolicyDraft] = useState<PolicyDraft>(DEFAULT_POLICY);
+  const [savingPolicy, setSavingPolicy] = useState(false);
 
   const fetchApiKeys = useCallback(async () => {
     if (!token) return;
@@ -157,6 +194,40 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     setSnackbar({ open: true, message: `${label} copied to clipboard` });
+  };
+
+  const openPolicyEditor = (key: ApiKey) => {
+    setEditingKey(key);
+    setPolicyDraft({
+      role: key.role || DEFAULT_POLICY.role,
+      autoApproveVideoRequests: key.auto_approve_video_requests === true,
+      autoApproveChannelRequests: key.auto_approve_channel_requests === true,
+      autoApproveDeleteRequests: key.auto_approve_delete_requests === true,
+      maxRatingLevel: key.max_rating_level ?? DEFAULT_POLICY.maxRatingLevel,
+      allowUnrated: key.allow_unrated ?? DEFAULT_POLICY.allowUnrated,
+      allowedMediaTypes: key.allowed_media_types ?? DEFAULT_POLICY.allowedMediaTypes,
+    });
+  };
+
+  const savePolicy = async () => {
+    if (!token || !editingKey) return;
+    setSavingPolicy(true);
+    try {
+      const response = await fetch(`/api/keys/${editingKey.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'x-access-token': token },
+        body: JSON.stringify({ policy: policyDraft }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to update API key policy');
+      setEditingKey(null);
+      setSnackbar({ open: true, message: 'API key policy updated' });
+      await fetchApiKeys();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update API key policy');
+    } finally {
+      setSavingPolicy(false);
+    }
   };
 
   const formatDate = (dateStr: string | null) => {
@@ -287,6 +358,11 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
+                    <Tooltip title="Edit permissions">
+                      <IconButton size="small" aria-label="Edit permissions" onClick={() => openPolicyEditor(key)}>
+                        <EditIcon size={16} />
+                      </IconButton>
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
               ))}
@@ -321,6 +397,29 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
             Create
           </Button>
         </DialogActions>
+      </Dialog>
+
+      <Dialog open={editingKey !== null} onClose={() => !savingPolicy && setEditingKey(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Edit permissions{editingKey ? ` - ${editingKey.name}` : ''}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="secondary" className="mb-4">Auto-approve options are children of their parent capability and cannot be enabled independently.</Typography>
+          {([
+            ['Request videos', 'Submit requests to download eligible videos.', 'autoApproveVideoRequests'],
+            ['Request channels', 'Submit requests to supported YouTube channels.', 'autoApproveChannelRequests'],
+            ['Delete downloaded videos', 'Submit approval-backed requests to remove downloaded video assets.', 'autoApproveDeleteRequests'],
+          ] as const).map(([label, help, child]) => {
+            const capability = child === 'autoApproveVideoRequests'
+              ? 'video:request'
+              : child === 'autoApproveChannelRequests' ? 'channel:request' : 'video:delete';
+            const parentEnabled = roleAllows(policyDraft.role, capability);
+            return <Box key={child} className="mb-3 rounded border p-3">
+              <Box className="flex items-center justify-between"><Typography variant="subtitle2">{label}</Typography><Switch checked={parentEnabled} disabled aria-label={`${label} capability`} /></Box>
+              <Typography variant="body2" color="secondary">{help}</Typography>
+              <Box className="ml-5 mt-2 border-l-2 pl-3"><Box className="flex items-center justify-between"><Typography variant="body2">Auto-approve</Typography><Switch checked={policyDraft[child]} disabled={!parentEnabled} onChange={(event) => setPolicyDraft((current) => ({ ...current, [child]: event.target.checked }))} aria-label={`Auto-approve ${label.toLowerCase()}`} /></Box><Typography variant="caption" color="secondary">Skip manual review when policy checks pass.</Typography></Box>
+            </Box>;
+          })}
+        </DialogContent>
+        <DialogActions><Button onClick={() => setEditingKey(null)} disabled={savingPolicy}>Cancel</Button><Button variant="contained" onClick={() => void savePolicy()} disabled={savingPolicy}>Save permissions</Button></DialogActions>
       </Dialog>
 
       {/* Key Created Dialog with Bookmarklet */}

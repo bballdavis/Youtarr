@@ -316,6 +316,7 @@ describe('external video request service', () => {
       },
       channel: {
         id: 8, channel_id: 'UC1234567890123456789012', title: 'Safe Channel',
+        default_rating: 'TV-PG',
       },
       job: null,
     });
@@ -327,6 +328,10 @@ describe('external video request service', () => {
       channel_id: 'UC1234567890123456789012',
       title: 'Safe video',
       media_type: 'video',
+    }]);
+    admin.models.Video.findAll.mockResolvedValue([{
+      youtubeId,
+      normalized_rating: 'TV-Y',
     }]);
 
     const result = await admin.service.listAdminRequests({
@@ -353,10 +358,68 @@ describe('external video request service', () => {
         channelTitle: 'Safe Channel',
         title: 'Safe video',
         mediaType: 'video',
+        contentRating: 'TV-Y',
       },
       job: null,
     });
     expect(JSON.stringify(result)).not.toContain('must-not-leak');
+    expect(admin.models.Video.findAll).toHaveBeenCalledWith({
+      where: { youtubeId: [youtubeId] },
+      attributes: ['youtubeId', 'normalized_rating'],
+    });
+  });
+
+  test('falls back to channel default rating when stored video metadata is missing', async () => {
+    const listed = record({
+      status: 'pending',
+      apiKey: {
+        id: 4, name: 'External Client', key_prefix: 'abcd1234', key_hash: 'must-not-leak',
+        role: 'request', is_active: true, revoked_at: null,
+      },
+      channel: {
+        id: 8, channel_id: 'UC1234567890123456789012', title: 'Safe Channel',
+        default_rating: 'TV-PG',
+      },
+      job: null,
+    });
+    const fallback = fixture({
+      models: {
+        Channel: {
+          findByPk: jest.fn().mockResolvedValue({
+            id: 8, channel_id: 'UC1234567890123456789012', enabled: true, default_rating: 'TV-PG',
+          }),
+        },
+      },
+    });
+    fallback.models.ExternalRequest.findAndCountAll.mockResolvedValue({ rows: [listed], count: 1 });
+    fallback.models.ApiKey.findAll.mockResolvedValue([listed.apiKey]);
+    fallback.models.ChannelVideo.findAll.mockResolvedValue([{
+      youtube_id: youtubeId,
+      channel_id: 'UC1234567890123456789012',
+      title: 'Safe video',
+      media_type: 'video',
+    }]);
+    fallback.models.Video.findAll.mockResolvedValue([]);
+
+    const result = await fallback.service.listAdminRequests({
+      page: '2', pageSize: '10', status: 'pending', apiKeyId: '4',
+    });
+
+    expect(result.data[0]).toMatchObject({
+      target: {
+        youtubeId,
+        channelId: 8,
+        youtubeChannelId: 'UC1234567890123456789012',
+        channelTitle: 'Safe Channel',
+        title: 'Safe video',
+        mediaType: 'video',
+        contentRating: 'TV-PG',
+      },
+    });
+    expect(fallback.models.Video.findAll).toHaveBeenCalledWith({
+      where: { youtubeId: [youtubeId] },
+      attributes: ['youtubeId', 'normalized_rating'],
+    });
   });
 
   test('approves a pending request only after current policy revalidation and queue acceptance', async () => {

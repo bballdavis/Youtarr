@@ -264,6 +264,76 @@ describe('ApiKeysSection Component', () => {
       expect(await screen.findByText('42')).toBeInTheDocument();
       expect(screen.getByText('0')).toBeInTheDocument();
     });
+
+    test('nests auto-approve under its parent capability and preserves the full policy on save', async () => {
+      const policyKey = {
+        ...mockApiKeys[0],
+        role: 'request',
+        auto_approve_video_requests: false,
+        auto_approve_channel_requests: false,
+        auto_approve_delete_requests: false,
+        max_rating_level: 2,
+        allow_unrated: true,
+        allowed_media_types: ['video', 'short'],
+      };
+      mockFetch
+        .mockImplementationOnce(async () => ({
+          ok: true,
+          json: async () => ({ keys: [policyKey] }),
+        }))
+        .mockImplementationOnce(async () => ({
+          ok: true,
+          json: async () => ({ success: true, key: policyKey }),
+        }))
+        .mockImplementationOnce(async () => ({
+          ok: true,
+          json: async () => ({ keys: [policyKey] }),
+        }));
+
+      const user = userEvent.setup();
+      renderWithProviders(<ApiKeysSection {...createSectionProps()} />);
+
+      await user.click(await screen.findByRole('button', { name: 'Edit permissions' }));
+      expect(screen.getByText(/Auto-approve options are children/i)).toBeInTheDocument();
+      expect(screen.getByRole('checkbox', { name: 'Request videos capability' })).toBeDisabled();
+      expect(screen.getByRole('checkbox', { name: 'Request videos capability' })).toBeChecked();
+      expect(screen.getByRole('checkbox', { name: 'Auto-approve request videos' })).toBeEnabled();
+      expect(screen.getByRole('checkbox', { name: 'Delete downloaded videos capability' })).not.toBeChecked();
+      expect(screen.getByRole('checkbox', { name: 'Auto-approve delete downloaded videos' })).toBeDisabled();
+
+      await user.click(screen.getByRole('checkbox', { name: 'Auto-approve request videos' }));
+      await user.click(screen.getByRole('button', { name: 'Save permissions' }));
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledWith(
+          '/api/keys/1',
+          expect.objectContaining({
+            method: 'PATCH',
+            body: JSON.stringify({
+              policy: {
+                role: 'request',
+                autoApproveVideoRequests: true,
+                autoApproveChannelRequests: false,
+                autoApproveDeleteRequests: false,
+                maxRatingLevel: 2,
+                allowUnrated: true,
+                allowedMediaTypes: ['video', 'short'],
+              },
+            }),
+          })
+        );
+      });
+    });
+
+    test('enables channel auto-approve for delete-role keys because delete includes request scopes', async () => {
+      const deleteKey = { ...mockApiKeys[0], role: 'delete', auto_approve_channel_requests: false };
+      mockFetch.mockResolvedValue({ ok: true, json: jest.fn().mockResolvedValue({ keys: [deleteKey] }) });
+      const user = userEvent.setup();
+      renderWithProviders(<ApiKeysSection {...createSectionProps()} />);
+      await user.click(await screen.findByRole('button', { name: 'Edit permissions' }));
+      expect(screen.getByRole('checkbox', { name: 'Request channels capability' })).toBeChecked();
+      expect(screen.getByRole('checkbox', { name: 'Auto-approve request channels' })).toBeEnabled();
+    });
   });
 
   describe('Create API Key', () => {

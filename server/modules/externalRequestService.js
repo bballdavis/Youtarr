@@ -93,6 +93,7 @@ function adminDto(record, catalogVideo = null) {
       channelTitle: channel?.title || channel?.uploader || null,
       title: catalogVideo?.title || null,
       mediaType: catalogVideo?.media_type || null,
+      contentRating: catalogVideo?.content_rating || channel?.default_rating || null,
     },
     job: job ? {
       id: job.id,
@@ -219,7 +220,7 @@ function createExternalRequestService({
     {
       model: Channel,
       as: 'channel',
-      attributes: ['id', 'channel_id', 'title', 'uploader'],
+      attributes: ['id', 'channel_id', 'title', 'uploader', 'default_rating'],
       required: true,
     },
     {
@@ -237,9 +238,23 @@ function createExternalRequestService({
       where: { youtube_id: youtubeIds },
       attributes: ['youtube_id', 'channel_id', 'title', 'media_type'],
     });
+    const videos = await Video.findAll({
+      where: { youtubeId: youtubeIds },
+      attributes: ['youtubeId', 'normalized_rating'],
+    });
+    const videoById = new Map(videos.map((row) => {
+      const value = row.toJSON ? row.toJSON() : row;
+      return [value.youtubeId, value];
+    }));
     return new Map(rows.map((row) => {
       const value = row.toJSON ? row.toJSON() : row;
       return [`${value.channel_id}:${value.youtube_id}`, value];
+    }).map(([key, value]) => {
+      const stored = videoById.get(value.youtube_id);
+      return [key, {
+        ...value,
+        content_rating: stored?.normalized_rating || null,
+      }];
     }));
   }
 
