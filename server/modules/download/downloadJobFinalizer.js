@@ -33,7 +33,8 @@ const BENIGN_STDERR_WARNING_PATTERNS = [
   /WARNING:.*extractor specified to use impersonation/i,
   // Emitted because our output template (-o) is an absolute temp path, so
   // yt-dlp ignores the --paths temp: redirect. The download still succeeds.
-  /WARNING:.*--paths is ignored since an absolute path is given/i,
+  // The logging sanitizer redacts everything after a path-bearing flag.
+  /WARNING:.*--paths(?: is ignored since an absolute path is given| \[REDACTED\])/i,
 ];
 
 // True when everything yt-dlp wrote to stderr is known-benign warnings (or

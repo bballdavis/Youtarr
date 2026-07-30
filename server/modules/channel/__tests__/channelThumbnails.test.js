@@ -1,10 +1,14 @@
 /* eslint-env jest */
 
-const realHttps = require('https');
 const mockFactories = require('./mockFactories');
+const { EventEmitter } = require('events');
 
 jest.mock('fs');
 jest.mock('child_process');
+jest.mock('https');
+jest.mock('dns', () => ({
+  promises: { lookup: jest.fn() },
+}));
 jest.mock('../../../logger');
 jest.mock('../../configModule', () => mockFactories.mockConfigModule());
 jest.mock('../../filesystem', () => mockFactories.mockFilesystem());
@@ -13,6 +17,9 @@ describe('channelThumbnails', () => {
   let channelThumbnails;
   let fs;
   let logger;
+  let https;
+  let dns;
+  let childProcess;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -30,12 +37,17 @@ describe('channelThumbnails', () => {
     });
     fs.promises = {
       readFile: jest.fn(),
-      writeFile: jest.fn(),
-      unlink: jest.fn(),
-      rename: jest.fn()
+      writeFile: jest.fn().mockResolvedValue(),
+      unlink: jest.fn().mockResolvedValue(),
+      rename: jest.fn().mockResolvedValue()
     };
 
     logger = require('../../../logger');
+    https = require('https');
+    dns = require('dns').promises;
+    childProcess = require('child_process');
+    childProcess.execFile.mockImplementation((_file, _args, callback) => callback(null, '', ''));
+    dns.lookup.mockResolvedValue([{ address: '142.250.190.78', family: 4 }]);
 
     channelThumbnails = require('../channelThumbnails');
   });
@@ -115,20 +127,17 @@ describe('channelThumbnails', () => {
   describe('processChannelThumbnail', () => {
     let originalExtractAvatarThumbnailUrl;
     let originalDownloadChannelThumbnailFromUrl;
-    let originalDownloadChannelThumbnailViaYtdlp;
     let originalResizeChannelThumbnail;
 
     beforeEach(() => {
       originalExtractAvatarThumbnailUrl = channelThumbnails.extractAvatarThumbnailUrl;
       originalDownloadChannelThumbnailFromUrl = channelThumbnails.downloadChannelThumbnailFromUrl;
-      originalDownloadChannelThumbnailViaYtdlp = channelThumbnails.downloadChannelThumbnailViaYtdlp;
       originalResizeChannelThumbnail = channelThumbnails.resizeChannelThumbnail;
     });
 
     afterEach(() => {
       channelThumbnails.extractAvatarThumbnailUrl = originalExtractAvatarThumbnailUrl;
       channelThumbnails.downloadChannelThumbnailFromUrl = originalDownloadChannelThumbnailFromUrl;
-      channelThumbnails.downloadChannelThumbnailViaYtdlp = originalDownloadChannelThumbnailViaYtdlp;
       channelThumbnails.resizeChannelThumbnail = originalResizeChannelThumbnail;
     });
 
@@ -148,41 +157,39 @@ describe('channelThumbnails', () => {
       expect(channelThumbnails.resizeChannelThumbnail).toHaveBeenCalledWith(channelId);
     });
 
-    test('should fallback to yt-dlp when URL download fails', async () => {
+    test('should not bypass URL validation when a direct download fails', async () => {
       const channelData = { channel_id: 'UC123', thumbnails: [] };
       const channelId = 'UC123';
       const channelUrl = 'https://www.youtube.com/@testchannel';
 
       channelThumbnails.extractAvatarThumbnailUrl = jest.fn().mockReturnValue('https://example.com/avatar.jpg');
       channelThumbnails.downloadChannelThumbnailFromUrl = jest.fn().mockRejectedValue(new Error('Download failed'));
-      channelThumbnails.downloadChannelThumbnailViaYtdlp = jest.fn().mockResolvedValue();
       channelThumbnails.resizeChannelThumbnail = jest.fn().mockResolvedValue();
 
       await channelThumbnails.processChannelThumbnail(channelData, channelId, channelUrl);
 
       expect(channelThumbnails.downloadChannelThumbnailFromUrl).toHaveBeenCalled();
-      expect(channelThumbnails.downloadChannelThumbnailViaYtdlp).toHaveBeenCalledWith(channelUrl);
+      expect(channelThumbnails.resizeChannelThumbnail).not.toHaveBeenCalled();
       expect(logger.warn).toHaveBeenCalledWith(
         expect.objectContaining({ channelId }),
-        'Failed to download thumbnail via HTTP, falling back to yt-dlp'
+        'Rejected or failed channel thumbnail download'
       );
     });
 
-    test('should use yt-dlp when no avatar thumbnail URL found', async () => {
+    test('should skip optional artwork when no approved URL is found', async () => {
       const channelData = { channel_id: 'UC123', thumbnails: [] };
       const channelId = 'UC123';
       const channelUrl = 'https://www.youtube.com/@testchannel';
 
       channelThumbnails.extractAvatarThumbnailUrl = jest.fn().mockReturnValue(null);
-      channelThumbnails.downloadChannelThumbnailViaYtdlp = jest.fn().mockResolvedValue();
       channelThumbnails.resizeChannelThumbnail = jest.fn().mockResolvedValue();
 
       await channelThumbnails.processChannelThumbnail(channelData, channelId, channelUrl);
 
-      expect(channelThumbnails.downloadChannelThumbnailViaYtdlp).toHaveBeenCalledWith(channelUrl);
+      expect(channelThumbnails.resizeChannelThumbnail).not.toHaveBeenCalled();
       expect(logger.info).toHaveBeenCalledWith(
         expect.objectContaining({ channelId }),
-        'No avatar thumbnail URL found in metadata, using yt-dlp'
+        'No approved avatar thumbnail URL found in metadata'
       );
     });
 
@@ -202,93 +209,155 @@ describe('channelThumbnails', () => {
   });
 
   describe('downloadChannelThumbnailFromUrl', () => {
-    let fsExtra;
-    let mockWriteStream;
-    let mockRequest;
-    let mockResponse;
-    let originalGet;
-    let originalCreateWriteStream;
+    function mockRequest(responseFactory) {
+      https.get.mockImplementation((_url, _options, callback) => {
+        const request = new EventEmitter();
+        request.destroy = jest.fn((error) => {
+          if (error) process.nextTick(() => request.emit('error', error));
+        });
+        process.nextTick(() => callback(responseFactory()));
+        return request;
+      });
+    }
 
-    beforeEach(() => {
-      originalGet = realHttps.get;
-      fsExtra = require('fs-extra');
-      originalCreateWriteStream = fsExtra.createWriteStream;
+    function response({ statusCode = 200, headers = {}, body = Buffer.alloc(0) } = {}) {
+      const stream = new EventEmitter();
+      stream.statusCode = statusCode;
+      stream.headers = headers;
+      stream.resume = jest.fn();
+      process.nextTick(() => {
+        if (statusCode === 200) stream.emit('data', body);
+        stream.emit('end');
+      });
+      return stream;
+    }
 
-      mockWriteStream = {
-        on: jest.fn(),
-        close: jest.fn(),
-      };
-      fsExtra.createWriteStream = jest.fn().mockReturnValue(mockWriteStream);
-
-      mockRequest = {
-        on: jest.fn().mockReturnThis(),
-        destroy: jest.fn(),
-      };
-
-      mockResponse = {
-        statusCode: 200,
-        pipe: jest.fn(),
-        headers: {},
-      };
+    test.each([
+      ['http://i.ytimg.com/thumb.jpg', 'Unsafe thumbnail URL'],
+      ['https://user:secret@i.ytimg.com/thumb.jpg', 'Unsafe thumbnail URL'],
+      ['https://example.com/thumb.jpg', 'Unsafe thumbnail URL'],
+      ['https://i.ytimg.com/thumb.jpg', 'Invalid channel ID', 'bad/id'],
+    ])('rejects unsafe input %s', async (url, message, channelId = 'UC123') => {
+      await expect(
+        channelThumbnails.downloadChannelThumbnailFromUrl(url, channelId)
+      ).rejects.toThrow(message);
     });
 
-    afterEach(() => {
-      realHttps.get = originalGet;
-      fsExtra.createWriteStream = originalCreateWriteStream;
+    test.each([
+      ['127.0.0.1', true],
+      ['10.0.0.1', true],
+      ['169.254.169.254', true],
+      ['100.64.0.1', true],
+      ['192.168.1.1', true],
+      ['8.8.8.8', false],
+      ['::1', true],
+      ['fd00::1', true],
+      ['fec0::1', true],
+      ['::ffff:7f00:1', true],
+      ['2606:4700:4700::1111', false],
+    ])('classifies private address %s', (address, expected) => {
+      expect(channelThumbnails.isPrivateAddress(address)).toBe(expected);
     });
 
-    test('should pass timeout option to protocol.get', async () => {
-      realHttps.get = jest.fn((url, opts, cb) => {
-        cb(mockResponse);
-        const finishCb = mockWriteStream.on.mock.calls.find(c => c[0] === 'finish')[1];
-        finishCb();
-        return mockRequest;
+    test('validates image magic bytes and dimensions', () => {
+      const png = Buffer.alloc(24);
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(png, 0);
+      png.writeUInt32BE(800, 16);
+      png.writeUInt32BE(600, 20);
+      expect(channelThumbnails.imageDimensions(png)).toEqual({ width: 800, height: 600 });
+      expect(channelThumbnails.imageDimensions(Buffer.from('not-an-image'))).toBeNull();
+    });
+
+    test('rejects a private DNS answer before opening a connection', async () => {
+      dns.lookup.mockResolvedValue([{ address: '169.254.169.254', family: 4 }]);
+      await expect(
+        channelThumbnails.downloadChannelThumbnailFromUrl(
+          'https://i.ytimg.com/thumb.jpg',
+          'UC123'
+        )
+      ).rejects.toThrow('Unsafe thumbnail address');
+      expect(https.get).not.toHaveBeenCalled();
+    });
+
+    test('revalidates an unsafe redirect target', async () => {
+      mockRequest(() => response({
+        statusCode: 302,
+        headers: { location: 'https://127.0.0.1/metadata' },
+      }));
+      await expect(
+        channelThumbnails.downloadChannelThumbnailFromUrl(
+          'https://i.ytimg.com/thumb.jpg',
+          'UC123'
+        )
+      ).rejects.toThrow('Unsafe thumbnail URL');
+    });
+
+    test('pins the validated DNS answer used by the HTTPS request', async () => {
+      const png = Buffer.alloc(24);
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]).copy(png, 0);
+      png.writeUInt32BE(800, 16);
+      png.writeUInt32BE(600, 20);
+      let requestOptions;
+      https.get.mockImplementation((_url, options, callback) => {
+        requestOptions = options;
+        const request = new EventEmitter();
+        request.destroy = jest.fn();
+        process.nextTick(() => callback(response({
+          headers: { 'content-type': 'image/png' },
+          body: png,
+        })));
+        return request;
       });
 
-      await channelThumbnails.downloadChannelThumbnailFromUrl('https://example.com/thumb.jpg', 'UC123');
+      await channelThumbnails.downloadChannelThumbnailFromUrl(
+        'https://i.ytimg.com/thumb.png',
+        'UC123'
+      );
+      const lookupCallback = jest.fn();
+      requestOptions.lookup('i.ytimg.com', {}, lookupCallback);
+      expect(lookupCallback).toHaveBeenCalledWith(null, '142.250.190.78', 4);
+      expect(requestOptions.servername).toBe('i.ytimg.com');
+    });
 
-      expect(realHttps.get).toHaveBeenCalledWith(
-        'https://example.com/thumb.jpg',
-        expect.objectContaining({ timeout: 15000 }),
+    test('rejects oversized and malformed image responses', async () => {
+      mockRequest(() => response({
+        headers: { 'content-type': 'image/jpeg', 'content-length': String(6 * 1024 * 1024) },
+      }));
+      await expect(
+        channelThumbnails.downloadChannelThumbnailFromUrl(
+          'https://i.ytimg.com/large.jpg',
+          'UC123'
+        )
+      ).rejects.toThrow('Thumbnail response is too large');
+
+      https.get.mockReset();
+      mockRequest(() => response({
+        headers: { 'content-type': 'image/jpeg' },
+        body: Buffer.from('not-an-image'),
+      }));
+      await expect(
+        channelThumbnails.downloadChannelThumbnailFromUrl(
+          'https://i.ytimg.com/broken.jpg',
+          'UC123'
+        )
+      ).rejects.toThrow('Thumbnail image dimensions are invalid');
+    });
+  });
+
+  describe('resizeChannelThumbnail', () => {
+    test('uses argument-array execution and rejects shell metacharacters', async () => {
+      await expect(
+        channelThumbnails.resizeChannelThumbnail('UC123;touch-pwned')
+      ).rejects.toThrow('Invalid channel ID');
+      expect(childProcess.execFile).not.toHaveBeenCalled();
+
+      await channelThumbnails.resizeChannelThumbnail('UC123');
+      expect(childProcess.execFile).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.arrayContaining(['-i', expect.stringContaining('channelthumb-UC123.jpg')]),
         expect.any(Function)
       );
-    });
-
-    test('should reject and clean up partial file on timeout', async () => {
-      fsExtra.existsSync = jest.fn().mockReturnValue(true);
-      fsExtra.unlinkSync = jest.fn();
-
-      realHttps.get = jest.fn(() => {
-        return mockRequest;
-      });
-
-      const promise = channelThumbnails.downloadChannelThumbnailFromUrl('https://example.com/thumb.jpg', 'UC123');
-
-      const timeoutHandler = mockRequest.on.mock.calls.find(c => c[0] === 'timeout')[1];
-      timeoutHandler();
-
-      await expect(promise).rejects.toThrow('Thumbnail download timed out');
-      expect(mockRequest.destroy).toHaveBeenCalled();
-      expect(mockWriteStream.close).toHaveBeenCalled();
-      expect(fsExtra.unlinkSync).toHaveBeenCalled();
-    });
-
-    test('should reject on network error and clean up', async () => {
-      fsExtra.existsSync = jest.fn().mockReturnValue(true);
-      fsExtra.unlinkSync = jest.fn();
-
-      realHttps.get = jest.fn(() => {
-        return mockRequest;
-      });
-
-      const promise = channelThumbnails.downloadChannelThumbnailFromUrl('https://example.com/thumb.jpg', 'UC123');
-
-      const errorHandler = mockRequest.on.mock.calls.find(c => c[0] === 'error')[1];
-      errorHandler(new Error('ECONNREFUSED'));
-
-      await expect(promise).rejects.toThrow('ECONNREFUSED');
-      expect(mockWriteStream.close).toHaveBeenCalled();
-      expect(fsExtra.unlinkSync).toHaveBeenCalled();
+      expect(childProcess.execFile.mock.calls[0][1]).toEqual(expect.any(Array));
     });
   });
 });

@@ -18,16 +18,18 @@ export interface ExternalRequestRequester {
 
 export interface ExternalRequestReview {
   id: string;
-  type: 'video';
+  type: 'video' | 'channel' | 'delete_video';
   status: ExternalRequestStatus;
   requester: ExternalRequestRequester | null;
   target: {
-    youtubeId: string;
-    channelId: number;
+    youtubeId: string | null;
+    channelId: number | null;
+    channelUrl?: string | null;
     youtubeChannelId: string | null;
     channelTitle: string | null;
     title: string | null;
     mediaType: string | null;
+    rating: string | null;
     contentRating?: string | null;
   };
   job: {
@@ -42,6 +44,7 @@ export interface ExternalRequestReview {
   decidedAt?: string;
   completedAt?: string;
   message?: string;
+  grantToRequestingKey?: boolean;
 }
 
 export interface ExternalRequestReviewPage {

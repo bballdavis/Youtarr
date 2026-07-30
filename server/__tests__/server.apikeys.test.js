@@ -324,6 +324,11 @@ const createServerModule = ({
         jest.doMock('node-cron', () => ({ schedule: jest.fn() }));
         jest.doMock('../modules/mediaServers/watchStatusScheduler', () => ({ scheduleTask: jest.fn(), subscribe: jest.fn() }));
         jest.doMock('express-rate-limit', () => jest.fn(() => (req, res, next) => next()));
+        jest.doMock('swagger-jsdoc', () => jest.fn(() => ({
+          openapi: '3.0.0',
+          paths: {},
+          components: { schemas: {} },
+        })));
         jest.doMock('https', () => ({ get: jest.fn() }));
         jest.doMock('fs', () => ({
           readFileSync: jest.fn(() => ''),

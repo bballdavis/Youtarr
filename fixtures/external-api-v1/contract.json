@@ -1,0 +1,162 @@
+{
+  "fixtureVersion": 2,
+  "capabilities": {
+    "apiVersion": "1",
+    "serverVersion": "1.77.0",
+    "role": "delete",
+    "scopes": [
+      "catalog:read",
+      "requests:read",
+      "video:request",
+      "channel:request",
+      "video:delete"
+    ],
+    "policy": {
+      "autoApproveVideoRequests": false,
+      "autoApproveChannelRequests": false,
+      "autoApproveDeleteRequests": false,
+      "maxRatingLevel": 2,
+      "allowUnrated": false,
+      "allowedMediaTypes": ["video", "short"]
+    },
+    "features": {
+      "catalog": true,
+      "requests": true,
+      "channelRequests": true,
+      "deleteRequests": true,
+      "recommendations": true,
+      "authenticatedAssets": true
+    }
+  },
+  "error": {
+    "error": {
+      "code": "not_found",
+      "message": "External API route not found",
+      "requestId": "00000000-0000-4000-8000-000000000001"
+    }
+  },
+  "requests": [
+    {
+      "id": "00000000-0000-4000-8000-000000000010",
+      "type": "video",
+      "status": "processing",
+      "target": {
+        "youtubeId": "abcdefghijk",
+        "channelId": 8,
+        "channelUrl": null
+      },
+      "createdAt": "2026-07-26T12:00:00.000Z",
+      "updatedAt": "2026-07-26T12:01:00.000Z"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000011",
+      "type": "channel",
+      "status": "pending",
+      "target": {
+        "youtubeId": null,
+        "channelId": null,
+        "channelUrl": "https://www.youtube.com/@example"
+      },
+      "createdAt": "2026-07-26T12:02:00.000Z",
+      "updatedAt": "2026-07-26T12:02:00.000Z",
+      "grantToRequestingKey": true
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000012",
+      "type": "delete_video",
+      "status": "completed",
+      "target": {
+        "youtubeId": "lmnopqrstuv",
+        "channelId": 9,
+        "channelUrl": null
+      },
+      "createdAt": "2026-07-26T12:03:00.000Z",
+      "updatedAt": "2026-07-26T12:03:00.000Z",
+      "decidedAt": "2026-07-26T12:03:00.000Z",
+      "completedAt": "2026-07-26T12:03:00.000Z",
+      "message": "Video is already deleted"
+    }
+  ],
+  "catalogPage": {
+    "data": [
+      {
+        "youtubeId": "abcdefghijk",
+        "title": "Fixture candidate",
+        "thumbnailUrl": "/external-api/v1/assets/videos/abcdefghijk/thumbnail",
+        "publishedAt": "2026-07-20T00:00:00.000Z",
+        "duration": 120,
+        "description": null,
+        "isDownloaded": false,
+        "isRequested": false,
+        "requestStatus": "failed",
+        "rating": "TV-Y7",
+        "channelDatabaseId": 8,
+        "channelId": "UC0000000000000000000001",
+        "channelTitle": "Fixture channel",
+        "mediaType": "video"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "pageSize": 100,
+      "total": 1,
+      "totalPages": 1,
+      "nextCursor": null
+    },
+    "dataSource": "cache",
+    "isFullyIndexed": true,
+    "lastIndexedAt": null,
+    "indexingHint": null
+  },
+  "videoDetail": {
+    "youtubeId": "abcdefghijk",
+    "title": "Fixture candidate",
+    "thumbnailUrl": "/external-api/v1/assets/videos/abcdefghijk/thumbnail",
+    "publishedAt": "2026-07-20T00:00:00.000Z",
+    "duration": 120,
+    "isDownloaded": true,
+    "isRequested": false,
+    "requestStatus": "completed",
+    "rating": "TV-Y7",
+    "ratingSource": "manual",
+    "channelDatabaseId": 8,
+    "channelId": "UC0000000000000000000001",
+    "channelTitle": "Fixture channel",
+    "mediaType": "video",
+    "availability": "public",
+    "downloadedAt": "2026-07-27T12:00:00.000Z",
+    "fileSize": 123456789,
+    "audioFileSize": null,
+    "isProtected": false,
+    "videoResolution": "1920x1080",
+    "metadata": {
+      "description": "Complete fixture description for the one-video detail response.",
+      "viewCount": 1000,
+      "likeCount": 50,
+      "commentCount": 5,
+      "tags": ["fixture", "video"],
+      "categories": ["Education"],
+      "uploadDate": "20260720",
+      "resolution": "1920x1080",
+      "width": 1920,
+      "height": 1080,
+      "fps": 30,
+      "aspectRatio": 1.78,
+      "language": "en",
+      "isLive": false,
+      "wasLive": false,
+      "availability": "public",
+      "channelFollowerCount": 10000,
+      "ageLimit": 0,
+      "webpageUrl": "https://www.youtube.com/watch?v=abcdefghijk",
+      "relatedFiles": [
+        {
+          "fileName": "captions.en.srt",
+          "fileSize": 2048,
+          "type": "Subtitles"
+        }
+      ],
+      "availableResolutions": [360, 720, 1080]
+    }
+  }
+}

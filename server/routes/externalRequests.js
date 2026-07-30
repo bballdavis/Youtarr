@@ -28,7 +28,7 @@ function createExternalRequestReviewRoutes({
    * @swagger
    * /api/external-requests:
    *   get:
-   *     summary: List external video requests for administrator review
+   *     summary: List external requests for administrator review
    *     tags: [External Requests]
    *     security: [{ SessionAuth: [] }]
    *     parameters:
@@ -46,6 +46,9 @@ function createExternalRequestReviewRoutes({
    *       - in: query
    *         name: apiKeyId
    *         schema: { type: integer, minimum: 1 }
+   *       - in: query
+   *         name: requestType
+   *         schema: { type: string, enum: [video, channel, delete_video] }
    *     responses:
    *       200: { description: Paginated requests and safe requester filter metadata }
    *       403: { description: Session authentication is required }
@@ -62,7 +65,7 @@ function createExternalRequestReviewRoutes({
    * @swagger
    * /api/external-requests/{id}:
    *   get:
-   *     summary: Read one external video request for administrator review
+   *     summary: Read one external request for administrator review
    *     tags: [External Requests]
    *     security: [{ SessionAuth: [] }]
    *     parameters:
@@ -87,7 +90,7 @@ function createExternalRequestReviewRoutes({
    * @swagger
    * /api/external-requests/{id}/approve:
    *   post:
-   *     summary: Revalidate and approve a pending external video request
+   *     summary: Revalidate and approve a pending external request
    *     tags: [External Requests]
    *     security: [{ SessionAuth: [] }]
    *     parameters:
@@ -95,6 +98,16 @@ function createExternalRequestReviewRoutes({
    *         name: id
    *         required: true
    *         schema: { type: string, format: uuid }
+   *     requestBody:
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               grantToRequestingKey:
+   *                 type: boolean
+   *                 default: true
+   *                 description: Channel requests only.
    *     responses:
    *       200: { description: Updated request }
    *       403: { description: Session authentication is required }
@@ -109,7 +122,9 @@ function createExternalRequestReviewRoutes({
     reviewLimiter,
     async (req, res) => {
       try {
-        return res.json(await requests().reviewVideoRequest(req.params.id, 'approve', req.body));
+        const service = requests();
+        const review = service.reviewRequest || service.reviewVideoRequest;
+        return res.json(await review.call(service, req.params.id, 'approve', req.body));
       } catch (error) {
         return sendError(req, res, error);
       }
@@ -120,7 +135,7 @@ function createExternalRequestReviewRoutes({
    * @swagger
    * /api/external-requests/{id}/reject:
    *   post:
-   *     summary: Reject a pending external video request
+   *     summary: Reject a pending external request
    *     tags: [External Requests]
    *     security: [{ SessionAuth: [] }]
    *     parameters:
@@ -152,7 +167,9 @@ function createExternalRequestReviewRoutes({
     reviewLimiter,
     async (req, res) => {
       try {
-        return res.json(await requests().reviewVideoRequest(req.params.id, 'reject', req.body));
+        const service = requests();
+        const review = service.reviewRequest || service.reviewVideoRequest;
+        return res.json(await review.call(service, req.params.id, 'reject', req.body));
       } catch (error) {
         return sendError(req, res, error);
       }

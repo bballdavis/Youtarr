@@ -1,3 +1,4 @@
+const { Op } = require('sequelize');
 const { sequelize } = require('../db');
 const { ApiKey, ApiKeyChannelGrant, Channel } = require('../models');
 
@@ -25,25 +26,32 @@ async function getChannelGrants(keyId) {
   const grants = await ApiKeyChannelGrant.findAll({
     where: { api_key_id: keyId },
     attributes: ['channel_id'],
+    include: [{
+      model: Channel,
+      as: 'channel',
+      attributes: [],
+      required: true,
+      where: { enabled: true, terminated_at: { [Op.is]: null } },
+    }],
     order: [['channel_id', 'ASC']],
     raw: true,
   });
   return { keyId, channelIds: grants.map((grant) => grant.channel_id) };
 }
 
-async function replaceChannelGrants(keyId, channelIds) {
+async function replaceChannelGrants(keyId, channelIds, { transaction: existingTransaction } = {}) {
   const normalized = normalizeChannelIds(channelIds);
-  return sequelize.transaction(async (transaction) => {
+  const replace = async (transaction) => {
     const key = await requireExternalKey(keyId, transaction);
     if (!key) return null;
 
     if (normalized.length > 0) {
       const enabledCount = await Channel.count({
-        where: { id: normalized, enabled: true },
+        where: { id: normalized, enabled: true, terminated_at: { [Op.is]: null } },
         transaction,
       });
       if (enabledCount !== normalized.length) {
-        throw new Error('Every channel ID must identify an enabled channel');
+        throw new Error('Every channel ID must identify an enabled, non-terminated channel');
       }
     }
 
@@ -55,7 +63,10 @@ async function replaceChannelGrants(keyId, channelIds) {
       );
     }
     return { keyId, channelIds: normalized };
-  });
+  };
+  return existingTransaction
+    ? replace(existingTransaction)
+    : sequelize.transaction(replace);
 }
 
 module.exports = { getChannelGrants, replaceChannelGrants, normalizeChannelIds };

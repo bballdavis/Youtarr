@@ -1,5 +1,6 @@
 const logger = require('../../logger');
 const ytDlpRunner = require('../ytDlpRunner');
+const { redactSensitiveText } = require('../safeCommandLogging');
 
 function isExpectedYtdlpSkipMessage(message = '') {
   const normalized = String(message);
@@ -97,7 +98,7 @@ class YtdlpErrorTracker {
   // Shared by stdout and stderr. Returns true when the line was consumed
   // by an expected skip or termination, so the caller can suppress it.
   handleErrorLine(line, source) {
-    const errorMatch = line.match(/ERROR:\s*(.+)/);
+    const errorMatch = redactSensitiveText(line).match(/ERROR:\s*(.+)/);
     if (!errorMatch) return false;
 
     this.lastErrorMessage = errorMatch[1].trim();

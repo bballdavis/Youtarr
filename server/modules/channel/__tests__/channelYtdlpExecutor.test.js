@@ -31,6 +31,7 @@ function createFakeProcess() {
   const proc = new EventEmitter();
   proc.stdout = { pipe: jest.fn() };
   proc.stderr = new EventEmitter();
+  proc.kill = jest.fn();
   return proc;
 }
 
@@ -123,6 +124,24 @@ describe('channelYtdlpExecutor', () => {
         ['--flat-playlist'],
         { env: expect.objectContaining({ TMPDIR: TEMP_BASE_PATH }) }
       );
+    });
+
+    test('terminates and rejects a bounded metadata request after its timeout', async () => {
+      jest.useFakeTimers();
+      const promise = executor.executeYtDlpCommand(
+        ['--dump-json'],
+        null,
+        { timeoutMs: 50 }
+      );
+
+      jest.advanceTimersByTime(50);
+
+      await expect(promise).rejects.toMatchObject({
+        code: 'YT_DLP_TIMEOUT',
+        message: 'yt-dlp channel metadata request timed out after 50ms',
+      });
+      expect(proc.kill).toHaveBeenCalledWith('SIGTERM');
+      jest.useRealTimers();
     });
 
     describe('with an output file', () => {

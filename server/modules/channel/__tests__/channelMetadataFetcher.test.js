@@ -124,7 +124,7 @@ describe('channelMetadataFetcher', () => {
         { where: { channel_id: 'UC123' } }
       );
       expect(logger.info).toHaveBeenCalledWith(
-        expect.objectContaining({ channelId: 'UC123', folderName: 'Sanitized Folder Name' }),
+        { channelId: 'UC123' },
         'Populated folder_name via yt-dlp fallback'
       );
     });
