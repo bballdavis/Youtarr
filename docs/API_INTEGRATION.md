@@ -32,9 +32,8 @@ Youtarr provides an API endpoint that allows you to add YouTube videos to your d
 
 ### Versioned External API
 
-The authoritative contract is [External API v1](EXTERNAL_API_V1.md). Deployment,
-proxy, migration, rollback, and shutdown guidance is in
-[External API operations](EXTERNAL_API_OPERATIONS.md).
+The authoritative contract and deployment guidance are in
+[Youtarr External API](EXTERNAL_API.md).
 
 Set `EXTERNAL_API_ENABLED=true` to expose the versioned external API.
 This prefix always requires an `x-api-key`, including when `AUTH_ENABLED=false`.
@@ -76,8 +75,8 @@ policy is applied on the server before rows and counts are returned. Local
 filesystem paths, API-key hashes, and ungranted channel existence are never
 included in responses. Video and channel `thumbnailUrl` values always point
 back to authenticated Youtarr API asset routes; remote clients never need
-direct access to Google/YouTube image hosts. Recommendation scoring and
-Plex-derived signals remain outside Youtarr.
+direct access to Google/YouTube image hosts. Recommendation scoring remains
+outside Youtarr.
 
 For a complete integration, follow `nextCursor` from
 `GET /external-api/v1/videos` until it is `null`; do not fetch every channel

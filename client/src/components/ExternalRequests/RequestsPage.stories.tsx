@@ -13,8 +13,8 @@ const requests: ExternalRequestReview[] = [
     status: 'pending',
     requester: {
       id: 4,
-      name: 'External Client Family Room',
-      keyPrefix: 'external-client123',
+      name: 'External Client',
+      keyPrefix: 'client1234',
       role: 'request',
       isActive: true,
       revokedAt: null,
@@ -38,8 +38,8 @@ const requests: ExternalRequestReview[] = [
     status: 'approved',
     requester: {
       id: 4,
-      name: 'External Client Family Room',
-      keyPrefix: 'external-client123',
+      name: 'External Client',
+      keyPrefix: 'client1234',
       role: 'delete',
       isActive: true,
       revokedAt: null,
@@ -63,8 +63,8 @@ const requests: ExternalRequestReview[] = [
     status: 'rejected',
     requester: {
       id: 4,
-      name: 'External Client Family Room',
-      keyPrefix: 'external-client123',
+      name: 'External Client',
+      keyPrefix: 'client1234',
       role: 'request',
       isActive: true,
       revokedAt: null,

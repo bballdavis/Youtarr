@@ -16,8 +16,8 @@ const props = (): React.ComponentProps<typeof ApiKeysSection> => ({
 
 const externalKey = {
   id: 7,
-  name: 'External Client Family Room',
-  key_prefix: 'external-client123',
+  name: 'External Client',
+  key_prefix: 'client1234',
   created_at: '2026-07-27T18:30:00.000Z',
   last_used_at: '2026-07-27T19:00:00.000Z',
   is_active: true,
@@ -117,7 +117,7 @@ describe('ApiKeysSection', () => {
     renderWithProviders(<ApiKeysSection {...props()} />);
 
     const cards = await screen.findByLabelText('External API key cards');
-    expect(within(cards).getByText('External Client Family Room')).toBeInTheDocument();
+    expect(within(cards).getByText('External Client')).toBeInTheDocument();
     expect(within(cards).getByLabelText('Movie rating ceiling PG-13')).toBeInTheDocument();
     expect(within(cards).getByLabelText('TV rating ceiling TV-14')).toBeInTheDocument();
     expect(within(cards).getByText('Videos')).toBeInTheDocument();
@@ -125,7 +125,7 @@ describe('ApiKeysSection', () => {
     expect(within(cards).getByText('Delete video')).toBeInTheDocument();
     expect(within(cards).getByText(/Last used/i)).toBeInTheDocument();
     expect(within(cards).queryByText('12 uses')).not.toBeInTheDocument();
-    expect(screen.queryByText('external-client123...')).not.toBeInTheDocument();
+    expect(screen.queryByText('client1234...')).not.toBeInTheDocument();
   });
 
   test('keeps legacy controls and keys in the bottom section', async () => {
@@ -161,7 +161,7 @@ describe('ApiKeysSection', () => {
     renderWithProviders(<ApiKeysSection {...props()} />);
 
     await user.click(await screen.findByRole('button', {
-      name: 'Edit External Client Family Room external access',
+      name: 'Edit External Client external access',
     }));
     expect(screen.queryByLabelText('Auto-approve request videos')).not.toBeInTheDocument();
 
@@ -187,7 +187,7 @@ describe('ApiKeysSection', () => {
     renderWithProviders(<ApiKeysSection {...props()} />);
 
     await user.click(await screen.findByRole('button', {
-      name: 'Edit External Client Family Room external access',
+      name: 'Edit External Client external access',
     }));
     await user.click(screen.getByLabelText('Request videos'));
     await user.click(screen.getByLabelText('Safe Channel'));
@@ -219,7 +219,7 @@ describe('ApiKeysSection', () => {
     renderWithProviders(<ApiKeysSection {...props()} />);
 
     await user.click(await screen.findByRole('button', {
-      name: 'Edit External Client Family Room external access',
+      name: 'Edit External Client external access',
     }));
     expect(screen.getByLabelText('Auto-approve request channels'))
       .toHaveAttribute('data-state', 'checked');
@@ -290,7 +290,7 @@ describe('ApiKeysSection', () => {
     const user = userEvent.setup();
     renderWithProviders(<ApiKeysSection {...props()} />);
 
-    await user.click(await screen.findByRole('button', { name: 'Revoke External Client Family Room' }));
+    await user.click(await screen.findByRole('button', { name: 'Revoke External Client' }));
     expect(screen.getByText('Revoke API Key?')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /^Revoke$/ }));
     await waitFor(() => expect(mockFetch).toHaveBeenCalledWith(

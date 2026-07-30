@@ -45,8 +45,8 @@ export const ResponsiveKeyCards: Story = {
         http.get('/api/keys', () => HttpResponse.json({
           keys: [{
             id: 4,
-            name: 'External Client Family Room',
-            key_prefix: 'external-client123',
+            name: 'External Client',
+            key_prefix: 'client1234',
             created_at: '2026-07-27T18:30:00.000Z',
             last_used_at: '2026-07-27T19:00:00.000Z',
             is_active: true,
@@ -69,7 +69,7 @@ export const ResponsiveKeyCards: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(await canvas.findByText('External Client Family Room')).toBeInTheDocument();
+    await expect(await canvas.findByText('External Client')).toBeInTheDocument();
     await expect(await canvas.findByLabelText('Movie rating ceiling PG-13')).toBeInTheDocument();
     await expect(await canvas.findByLabelText('TV rating ceiling TV-14')).toBeInTheDocument();
     await expect(await canvas.findByText('Channels · Auto')).toBeInTheDocument();

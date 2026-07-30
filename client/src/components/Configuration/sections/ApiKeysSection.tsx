@@ -902,7 +902,7 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
             autoFocus
             margin="dense"
             label="Key Name"
-            placeholder={createKeyType === 'legacy' ? 'e.g., Bookmarklet' : 'e.g., External Client Family Room'}
+            placeholder={createKeyType === 'legacy' ? 'e.g., Bookmarklet' : 'e.g., External Client'}
             fullWidth
             value={newKeyName}
             onChange={(e) => setNewKeyName(e.target.value)}
@@ -1144,7 +1144,7 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
                 Use this key only with <strong>{locationUtils.getOrigin()}/external-api/v1</strong>.
               </Typography>
               <Typography variant="body2" color="secondary">
-                Add channel grants from this key&apos;s edit action before connecting External Client.
+                Add channel grants from this key&apos;s edit action before connecting an external client.
               </Typography>
             </Paper>
           )}

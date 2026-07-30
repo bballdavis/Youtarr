@@ -110,7 +110,7 @@ role and policy. Existing API keys migrate as `legacy_download` and cannot use
 the versioned API. For endpoint-only public access, keep the Youtarr origin port
 private and publish only the exact v1 path through a TLS reverse proxy. Exposing
 the complete port also exposes unrelated application routes; see
-[External API operations](EXTERNAL_API_OPERATIONS.md).
+[Youtarr External API](EXTERNAL_API.md).
 
 ### AUTH_PRESET_USERNAME
 **Required**: No
