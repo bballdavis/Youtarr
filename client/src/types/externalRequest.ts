@@ -28,6 +28,7 @@ export interface ExternalRequestReview {
     channelTitle: string | null;
     title: string | null;
     mediaType: string | null;
+    contentRating?: string | null;
   };
   job: {
     id: string;

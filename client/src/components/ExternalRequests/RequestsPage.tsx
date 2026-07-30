@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Button,
@@ -21,6 +21,7 @@ import {
   TableRow,
   TextField,
   Typography,
+  IconButton,
 } from '../ui';
 import {
   ExternalRequestRequester,
@@ -28,6 +29,8 @@ import {
   ExternalRequestReviewPage,
   ExternalRequestStatus,
 } from '../../types/externalRequest';
+import { Download, Info, ThumbsDown, ThumbsUp } from 'lucide-react';
+import RatingBadge from '../shared/RatingBadge';
 
 const STATUSES: ExternalRequestStatus[] = [
   'pending',
@@ -74,6 +77,7 @@ const RequestsPage: React.FC<RequestsPageProps> = ({ token }) => {
   const [actionError, setActionError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
+  const detailRequestRef = useRef(0);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
@@ -111,6 +115,7 @@ const RequestsPage: React.FC<RequestsPageProps> = ({ token }) => {
   }, [load]);
 
   const openDetail = async (request: ExternalRequestReview) => {
+    const requestSequence = ++detailRequestRef.current;
     setSelected(request);
     setDetailLoading(true);
     setActionError(null);
@@ -124,13 +129,15 @@ const RequestsPage: React.FC<RequestsPageProps> = ({ token }) => {
           ? body.error
           : 'Unable to load request details');
       }
-      setSelected(body);
+      if (requestSequence === detailRequestRef.current) setSelected(body);
     } catch (detailError) {
-      setActionError(detailError instanceof Error
-        ? detailError.message
-        : 'Unable to load request details');
+      if (requestSequence === detailRequestRef.current) {
+        setActionError(detailError instanceof Error
+          ? detailError.message
+          : 'Unable to load request details');
+      }
     } finally {
-      setDetailLoading(false);
+      if (requestSequence === detailRequestRef.current) setDetailLoading(false);
     }
   };
 
@@ -165,6 +172,36 @@ const RequestsPage: React.FC<RequestsPageProps> = ({ token }) => {
       setSubmitting(false);
     }
   };
+
+  const beginInlineAction = (request: ExternalRequestReview, nextAction: ReviewAction) => {
+    if (submitting || request.status !== 'pending') return;
+    ++detailRequestRef.current;
+    setDetailLoading(false);
+    setSelected(request);
+    setActionError(null);
+    setReason('');
+    setAction(nextAction);
+  };
+
+  const closeDetails = () => {
+    ++detailRequestRef.current;
+    setSelected(null);
+    setAction(null);
+    setDetailLoading(false);
+  };
+
+  const metadata = (request: ExternalRequestReview) => (
+    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+      <Chip
+        label="Downloaded"
+        size="small"
+        variant="outlined"
+        icon={<Download size={12} aria-hidden="true" />}
+      />
+      <RatingBadge rating={request.target.contentRating} showNA size="small" />
+      <span className="text-muted-foreground">{request.target.channelTitle || `Channel ${request.target.channelId}`}</span>
+    </div>
+  );
 
   const changeStatus = (value: string) => {
     setStatus(value);
@@ -263,8 +300,7 @@ const RequestsPage: React.FC<RequestsPageProps> = ({ token }) => {
                 <TableHead>
                   <TableRow>
                     <TableCell component="th">Status</TableCell>
-                    <TableCell component="th">Video</TableCell>
-                    <TableCell component="th">Channel</TableCell>
+                    <TableCell component="th">Request</TableCell>
                     <TableCell component="th">Requester</TableCell>
                     <TableCell component="th">Submitted</TableCell>
                     <TableCell component="th" align="right">Review</TableCell>
@@ -281,20 +317,27 @@ const RequestsPage: React.FC<RequestsPageProps> = ({ token }) => {
                         />
                       </TableCell>
                       <TableCell>
-                        <div className="max-w-[300px]">
+                        <div className="max-w-[300px]" data-testid={`request-summary-${request.id}`}>
                           <div className="font-medium truncate">
                             {request.target.title || request.target.youtubeId}
                           </div>
-                          <div className="text-xs text-muted-foreground">{request.target.youtubeId}</div>
+                          {metadata(request)}
                         </div>
                       </TableCell>
-                      <TableCell>{request.target.channelTitle || `Channel ${request.target.channelId}`}</TableCell>
                       <TableCell>{request.requester?.name || 'Unavailable key'}</TableCell>
                       <TableCell>{formatDate(request.createdAt)}</TableCell>
                       <TableCell align="right">
-                        <Button size="small" variant="outlined" onClick={() => void openDetail(request)}>
-                          Details
-                        </Button>
+                        <div className="flex items-center justify-end gap-1">
+                          <IconButton size="small" title="View request details" aria-label="Details" onClick={() => void openDetail(request)}>
+                            <Info size={16} />
+                          </IconButton>
+                          <IconButton size="small" title="Approve request" aria-label="Approve request" color="success" disabled={request.status !== 'pending' || submitting} onClick={() => beginInlineAction(request, 'approve')}>
+                            <ThumbsUp size={16} />
+                          </IconButton>
+                          <IconButton size="small" title="Reject request" aria-label="Reject request" color="error" disabled={request.status !== 'pending' || submitting} onClick={() => beginInlineAction(request, 'reject')}>
+                            <ThumbsDown size={16} />
+                          </IconButton>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -329,11 +372,11 @@ const RequestsPage: React.FC<RequestsPageProps> = ({ token }) => {
 
       <Dialog
         open={selected !== null && action === null}
-        onClose={() => setSelected(null)}
+        onClose={closeDetails}
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle onClose={() => setSelected(null)}>Request details</DialogTitle>
+        <DialogTitle onClose={closeDetails}>Request details</DialogTitle>
         <DialogContentBody>
           {detailLoading && (
             <div className="flex justify-center py-8" role="status">
@@ -343,9 +386,9 @@ const RequestsPage: React.FC<RequestsPageProps> = ({ token }) => {
           {selected && !detailLoading && (
             <div className="space-y-4">
               {actionError && <Alert severity="error">{actionError}</Alert>}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Chip label={selected.status} color={statusColor(selected.status)} size="small" />
-                <span className="text-sm text-muted-foreground">{selected.type}</span>
+                {metadata(selected)}
               </div>
               <dl className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-2 text-sm">
                 <dt className="font-medium">Video</dt>
@@ -381,7 +424,7 @@ const RequestsPage: React.FC<RequestsPageProps> = ({ token }) => {
           )}
         </DialogContentBody>
         <DialogActions>
-          <Button variant="outlined" color="inherit" onClick={() => setSelected(null)}>Close</Button>
+          <Button variant="outlined" color="inherit" onClick={closeDetails}>Close</Button>
           {selected?.status === 'pending' && !detailLoading && (
             <>
               <Button variant="outlined" color="error" onClick={() => {
