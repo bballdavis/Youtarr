@@ -1,14 +1,16 @@
 # Youtarr External API
 
 `/external-api/v1` is Youtarr's constrained integration boundary for approved
-clients. It is disabled by default and never accepts a Youtarr browser session
-or a legacy download key.
+clients. It is enabled by default and never accepts a Youtarr browser session
+or a legacy download key. Set `EXTERNAL_API_ENABLED=false` to disable the
+namespace for a deployment.
 
 ## Enablement and authentication
 
-Set `EXTERNAL_API_ENABLED=true`, restart Youtarr, and create an external-role
-key in **Settings → API Keys → API Keys & External Access**. The key is revealed
-once. Send it only in the `x-api-key` header over HTTPS.
+Create an external-role key in **Settings → API Keys → API Keys & External
+Access**. The key is revealed once. Send it only in the `x-api-key` header over
+HTTPS. Set `EXTERNAL_API_ENABLED=false` and restart Youtarr if the namespace
+should be disabled.
 
 Existing keys migrate as `legacy_download`. They continue to work only with
 `POST /api/videos/download`. Conversely, external-role keys cannot use that
@@ -358,11 +360,11 @@ The proxy must:
 - disable response caching and hide `Set-Cookie`;
 - apply TLS, connection, and edge rate limits appropriate for the deployment.
 
-Start with `EXTERNAL_API_ENABLED=false`, auto-approval disabled, a database and
-configuration backup, and a view-only key with the minimum channel grants.
-Enable the feature only after the private Youtarr application and proxy rules
-are confirmed. Revoke a compromised key immediately; to shut down the whole
-namespace, set `EXTERNAL_API_ENABLED=false` and restart Youtarr.
+Start with auto-approval disabled, a database and configuration backup, and a
+view-only key with the minimum channel grants. Confirm the private Youtarr
+application and proxy rules before exposing the service. Revoke a compromised
+key immediately; to shut down the whole namespace, set
+`EXTERNAL_API_ENABLED=false` and restart Youtarr.
 
 Each key defaults to at most 5 active jobs, 30 accepted writes per UTC hour,
 and 200 per UTC day. Administrators may select lower limits. A shared
@@ -377,8 +379,7 @@ may contain secrets.
 
 ## Configuration and administration
 
-1. Set `EXTERNAL_API_ENABLED=true` and restart Youtarr.
-2. In **Settings → API Keys → API Keys & External Access**, create an external
+1. In **Settings → API Keys → API Keys & External Access**, create an external
    key and save the raw secret; it is shown only once.
 3. Choose the smallest request permissions, rating ceiling, media types,
    quotas, and enabled channel grants.

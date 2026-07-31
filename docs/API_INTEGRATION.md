@@ -24,8 +24,9 @@ Youtarr provides an API endpoint that allows you to add YouTube videos to your d
 - **CLI Scripts**: Download individual videos
 
 > **Legacy endpoint note**: `POST /api/videos/download` supports single videos
-> only. The separately enabled `/external-api/v1` uses constrained external
-> keys for cached browsing and approval-backed video, channel, and deletion
+> only. The `/external-api/v1` namespace is enabled by default and uses
+> constrained external keys for cached browsing and approval-backed video,
+> channel, and deletion
 > requests.
 
 ## Authentication

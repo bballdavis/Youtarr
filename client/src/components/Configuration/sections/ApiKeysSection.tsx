@@ -28,11 +28,13 @@ import {
   Copy as ContentCopyIcon,
   AlertTriangle as WarningIcon,
   Pencil as EditIcon,
+  RefreshCw as RegenerateIcon,
   Video as VideoIcon,
   Radio as ChannelIcon,
   Clock3 as ClockIcon,
   Zap as AutoApproveIcon,
   Eye as ViewIcon,
+  Filter as FilterIcon,
 } from 'lucide-react';
 import { ConfigurationAccordion } from '../common/ConfigurationAccordion';
 import { InfoTooltip } from '../common/InfoTooltip';
@@ -348,9 +350,17 @@ interface ApiKeysSectionProps {
   token: string | null;
   apiKeyRateLimit: number;
   onRateLimitChange: (value: number) => void;
+  showRequestsNavLink: boolean;
+  onShowRequestsNavLinkChange: (value: boolean) => void;
 }
 
-const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit, onRateLimitChange }) => {
+const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({
+  token,
+  apiKeyRateLimit,
+  onRateLimitChange,
+  showRequestsNavLink,
+  onShowRequestsNavLinkChange,
+}) => {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -362,6 +372,7 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
   const [newKeyChannelSearch, setNewKeyChannelSearch] = useState('');
   const [createdKey, setCreatedKey] = useState<ApiKeyCreatedResponse | null>(null);
   const [createdKeyRole, setCreatedKeyRole] = useState<ApiKeyRole>('legacy_download');
+  const [createdKeyAction, setCreatedKeyAction] = useState<'created' | 'regenerated'>('created');
   const [error, setError] = useState<string | null>(null);
   const [editKey, setEditKey] = useState<ApiKey | null>(null);
   const [editPolicy, setEditPolicy] = useState<ApiKeyPolicy>(defaultPolicy);
@@ -370,12 +381,19 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
   const [selectedChannelIds, setSelectedChannelIds] = useState<number[]>([]);
   const [originalChannelIds, setOriginalChannelIds] = useState<number[]>([]);
   const [savingPolicy, setSavingPolicy] = useState(false);
+  const [externalKeySearch, setExternalKeySearch] = useState('');
+  const [showActiveExternalKeys, setShowActiveExternalKeys] = useState(true);
   const [snackbar, setSnackbar] = useState({ open: false, message: '' });
   const [deleteConfirmDialog, setDeleteConfirmDialog] = useState<{ open: boolean; keyId: number | null; keyName: string }>({
     open: false,
     keyId: null,
     keyName: '',
   });
+  const [regenerateConfirmDialog, setRegenerateConfirmDialog] = useState<{
+    open: boolean;
+    key: ApiKey | null;
+  }>({ open: false, key: null });
+  const [regenerating, setRegenerating] = useState(false);
   const [isHttpWarning] = useState(
     locationUtils.getProtocol() !== 'https:' && locationUtils.getHostname() !== 'localhost'
   );
@@ -484,6 +502,7 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
 
       if (response.ok && data.success) {
         setCreatedKey(data);
+        setCreatedKeyAction('created');
         setCreatedKeyRole(createKeyType === 'legacy' ? 'legacy_download' : newKeyPolicy.role);
         setCreateDialogOpen(false);
         setCreatedKeyDialogOpen(true);
@@ -602,6 +621,30 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
     setDeleteConfirmDialog({ open: true, keyId: id, keyName: name });
   };
 
+  const handleRegenerateKey = async () => {
+    if (!token || !regenerateConfirmDialog.key) return;
+    const key = regenerateConfirmDialog.key;
+    setRegenerating(true);
+    try {
+      const response = await fetch(`/api/keys/${key.id}/regenerate`, {
+        method: 'POST',
+        headers: { 'x-access-token': token },
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.error || 'Failed to regenerate API key');
+      setRegenerateConfirmDialog({ open: false, key: null });
+      setCreatedKey(body);
+      setCreatedKeyRole(key.role);
+      setCreatedKeyAction('regenerated');
+      setCreatedKeyDialogOpen(true);
+      await fetchApiKeys();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to regenerate API key');
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     setSnackbar({ open: true, message: `${label} copied to clipboard` });
@@ -618,12 +661,6 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
     });
   };
 
-  const generateBookmarklet = (apiKey: string) => {
-    const serverUrl = locationUtils.getOrigin();
-    const code = `javascript:(function(){var k='${apiKey}';var s='${serverUrl}';var u=location.href;if(!/youtube\\.com|youtu\\.be/.test(u)){alert('Not YouTube');return;}fetch(s+'/api/videos/download',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':k},body:JSON.stringify({url:u})}).then(function(r){return r.json()}).then(function(d){alert(d.success?'✓ Added: '+(d.video&&d.video.title?d.video.title:'Queued'):'✗ '+d.error)}).catch(function(){alert('✗ Connection failed')})})();`;
-    return code;
-  };
-
   if (loading) {
     return (
       <ConfigurationAccordion title="API Keys & External Access">
@@ -634,9 +671,25 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
 
   const externalKeys = apiKeys.filter((key) => key.role !== 'legacy_download');
   const legacyKeys = apiKeys.filter((key) => key.role === 'legacy_download');
+  const normalizedExternalKeySearch = externalKeySearch.trim().toLocaleLowerCase();
+  const visibleExternalKeys = externalKeys
+    .filter((key) => !showActiveExternalKeys || (key.is_active && !key.revoked_at))
+    .filter((key) => !normalizedExternalKeySearch ||
+      key.name.toLocaleLowerCase().includes(normalizedExternalKeySearch))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
 
   return (
-    <ConfigurationAccordion title="API Keys & External Access">
+    <ConfigurationAccordion
+      title="API Keys & External Access"
+      statusBanner={{
+        enabled: showRequestsNavLink,
+        label: 'Show Requests in navigation',
+        onToggle: onShowRequestsNavLinkChange,
+        onText: 'Requests navigation link shown',
+        offText: 'Requests navigation link hidden',
+        toggleTestId: 'requests-nav-link-switch',
+      }}
+    >
       <Box className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <Typography variant="subtitle1">External access keys</Typography>
@@ -667,15 +720,44 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
         </Alert>
       )}
 
+      {externalKeys.length > 0 && (
+        <Box className="mb-3 flex flex-col items-start gap-2 sm:flex-row sm:items-stretch">
+          <TextField
+            label="Search external access keys"
+            value={externalKeySearch}
+            onChange={(event) => setExternalKeySearch(event.target.value)}
+            fullWidth
+            size="small"
+          />
+          <Button
+            variant={showActiveExternalKeys ? 'contained' : 'outlined'}
+            startIcon={<FilterIcon size={16} />}
+            onClick={() => setShowActiveExternalKeys((current) => !current)}
+            aria-pressed={showActiveExternalKeys}
+            size="small"
+            className="shrink-0 self-start sm:self-stretch"
+            style={{ height: 'auto' }}
+          >
+            Active only
+          </Button>
+        </Box>
+      )}
+
       {externalKeys.length === 0 ? (
         <Paper className="border border-dashed border-border p-6 text-center shadow-none">
           <Typography color="secondary">
             No external access keys yet.
           </Typography>
         </Paper>
+      ) : visibleExternalKeys.length === 0 ? (
+        <Paper className="border border-dashed border-border p-6 text-center shadow-none">
+          <Typography color="secondary">
+            No external access keys match the current search and filter.
+          </Typography>
+        </Paper>
       ) : (
         <div className="grid gap-3" aria-label="External API key cards">
-          {externalKeys.map((key) => {
+          {visibleExternalKeys.map((key) => {
             const permissions = permissionsFromKey(key);
             const ratingBand = getExternalRatingBand(key.max_rating_level);
             const movieCeiling = ratingBand.movieRatings[ratingBand.movieRatings.length - 1];
@@ -784,6 +866,17 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
                           aria-label={`Edit ${key.name} external access`}
                         >
                           <EditIcon size={16} />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                    {!key.revoked_at && (
+                      <Tooltip title="Regenerate key">
+                        <IconButton
+                          size="small"
+                          onClick={() => setRegenerateConfirmDialog({ open: true, key })}
+                          aria-label={`Regenerate ${key.name}`}
+                        >
+                          <RegenerateIcon size={16} />
                         </IconButton>
                       </Tooltip>
                     )}
@@ -923,6 +1016,21 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
               <Typography variant="body2" color="secondary" className="mb-3">
                 The key cannot browse or request from channels that are not selected.
               </Typography>
+              {channelOptions.length > 0 && (
+                <FormControlLabel
+                  control={<Checkbox
+                    checked={newKeyChannelIds.length === channelOptions.length}
+                    indeterminate={newKeyChannelIds.length > 0 &&
+                      newKeyChannelIds.length < channelOptions.length}
+                    onChange={(event) => setNewKeyChannelIds(event.target.checked
+                      ? channelOptions.map((channel) => channel.database_id as number)
+                        .sort((a, b) => a - b)
+                      : []
+                    )}
+                  />}
+                  label="Select all approved channels"
+                />
+              )}
               <TextField
                 label="Search channels for new key"
                 value={newKeyChannelSearch}
@@ -994,6 +1102,21 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
           <Typography variant="subtitle2" className="mb-2">
             Approved channels ({selectedChannelIds.length})
           </Typography>
+          {channelOptions.length > 0 && (
+            <FormControlLabel
+              control={<Checkbox
+                checked={selectedChannelIds.length === channelOptions.length}
+                indeterminate={selectedChannelIds.length > 0 &&
+                  selectedChannelIds.length < channelOptions.length}
+                onChange={(event) => setSelectedChannelIds(event.target.checked
+                  ? channelOptions.map((channel) => channel.database_id as number)
+                    .sort((a, b) => a - b)
+                  : []
+                )}
+              />}
+              label="Select all approved channels"
+            />
+          )}
           <TextField
             label="Search channels"
             value={channelSearch}
@@ -1042,14 +1165,16 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
         </DialogActions>
       </Dialog>
 
-      {/* Key Created Dialog with Bookmarklet */}
+      {/* Key Created Dialog */}
       <Dialog
         open={createdKeyDialogOpen}
         onClose={() => setCreatedKeyDialogOpen(false)}
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>✓ API Key Created</DialogTitle>
+        <DialogTitle>
+          ✓ API Key {createdKeyAction === 'regenerated' ? 'Regenerated' : 'Created'}
+        </DialogTitle>
         <DialogContent>
           <Alert severity="warning" className="mb-6">
             Save this key now - it will not be shown again!
@@ -1070,75 +1195,13 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
             </IconButton>
           </Paper>
 
-          {createdKeyRole === 'legacy_download' ? <><Typography variant="subtitle2" gutterBottom>
-            📚 Add to Bookmarks
-          </Typography>
-          <Typography variant="body2" color="secondary" className="mb-2">
-            Drag this button to your bookmarks bar:
-          </Typography>
-          <Box className="mb-4">
-            <a
-              href={createdKey ? generateBookmarklet(createdKey.key) : '#'}
-              onClick={(e) => e.preventDefault()}
-              draggable="true"
-              style={{
-                display: 'inline-block',
-                padding: '8px 16px',
-                backgroundColor: 'var(--primary)',
-                color: 'var(--primary-foreground)',
-                borderRadius: 'var(--radius-input)',
-                textDecoration: 'none',
-                fontWeight: 500,
-                cursor: 'grab',
-              }}
-            >
-              📥 Send to Youtarr
-            </a>
-          </Box>
-
-          <Typography variant="body2" color="secondary" className="mb-2">
-            Or copy the bookmarklet code:
-          </Typography>
-          <Paper
-            className="p-4 mb-6 flex items-center justify-between bg-muted/50 max-h-[100px] overflow-auto"
-          >
-            <code style={{ fontSize: '0.75rem', wordBreak: 'break-all' }}>
-              {createdKey ? generateBookmarklet(createdKey.key) : ''}
-            </code>
-            <IconButton
-              onClick={() =>
-                copyToClipboard(
-                  createdKey ? generateBookmarklet(createdKey.key) : '',
-                  'Bookmarklet'
-                )
-              }
-              size="small"
-            >
-              <ContentCopyIcon size={16} />
-            </IconButton>
-          </Paper>
-
-          <Typography variant="subtitle2" gutterBottom>
-            📱 Mobile / Shortcuts
-          </Typography>
-          <Typography variant="body2" color="secondary" className="mb-2">
-            Use this URL in Apple Shortcuts, Tasker, or other tools:
-          </Typography>
-          <Paper className="p-4 bg-muted/50">
-            <Typography variant="body2" style={{ fontFamily: 'monospace' }} className="mb-2">
-              <strong>URL:</strong> {locationUtils.getOrigin()}/api/videos/download
-            </Typography>
-            <Typography variant="body2" style={{ fontFamily: 'monospace' }} className="mb-2">
-              <strong>Method:</strong> POST
-            </Typography>
-            <Typography variant="body2" style={{ fontFamily: 'monospace' }} className="mb-2">
-              <strong>Header:</strong> x-api-key: {createdKey?.key?.substring(0, 8)}...
-            </Typography>
-            <Typography variant="body2" style={{ fontFamily: 'monospace' }}>
-              <strong>Body:</strong> {`{ "url": "<youtube-url>" }`}
-            </Typography>
-          </Paper>
-          </> : (
+          {createdKeyRole === 'legacy_download' ? (
+            <Paper className="p-4 bg-muted/50">
+              <Typography variant="body2" style={{ fontFamily: 'monospace' }}>
+                <strong>API endpoint:</strong> {locationUtils.getOrigin()}/api/videos/download
+              </Typography>
+            </Paper>
+          ) : (
             <Paper className="p-4 bg-muted/50">
               <Typography variant="body2" className="mb-2">
                 Use this key only with <strong>{locationUtils.getOrigin()}/external-api/v1</strong>.
@@ -1152,6 +1215,42 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({ token, apiKeyRateLimit,
         <DialogActions>
           <Button onClick={() => setCreatedKeyDialogOpen(false)} variant="contained">
             Done
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={regenerateConfirmDialog.open}
+        onClose={() => !regenerating &&
+          setRegenerateConfirmDialog({ open: false, key: null })}
+      >
+        <DialogTitle>Regenerate API Key?</DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" className="mb-3">
+            The current key will stop working immediately.
+          </Alert>
+          <Typography>
+            Regenerate <strong>&quot;{regenerateConfirmDialog.key?.name}&quot;</strong>?
+          </Typography>
+          <Typography variant="body2" color="secondary" className="mt-2">
+            Its permissions and approved channels will stay the same. The replacement key is
+            shown only once, so copy it before closing the next dialog.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setRegenerateConfirmDialog({ open: false, key: null })}
+            disabled={regenerating}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="error"
+            variant="contained"
+            onClick={handleRegenerateKey}
+            disabled={regenerating}
+          >
+            {regenerating ? 'Regenerating…' : 'Regenerate Key'}
           </Button>
         </DialogActions>
       </Dialog>

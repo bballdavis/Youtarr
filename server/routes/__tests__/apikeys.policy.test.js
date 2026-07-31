@@ -2,6 +2,7 @@ jest.mock('../../modules/apiKeyModule', () => ({
   createApiKey: jest.fn(),
   logApiKeyCreated: jest.fn(),
   updateApiKey: jest.fn(),
+  regenerateApiKey: jest.fn(),
   serializeApiKey: jest.fn((key) => ({ id: key.id, name: key.name, key_prefix: key.key_prefix })),
 }));
 jest.mock('../../modules/apiKeyChannelGrantModule', () => ({
@@ -56,6 +57,40 @@ describe('PATCH /api/keys/:id policy management', () => {
     const response = await request(createApp()).patch('/api/keys/1').send({ policy: { role: 'view' } }).expect(200);
     expect(response.body.key).toEqual({ id: 1, name: 'Safe', key_prefix: '12345678' });
     expect(response.body.key).not.toHaveProperty('key_hash');
+  });
+});
+
+describe('POST /api/keys/:id/regenerate', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  test('is session-only', async () => {
+    await request(createApp('api_key')).post('/api/keys/1/regenerate')
+      .expect(403, { error: 'API keys cannot manage other API keys' });
+  });
+
+  test('replaces an active key and returns the one-time secret', async () => {
+    apiKeyModule.regenerateApiKey.mockResolvedValue({
+      id: 1,
+      name: 'External',
+      key: 'replacement-secret',
+      prefix: 'replacem',
+    });
+    const response = await request(createApp()).post('/api/keys/1/regenerate').expect(200);
+    expect(response.body).toEqual(expect.objectContaining({
+      success: true,
+      id: 1,
+      key: 'replacement-secret',
+      prefix: 'replacem',
+    }));
+    expect(apiKeyModule.regenerateApiKey).toHaveBeenCalledWith(1);
+  });
+
+  test('rejects invalid IDs, non-empty bodies, and inactive keys', async () => {
+    await request(createApp()).post('/api/keys/nope/regenerate').expect(400);
+    await request(createApp()).post('/api/keys/1/regenerate').send({ surprise: true }).expect(400);
+    apiKeyModule.regenerateApiKey.mockResolvedValue(null);
+    await request(createApp()).post('/api/keys/1/regenerate')
+      .expect(404, { error: 'Active API key not found' });
   });
 });
 

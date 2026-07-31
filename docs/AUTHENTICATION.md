@@ -144,9 +144,8 @@ policy and one of the cumulative roles `view`, `request`, `delete`, or `admin`.
 Legacy and constrained key types cannot be converted into each other; revoke
 and replace a key when its type must change.
 Revoking a key sets `revoked_at` and retains its metadata for audit visibility.
-External API access
-is separately gated by `EXTERNAL_API_ENABLED=true` and never follows the
-`AUTH_ENABLED=false` bypass.
+External API routes are enabled by default and can be disabled explicitly with
+`EXTERNAL_API_ENABLED=false`. They never follow the `AUTH_ENABLED=false` bypass.
 
 The administrator request-review endpoints under `/api/external-requests`
 require the normal Youtarr session (`x-access-token`). They do not accept an

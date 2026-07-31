@@ -61,6 +61,7 @@
   "channelVideosHotLoad": false,
   "uuid": "",
   "apiKeyRateLimit": 10,
+  "showRequestsNavLink": true,
   "autoUpdateYtdlp": false,
   "ytdlpLastChecked": null,
   "ytdlpLastUpdated": null,

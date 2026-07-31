@@ -142,7 +142,9 @@ function registerRoutes(app, deps) {
   // Subfolder registry routes
   app.use(createSubfolderRoutes({ verifyToken, subfolderModule }));
 
-  if (process.env.EXTERNAL_API_ENABLED === 'true') {
+  // The versioned external API is available by default. Keep an explicit
+  // false opt-out for deployments that do not want to expose the namespace.
+  if (process.env.EXTERNAL_API_ENABLED !== 'false') {
     app.use('/external-api/v1', createExternalApiRoutes({
       externalApiAuth,
       externalApiIngressLimiter,

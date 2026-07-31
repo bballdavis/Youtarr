@@ -236,6 +236,38 @@ class ApiKeyModule {
   }
 
   /**
+   * Replace an active key's secret while preserving its identity, policy,
+   * channel grants, and audit history. The returned plaintext is shown once.
+   */
+  async regenerateApiKey(id) {
+    const apiKey = await ApiKey.findByPk(id);
+    if (!apiKey || !apiKey.is_active || apiKey.revoked_at) return null;
+
+    const rawKey = crypto.randomBytes(32).toString('hex');
+    const prefix = rawKey.substring(0, 8);
+    const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
+
+    await apiKey.update({
+      key_hash: keyHash,
+      key_prefix: prefix,
+      last_used_at: null,
+    });
+    logger.info({
+      keyId: apiKey.id,
+      name: apiKey.name,
+      prefix,
+      event: 'api_key_regenerated',
+    }, 'API key regenerated');
+
+    return {
+      id: apiKey.id,
+      name: apiKey.name,
+      key: rawKey,
+      prefix,
+    };
+  }
+
+  /**
    * Revoke an API key while retaining an audit record.
    * @param {number} id - API key ID
    * @returns {boolean} True if deleted, false if not found

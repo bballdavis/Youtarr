@@ -82,6 +82,7 @@ function AppContent() {
   const [dbErrors, setDbErrors] = useState<string[]>([]);
   const [dbRecovered, setDbRecovered] = useState(false);
   const [countdown, setCountdown] = useState(15);
+  const [requestsNavLinkPreview, setRequestsNavLinkPreview] = useState<boolean | null>(null);
   const location = useLocation();
 
   // Use config hook for global configuration access
@@ -517,6 +518,7 @@ function AppContent() {
                     serverVersion={serverVersion}
                     ytDlpUpdateAvailable={ytDlpUpdateAvailable}
                     ytDlpUpdateTooltip={ytDlpUpdateTooltip}
+                    showRequestsNavLink={requestsNavLinkPreview ?? appConfig.showRequestsNavLink}
                     onLogout={handleLogout}
                   >
                     <Container
@@ -530,7 +532,15 @@ function AppContent() {
                             path="/changelog"
                             element={<ChangelogPage updateAvailable={updateAvailable} serverVersion={serverVersion} />}
                           />
-                          <Route path="/settings/*" element={<Settings token={token} />} />
+                          <Route
+                            path="/settings/*"
+                            element={
+                              <Settings
+                                token={token}
+                                onRequestsNavLinkPreview={setRequestsNavLinkPreview}
+                              />
+                            }
+                          />
                           <Route path="/configuration" element={<Navigate to="/settings" replace />} />
                           <Route path="/subscriptions" element={<Subscriptions token={token} />} />
                           <Route path="/subscriptions/imports" element={<ImportSubscriptionsPage token={token} />} />

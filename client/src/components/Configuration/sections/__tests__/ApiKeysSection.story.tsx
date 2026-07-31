@@ -10,6 +10,8 @@ const meta: Meta<typeof ApiKeysSection> = {
     token: 'storybook-token',
     apiKeyRateLimit: 10,
     onRateLimitChange: () => {},
+    showRequestsNavLink: true,
+    onShowRequestsNavLinkChange: () => {},
   },
   parameters: {
     msw: {

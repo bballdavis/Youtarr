@@ -351,6 +351,33 @@ module.exports = function createApiKeyRoutes({ verifyToken }) {
     }
   });
 
+  router.post('/api/keys/:id/regenerate', verifyToken, async (req, res) => {
+    if (req.authType === 'api_key') {
+      return res.status(403).json({ error: 'API keys cannot manage other API keys' });
+    }
+    const id = Number(req.params.id);
+    if (!Number.isSafeInteger(id) || id < 1) {
+      return res.status(400).json({ error: 'Invalid API key ID' });
+    }
+    if (req.body && (typeof req.body !== 'object' || Array.isArray(req.body) ||
+        Object.keys(req.body).length > 0)) {
+      return res.status(400).json({ error: 'Request body must be empty' });
+    }
+
+    try {
+      const result = await apiKeyModule.regenerateApiKey(id);
+      if (!result) return res.status(404).json({ error: 'Active API key not found' });
+      return res.json({
+        success: true,
+        message: 'API key regenerated. Save this key - it will not be shown again!',
+        ...result,
+      });
+    } catch (error) {
+      req.log.error({ err: error }, 'Failed to regenerate API key');
+      return res.status(500).json({ error: 'Failed to regenerate API key' });
+    }
+  });
+
   /**
    * @swagger
    * /api/keys/{id}:

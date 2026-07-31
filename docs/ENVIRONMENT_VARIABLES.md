@@ -100,16 +100,17 @@ To use an external database:
 
 ### EXTERNAL_API_ENABLED
 **Required**: No
-**Default**: `false`
+**Default**: `true`
 **Options**: `true`, `false`
-**Description**: Enables the versioned `/external-api/v1` integration API
+**Description**: Enables the versioned `/external-api/v1` integration API by default
 **Security**: External API routes always require a non-legacy `x-api-key`, even when `AUTH_ENABLED=false`
 
-Leave this disabled until an administrator has assigned an API key an external
-role and policy. Existing API keys migrate as `legacy_download` and cannot use
-the versioned API. For endpoint-only public access, keep the Youtarr origin port
-private and publish only the exact v1 path through a TLS reverse proxy. Exposing
-the complete port also exposes unrelated application routes; see
+Set this to `false` only when the versioned API namespace should be disabled.
+The routes remain protected until an administrator has assigned an API key an
+external role and policy. Existing API keys migrate as `legacy_download` and
+cannot use the versioned API. For endpoint-only public access, keep the Youtarr
+origin port private and publish only the exact v1 path through a TLS reverse
+proxy. Exposing the complete port also exposes unrelated application routes; see
 [Youtarr External API](EXTERNAL_API.md).
 
 ### AUTH_PRESET_USERNAME

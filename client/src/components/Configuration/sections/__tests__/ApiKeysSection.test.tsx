@@ -12,6 +12,8 @@ const props = (): React.ComponentProps<typeof ApiKeysSection> => ({
   token: 'test-token-123',
   apiKeyRateLimit: 10,
   onRateLimitChange: jest.fn(),
+  showRequestsNavLink: true,
+  onShowRequestsNavLinkChange: jest.fn(),
 });
 
 const externalKey = {
@@ -32,7 +34,7 @@ const externalKey = {
   max_rating_level: 3,
   allow_unrated: false,
   allowed_media_types: ['video', 'short'],
-  revoked_at: null,
+  revoked_at: null as string | null,
 };
 
 const legacyKey = {
@@ -86,6 +88,14 @@ const installDefaultFetch = (keys = [externalKey, legacyKey]) => {
     if (url === '/api/keys/7/external-access') {
       return jsonResponse({ success: true, key: externalKey, channelIds: [12] });
     }
+    if (url === '/api/keys/7/regenerate' && init?.method === 'POST') {
+      return jsonResponse({
+        ...createdKey,
+        message: 'API key regenerated. Save this key - it will not be shown again!',
+        id: 7,
+        name: 'External Client',
+      });
+    }
     if (url === '/api/keys' && init?.method === 'POST') {
       return jsonResponse(createdKey);
     }
@@ -100,6 +110,24 @@ describe('ApiKeysSection', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     installDefaultFetch();
+  });
+
+  test('toggles the Requests navigation link setting', async () => {
+    const user = userEvent.setup();
+    const onShowRequestsNavLinkChange = jest.fn();
+    renderWithProviders(
+      <ApiKeysSection
+        {...props()}
+        onShowRequestsNavLinkChange={onShowRequestsNavLinkChange}
+      />
+    );
+
+    const toggle = await screen.findByTestId('requests-nav-link-switch');
+    expect(toggle).toBeChecked();
+
+    await user.click(toggle);
+
+    expect(onShowRequestsNavLinkChange).toHaveBeenCalledWith(false);
   });
 
   test('renders the external section before the legacy section', async () => {
@@ -126,6 +154,48 @@ describe('ApiKeysSection', () => {
     expect(within(cards).getByText(/Last used/i)).toBeInTheDocument();
     expect(within(cards).queryByText('12 uses')).not.toBeInTheDocument();
     expect(screen.queryByText('client1234...')).not.toBeInTheDocument();
+  });
+
+  test('filters active external keys by default, sorts them alphabetically, and supports search and all-keys mode', async () => {
+    const alphaKey = {
+      ...externalKey,
+      id: 9,
+      name: 'Alpha Client',
+    };
+    const revokedKey = {
+      ...externalKey,
+      id: 10,
+      name: 'Revoked Client',
+      is_active: false,
+      revoked_at: '2026-07-28T12:00:00.000Z',
+    };
+    const inactiveKey = {
+      ...externalKey,
+      id: 11,
+      name: 'Inactive Client',
+      is_active: false,
+    };
+    installDefaultFetch([externalKey, alphaKey, revokedKey, inactiveKey]);
+    const user = userEvent.setup();
+    renderWithProviders(<ApiKeysSection {...props()} />);
+
+    const cards = await screen.findByLabelText('External API key cards');
+    expect(within(cards).getByText('Alpha Client')).toBeInTheDocument();
+    expect(within(cards).getByText('External Client')).toBeInTheDocument();
+    expect(within(cards).queryByText('Revoked Client')).not.toBeInTheDocument();
+    expect(within(cards).queryByText('Inactive Client')).not.toBeInTheDocument();
+    const alphaName = within(cards).getByText('Alpha Client');
+    const externalName = within(cards).getByText('External Client');
+    expect(alphaName.compareDocumentPosition(externalName) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Active only' }));
+    expect(within(cards).getByText('Revoked Client')).toBeInTheDocument();
+    expect(within(cards).getByText('Inactive Client')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Search external access keys'), 'revoked');
+    expect(within(cards).getByText('Revoked Client')).toBeInTheDocument();
+    expect(within(cards).queryByText('Alpha Client')).not.toBeInTheDocument();
   });
 
   test('keeps legacy controls and keys in the bottom section', async () => {
@@ -214,6 +284,31 @@ describe('ApiKeysSection', () => {
     confirm.mockRestore();
   });
 
+  test('selects and clears all approved channels when creating a key', async () => {
+    installDefaultFetch([]);
+    const user = userEvent.setup();
+    renderWithProviders(<ApiKeysSection {...props()} />);
+
+    await user.click(await screen.findByRole('button', { name: 'Create external key' }));
+    const selectAll = await screen.findByLabelText('Select all approved channels');
+    await user.click(selectAll);
+    expect(screen.getByLabelText('Safe Channel')).toBeChecked();
+    expect(screen.getByText('Approved channels (1)')).toBeInTheDocument();
+    await user.click(selectAll);
+    expect(screen.getByLabelText('Safe Channel')).not.toBeChecked();
+  });
+
+  test('selects all approved channels when editing a key', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ApiKeysSection {...props()} />);
+
+    await user.click(await screen.findByRole('button', {
+      name: 'Edit External Client external access',
+    }));
+    await user.click(await screen.findByLabelText('Select all approved channels'));
+    expect(screen.getByLabelText('Safe Channel')).toBeChecked();
+  });
+
   test('turning off a permission also turns off its auto-approval', async () => {
     const user = userEvent.setup();
     renderWithProviders(<ApiKeysSection {...props()} />);
@@ -272,7 +367,11 @@ describe('ApiKeysSection', () => {
       );
       expect(JSON.parse(call?.[1]?.body as string)).toEqual({ name: 'Bookmarklet' });
     });
-    expect(await screen.findByText(/Add to Bookmarks/)).toBeInTheDocument();
+    expect(await screen.findByText(/API endpoint:/)).toBeInTheDocument();
+    expect(screen.getByText(`${window.location.origin}/api/videos/download`)).toBeInTheDocument();
+    expect(screen.queryByText(/Add to Bookmarks/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/bookmarklet code/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Mobile \/ Shortcuts/)).not.toBeInTheDocument();
   });
 
   test('changes the legacy rate limit', async () => {
@@ -297,6 +396,23 @@ describe('ApiKeysSection', () => {
       '/api/keys/7',
       expect.objectContaining({ method: 'DELETE' })
     ));
+  });
+
+  test('regenerates a key only after the safeguard dialog and shows it once', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<ApiKeysSection {...props()} />);
+
+    await user.click(await screen.findByRole('button', { name: 'Regenerate External Client' }));
+    expect(screen.getByText('Regenerate API Key?')).toBeInTheDocument();
+    expect(screen.getByText(/current key will stop working immediately/i)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Regenerate Key' }));
+
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledWith(
+      '/api/keys/7/regenerate',
+      expect.objectContaining({ method: 'POST' })
+    ));
+    expect(await screen.findByText(/API Key Regenerated/)).toBeInTheDocument();
+    expect(screen.getByText(createdKey.key)).toBeInTheDocument();
   });
 
   test('shows API loading failures and allows dismissing the alert', async () => {

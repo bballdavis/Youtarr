@@ -26,6 +26,7 @@ interface AppShellProps {
   serverVersion?: string;
   ytDlpUpdateAvailable?: boolean;
   ytDlpUpdateTooltip?: string;
+  showRequestsNavLink?: boolean;
   children: React.ReactNode;
 }
 
@@ -42,6 +43,7 @@ export function AppShell({
   serverVersion,
   ytDlpUpdateAvailable = false,
   ytDlpUpdateTooltip,
+  showRequestsNavLink = true,
   children,
 }: AppShellProps) {
   const isMobile = useMediaQuery('(max-width: 767px)');
@@ -159,8 +161,8 @@ export function AppShell({
           to: '/settings',
           subItems: settingsSubItems,
         },
-      ],
-    [channelsSubItems, videosSubItems, downloadsSubItems, settingsSubItems]
+      ].filter((item) => item.key !== 'requests' || showRequestsNavLink),
+    [channelsSubItems, videosSubItems, downloadsSubItems, settingsSubItems, showRequestsNavLink]
   );
 
   const toggleDrawer = () => {

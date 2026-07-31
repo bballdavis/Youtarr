@@ -93,6 +93,41 @@ describe('external API key policies', () => {
       .rejects.toThrow('cannot be converted');
   });
 
+  test('regenerates an active key in place and returns the new secret once', async () => {
+    const key = {
+      id: 1,
+      name: 'External',
+      is_active: true,
+      revoked_at: null,
+      update: jest.fn().mockResolvedValue(),
+    };
+    ApiKey.findByPk.mockResolvedValue(key);
+
+    const result = await apiKeyModule.regenerateApiKey(1);
+
+    expect(result).toEqual(expect.objectContaining({
+      id: 1,
+      name: 'External',
+      key: expect.stringMatching(/^[a-f0-9]{64}$/),
+      prefix: expect.stringMatching(/^[a-f0-9]{8}$/),
+    }));
+    expect(result.key.startsWith(result.prefix)).toBe(true);
+    expect(key.update).toHaveBeenCalledWith({
+      key_hash: require('crypto').createHash('sha256').update(result.key).digest('hex'),
+      key_prefix: result.prefix,
+      last_used_at: null,
+    });
+  });
+
+  test('does not regenerate missing or revoked keys', async () => {
+    ApiKey.findByPk.mockResolvedValueOnce(null);
+    await expect(apiKeyModule.regenerateApiKey(1)).resolves.toBeNull();
+    ApiKey.findByPk.mockResolvedValueOnce({
+      id: 2, is_active: false, revoked_at: new Date(),
+    });
+    await expect(apiKeyModule.regenerateApiKey(2)).resolves.toBeNull();
+  });
+
   test('uses the management response contract for lists without key hashes', async () => {
     ApiKey.findAll.mockResolvedValue([{ id: 1, name: 'Safe', key_hash: 'must-not-leak', key_prefix: '12345678' }]);
     await expect(apiKeyModule.listApiKeys()).resolves.toEqual([
