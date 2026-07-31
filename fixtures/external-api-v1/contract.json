@@ -94,6 +94,59 @@
       "updatedAt": "2026-07-26T12:01:00.000Z"
     },
     {
+      "id": "00000000-0000-4000-8000-000000000013",
+      "type": "video",
+      "status": "approved",
+      "target": {
+        "youtubeId": "shortvid001",
+        "channelId": 8,
+        "channelUrl": null
+      },
+      "createdAt": "2026-07-26T12:04:00.000Z",
+      "updatedAt": "2026-07-26T12:04:30.000Z",
+      "decidedAt": "2026-07-26T12:04:30.000Z"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000014",
+      "type": "video",
+      "status": "rejected",
+      "target": {
+        "youtubeId": "streamvid01",
+        "channelId": 9,
+        "channelUrl": null
+      },
+      "createdAt": "2026-07-26T12:05:00.000Z",
+      "updatedAt": "2026-07-26T12:05:30.000Z",
+      "decidedAt": "2026-07-26T12:05:30.000Z"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000015",
+      "type": "video",
+      "status": "failed",
+      "target": {
+        "youtubeId": "unrated0001",
+        "channelId": 9,
+        "channelUrl": null
+      },
+      "createdAt": "2026-07-26T12:06:00.000Z",
+      "updatedAt": "2026-07-26T12:06:30.000Z",
+      "completedAt": "2026-07-26T12:06:30.000Z",
+      "message": "Sanitized fixture failure"
+    },
+    {
+      "id": "00000000-0000-4000-8000-000000000016",
+      "type": "video",
+      "status": "cancelled",
+      "target": {
+        "youtubeId": "cancelled01",
+        "channelId": 9,
+        "channelUrl": null
+      },
+      "createdAt": "2026-07-26T12:07:00.000Z",
+      "updatedAt": "2026-07-26T12:07:30.000Z",
+      "completedAt": "2026-07-26T12:07:30.000Z"
+    },
+    {
       "id": "00000000-0000-4000-8000-000000000011",
       "type": "channel",
       "status": "pending",

@@ -31,6 +31,11 @@ describe('external API shared contract fixture', () => {
     expect(fixture.sparseVideoDetail.metadata).toBeNull();
     expect(fixture.videoRequestResponses.map((response) => response.outcome))
       .toEqual(['created', 'duplicate', 'already_downloaded']);
+    expect(new Set(fixture.requests.map((request) => request.status)))
+      .toEqual(new Set([
+        'pending', 'approved', 'processing', 'completed',
+        'rejected', 'failed', 'cancelled',
+      ]));
   });
 
   test('contains no credential-shaped fixture fields', () => {
