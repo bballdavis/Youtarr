@@ -20,7 +20,7 @@
       "autoApproveDeleteRequests": false,
       "maxRatingLevel": 2,
       "allowUnrated": false,
-      "allowedMediaTypes": ["video", "short"]
+      "allowedMediaTypes": ["video", "short", "livestream"]
     },
     "features": {
       "catalog": true,

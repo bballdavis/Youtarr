@@ -17,7 +17,7 @@ describe('external API shared contract fixture', () => {
     expect(fixture.capabilities).toEqual(expect.objectContaining({
       apiVersion: '1',
       policy: expect.objectContaining({
-        allowedMediaTypes: expect.arrayContaining(['video', 'short']),
+        allowedMediaTypes: expect.arrayContaining(['video', 'short', 'livestream']),
       }),
       quota: expect.any(Object),
       features: expect.objectContaining({ videoDetails: true }),
