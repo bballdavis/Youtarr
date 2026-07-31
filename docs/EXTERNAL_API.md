@@ -95,8 +95,12 @@ request bodies are not accepted. CORS is disabled.
 
 The sanitized cross-client decoding fixture is
 `fixtures/external-api-v1/contract.json`; its reviewable checksum is recorded
-beside it in `SHA256SUMS`. The fixture contains no credentials or private
-deployment address.
+beside it in `SHA256SUMS`. Fixture version 3 covers capabilities, channels,
+cursor-paginated mixed-media catalog pages, rich and sparse video details,
+every request type and status, video-request outcomes, and forward-compatible
+unknown enum samples. The fixture contains no credentials or private
+deployment address. Consumer repositories should vendor the JSON and checksum
+unchanged and pin the producing Youtarr commit used for synchronization.
 
 ## Endpoints
 

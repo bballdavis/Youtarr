@@ -1,5 +1,5 @@
 {
-  "fixtureVersion": 2,
+  "fixtureVersion": 3,
   "capabilities": {
     "apiVersion": "1",
     "serverVersion": "1.77.0",
@@ -12,6 +12,9 @@
       "video:delete"
     ],
     "policy": {
+      "allowVideoRequests": true,
+      "allowChannelRequests": true,
+      "allowDeleteVideoRequests": true,
       "autoApproveVideoRequests": false,
       "autoApproveChannelRequests": false,
       "autoApproveDeleteRequests": false,
@@ -25,8 +28,50 @@
       "channelRequests": true,
       "deleteRequests": true,
       "recommendations": true,
-      "authenticatedAssets": true
+      "authenticatedAssets": true,
+      "videoDetails": true
+    },
+    "quota": {
+      "activeJobs": 1,
+      "maxActiveJobs": 5,
+      "hourlyWrites": 3,
+      "hourlyWriteLimit": 30,
+      "hourlyWindowStartedAt": "2026-07-31T12:00:00.000Z"
     }
+  },
+  "channelsPage": {
+    "data": [
+      {
+        "id": 8,
+        "channelId": "UC0000000000000000000001",
+        "title": "Fixture channel",
+        "descriptionSummary": "A populated channel contract record.",
+        "thumbnailUrl": "/external-api/v1/assets/channels/8/thumbnail",
+        "subfolder": "Learning",
+        "videoCount": 4,
+        "downloadedCount": 1,
+        "lastFetchedAt": "2026-07-31T11:30:00.000Z"
+      },
+      {
+        "id": 9,
+        "channelId": "UC0000000000000000000002",
+        "title": "Sparse fixture channel",
+        "descriptionSummary": null,
+        "thumbnailUrl": "/external-api/v1/assets/channels/9/thumbnail",
+        "subfolder": null,
+        "videoCount": 0,
+        "downloadedCount": 0,
+        "lastFetchedAt": null
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "pageSize": 100,
+      "total": 2,
+      "totalPages": 1,
+      "nextCursor": null
+    },
+    "dataSource": "cache"
   },
   "error": {
     "error": {
@@ -94,13 +139,76 @@
         "channelId": "UC0000000000000000000001",
         "channelTitle": "Fixture channel",
         "mediaType": "video"
+      },
+      {
+        "youtubeId": "shortvid001",
+        "title": "Fixture short",
+        "thumbnailUrl": "/external-api/v1/assets/videos/shortvid001/thumbnail",
+        "publishedAt": null,
+        "duration": "0:45",
+        "description": "A text-duration fixture.",
+        "isDownloaded": false,
+        "isRequested": false,
+        "requestStatus": null,
+        "rating": 1,
+        "channelDatabaseId": 8,
+        "channelId": "UC0000000000000000000001",
+        "channelTitle": "Fixture channel",
+        "mediaType": "short"
+      },
+      {
+        "youtubeId": "streamvid01",
+        "title": "Fixture livestream",
+        "thumbnailUrl": "/external-api/v1/assets/videos/streamvid01/thumbnail",
+        "publishedAt": "2026-07-19T00:00:00.000Z",
+        "duration": null,
+        "description": null,
+        "isDownloaded": false,
+        "isRequested": false,
+        "requestStatus": null,
+        "rating": null,
+        "channelDatabaseId": 9,
+        "channelId": "UC0000000000000000000002",
+        "channelTitle": "Sparse fixture channel",
+        "mediaType": "livestream"
       }
     ],
     "pagination": {
       "page": 1,
       "pageSize": 100,
-      "total": 1,
-      "totalPages": 1,
+      "total": 4,
+      "totalPages": 2,
+      "nextCursor": "eyJ2IjoxLCJwYWdlIjoyfQ"
+    },
+    "dataSource": "cache",
+    "isFullyIndexed": true,
+    "lastIndexedAt": null,
+    "indexingHint": null
+  },
+  "catalogNextPage": {
+    "data": [
+      {
+        "youtubeId": "unrated0001",
+        "title": "Final fixture page",
+        "thumbnailUrl": null,
+        "publishedAt": "2026-07-18T00:00:00.000Z",
+        "duration": 3600,
+        "description": null,
+        "isDownloaded": false,
+        "isRequested": false,
+        "requestStatus": "rejected",
+        "rating": null,
+        "channelDatabaseId": 9,
+        "channelId": "UC0000000000000000000002",
+        "channelTitle": "Sparse fixture channel",
+        "mediaType": "video"
+      }
+    ],
+    "pagination": {
+      "page": 2,
+      "pageSize": 100,
+      "total": 4,
+      "totalPages": 2,
       "nextCursor": null
     },
     "dataSource": "cache",
@@ -157,6 +265,72 @@
         }
       ],
       "availableResolutions": [360, 720, 1080]
+    }
+  },
+  "sparseVideoDetail": {
+    "youtubeId": "shortvid001",
+    "title": "Fixture short",
+    "thumbnailUrl": null,
+    "publishedAt": null,
+    "duration": "0:45",
+    "isDownloaded": false,
+    "isRequested": false,
+    "requestStatus": null,
+    "rating": 1,
+    "ratingSource": null,
+    "channelDatabaseId": 8,
+    "channelId": "UC0000000000000000000001",
+    "channelTitle": "Fixture channel",
+    "mediaType": "short",
+    "availability": null,
+    "downloadedAt": null,
+    "fileSize": null,
+    "audioFileSize": null,
+    "isProtected": null,
+    "videoResolution": null,
+    "metadata": null
+  },
+  "videoRequestResponses": [
+    {
+      "outcome": "created",
+      "request": {
+        "id": "00000000-0000-4000-8000-000000000010",
+        "type": "video",
+        "status": "processing",
+        "target": {
+          "youtubeId": "abcdefghijk",
+          "channelId": 8,
+          "channelUrl": null
+        },
+        "createdAt": "2026-07-26T12:00:00.000Z",
+        "updatedAt": "2026-07-26T12:01:00.000Z"
+      }
+    },
+    {
+      "outcome": "duplicate",
+      "request": null
+    },
+    {
+      "outcome": "already_downloaded",
+      "request": null
+    }
+  ],
+  "unknownEnumSamples": {
+    "request": {
+      "id": "00000000-0000-4000-8000-000000000099",
+      "type": "future_request_type",
+      "status": "future_status",
+      "target": {
+        "youtubeId": null,
+        "channelId": null,
+        "channelUrl": null
+      },
+      "createdAt": "2026-07-31T12:00:00.000Z",
+      "updatedAt": "2026-07-31T12:00:00.000Z"
+    },
+    "videoRequestResponse": {
+      "outcome": "future_outcome",
+      "request": null
     }
   }
 }

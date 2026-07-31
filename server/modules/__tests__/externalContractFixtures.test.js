@@ -12,6 +12,27 @@ const fixtureBytes = fs.readFileSync(path.join(fixtureDirectory, 'contract.json'
 const fixture = JSON.parse(fixtureBytes.toString('utf8'));
 
 describe('external API shared contract fixture', () => {
+  test('covers the complete Plinx-consumed v1 surface', () => {
+    expect(fixture.fixtureVersion).toBe(3);
+    expect(fixture.capabilities).toEqual(expect.objectContaining({
+      apiVersion: '1',
+      policy: expect.objectContaining({
+        allowedMediaTypes: expect.arrayContaining(['video', 'short']),
+      }),
+      quota: expect.any(Object),
+      features: expect.objectContaining({ videoDetails: true }),
+    }));
+    expect(fixture.channelsPage.data).toHaveLength(2);
+    expect(fixture.catalogPage.pagination.nextCursor).toEqual(expect.any(String));
+    expect(fixture.catalogNextPage.pagination.nextCursor).toBeNull();
+    expect(new Set(fixture.catalogPage.data.map((video) => video.mediaType)))
+      .toEqual(new Set(['video', 'short', 'livestream']));
+    expect(fixture.videoDetail.metadata).toEqual(expect.any(Object));
+    expect(fixture.sparseVideoDetail.metadata).toBeNull();
+    expect(fixture.videoRequestResponses.map((response) => response.outcome))
+      .toEqual(['created', 'duplicate', 'already_downloaded']);
+  });
+
   test('contains no credential-shaped fixture fields', () => {
     const serialized = JSON.stringify(fixture);
     expect(serialized).not.toMatch(/x-api-key|x-access-token|key_hash|session-token/i);
