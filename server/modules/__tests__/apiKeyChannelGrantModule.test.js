@@ -55,6 +55,27 @@ describe('API key channel grants', () => {
     }));
   });
 
+  test('counts only grants whose channels are still enabled and non-terminated', async () => {
+    ApiKeyChannelGrant.findAll.mockResolvedValue([
+      { api_key_id: 7, channel_id: 3 },
+      { api_key_id: 7, channel_id: 5 },
+      { api_key_id: 9, channel_id: 8 },
+    ]);
+
+    await expect(grants.getEffectiveChannelGrantCounts([7, 9, 12])).resolves.toEqual(
+      new Map([[7, 2], [9, 1]])
+    );
+    expect(ApiKeyChannelGrant.findAll).toHaveBeenCalledWith(expect.objectContaining({
+      where: { api_key_id: [7, 9, 12] },
+      include: [expect.objectContaining({
+        model: Channel,
+        as: 'channel',
+        required: true,
+        where: { enabled: true, terminated_at: { [Op.is]: null } },
+      })],
+    }));
+  });
+
   test('rejects legacy keys before changing grants', async () => {
     ApiKey.findByPk.mockResolvedValue({ id: 7, role: 'legacy_download', is_active: true, revoked_at: null });
     await expect(grants.replaceChannelGrants(7, [3])).rejects.toThrow('Only active external API keys');

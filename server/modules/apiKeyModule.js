@@ -5,6 +5,7 @@ const {
   normalizeExternalPermissions,
   roleForExternalPermissions,
 } = require('./externalPermissions');
+const { getEffectiveChannelGrantCounts } = require('./apiKeyChannelGrantModule');
 
 const MAX_API_KEYS = 20;
 const ROLES = ['legacy_download', 'view', 'request', 'delete', 'admin'];
@@ -218,7 +219,14 @@ class ApiKeyModule {
       attributes: MANAGEMENT_ATTRIBUTES,
       order: [['created_at', 'DESC']],
     });
-    return keys.map(serializeApiKey);
+    const serializedKeys = keys.map(serializeApiKey);
+    const grantCounts = await getEffectiveChannelGrantCounts(
+      serializedKeys.map((key) => key.id)
+    );
+    return serializedKeys.map((key) => ({
+      ...key,
+      channel_grant_count: grantCounts.get(key.id) || 0,
+    }));
   }
 
   async updateApiKey(id, policy, { transaction } = {}) {

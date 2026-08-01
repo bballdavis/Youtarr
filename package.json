@@ -22,6 +22,8 @@
     "test:frontend": "cd client && npm test -- --watchAll=false",
     "test:coverage": "npm run lint && jest --config jest.config.js --coverage && cd client && npm test -- --coverage --watchAll=false",
     "test:watch": "jest --config jest.config.js --watch",
+    "test:external-fixture": "jest --config jest.config.js server/modules/__tests__/externalContractFixtures.test.js --runInBand",
+    "test:external-contract-server": "node scripts/external-api-contract-server.js",
     "storybook": "cd client && npm run storybook"
   },
   "lint-staged": {

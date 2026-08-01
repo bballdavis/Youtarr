@@ -24,6 +24,7 @@ const externalKey = {
   last_used_at: '2026-07-27T19:00:00.000Z',
   is_active: true,
   usage_count: 12,
+  channel_grant_count: 1,
   role: 'delete',
   allow_video_requests: true,
   allow_channel_requests: true,
@@ -64,7 +65,9 @@ const jsonResponse = (body: unknown, ok = true) => ({
   json: jest.fn().mockResolvedValue(body),
 });
 
-const installDefaultFetch = (keys = [externalKey, legacyKey]) => {
+const installDefaultFetch = (
+  keys: Array<Record<string, unknown>> = [externalKey, legacyKey]
+) => {
   mockFetch.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     if (url === '/api/keys' && (!init?.method || init.method === 'GET')) {
@@ -151,9 +154,30 @@ describe('ApiKeysSection', () => {
     expect(within(cards).getByText('Videos')).toBeInTheDocument();
     expect(within(cards).getByText('Channels · Auto')).toBeInTheDocument();
     expect(within(cards).getByText('Delete video')).toBeInTheDocument();
+    expect(within(cards).getByText('1 approved channel')).toBeInTheDocument();
     expect(within(cards).getByText(/Last used/i)).toBeInTheDocument();
     expect(within(cards).queryByText('12 uses')).not.toBeInTheDocument();
     expect(screen.queryByText('client1234...')).not.toBeInTheDocument();
+  });
+
+  test('warns prominently when an external key has no effective channel grants', async () => {
+    installDefaultFetch([{ ...externalKey, channel_grant_count: 0 }]);
+    renderWithProviders(<ApiKeysSection {...props()} />);
+
+    const cards = await screen.findByLabelText('External API key cards');
+    expect(within(cards).getByText('0 approved channels')).toBeInTheDocument();
+    expect(within(cards).getByText(/No approved channels\. This key cannot view or request catalog content/i))
+      .toBeInTheDocument();
+  });
+
+  test('uses a neutral state when an older management response omits the grant count', async () => {
+    const { channel_grant_count: _omitted, ...olderExternalKey } = externalKey;
+    installDefaultFetch([olderExternalKey]);
+    renderWithProviders(<ApiKeysSection {...props()} />);
+
+    const cards = await screen.findByLabelText('External API key cards');
+    expect(within(cards).getByText('Approved channel count unavailable')).toBeInTheDocument();
+    expect(within(cards).queryByText(/No approved channels\./i)).not.toBeInTheDocument();
   });
 
   test('filters active external keys by default, sorts them alphabetically, and supports search and all-keys mode', async () => {
@@ -290,6 +314,8 @@ describe('ApiKeysSection', () => {
     renderWithProviders(<ApiKeysSection {...props()} />);
 
     await user.click(await screen.findByRole('button', { name: 'Create external key' }));
+    expect(screen.getByText(/Saving with zero approved channels is allowed, but the key will fail closed/i))
+      .toBeInTheDocument();
     const selectAll = await screen.findByLabelText('Select all approved channels');
     await user.click(selectAll);
     expect(screen.getByLabelText('Safe Channel')).toBeChecked();
@@ -305,6 +331,8 @@ describe('ApiKeysSection', () => {
     await user.click(await screen.findByRole('button', {
       name: 'Edit External Client external access',
     }));
+    expect(await screen.findByText(/Saving with zero approved channels is allowed, but this key will fail closed/i))
+      .toBeInTheDocument();
     await user.click(await screen.findByLabelText('Select all approved channels'));
     expect(screen.getByLabelText('Safe Channel')).toBeChecked();
   });

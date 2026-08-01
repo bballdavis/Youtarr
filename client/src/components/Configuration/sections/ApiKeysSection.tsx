@@ -55,6 +55,7 @@ interface ApiKey {
   last_used_at: string | null;
   is_active: boolean;
   usage_count: number;
+  channel_grant_count?: number;
   role: ApiKeyRole;
   auto_approve_video_requests: boolean;
   auto_approve_channel_requests: boolean;
@@ -758,6 +759,11 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({
       ) : (
         <div className="grid gap-3" aria-label="External API key cards">
           {visibleExternalKeys.map((key) => {
+            const rawChannelGrantCount = key.channel_grant_count;
+            const channelGrantCount = typeof rawChannelGrantCount === 'number' &&
+              Number.isInteger(rawChannelGrantCount) && rawChannelGrantCount >= 0
+              ? rawChannelGrantCount
+              : null;
             const permissions = permissionsFromKey(key);
             const ratingBand = getExternalRatingBand(key.max_rating_level);
             const movieCeiling = ratingBand.movieRatings[ratingBand.movieRatings.length - 1];
@@ -822,6 +828,14 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({
                     )}
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <Chip
+                      label={channelGrantCount === null
+                        ? 'Approved channel count unavailable'
+                        : `${channelGrantCount} approved ${channelGrantCount === 1 ? 'channel' : 'channels'}`}
+                      size="small"
+                      color={channelGrantCount === 0 ? 'warning' : 'default'}
+                      variant="outlined"
+                    />
                     {permissionChips.length === 0 ? (
                       <Tooltip title="Catalog viewing and request-status access only.">
                         <Chip
@@ -845,6 +859,11 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({
                       </Tooltip>
                     ))}
                   </div>
+                  {channelGrantCount === 0 && (
+                    <Alert severity="warning" className="mt-3" icon={<WarningIcon size={18} />}>
+                      No approved channels. This key cannot view or request catalog content until you add grants.
+                    </Alert>
+                  )}
                 </div>
 
                 <div className="flex shrink-0 items-center justify-between gap-3 sm:justify-end">
@@ -1016,6 +1035,11 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({
               <Typography variant="body2" color="secondary" className="mb-3">
                 The key cannot browse or request from channels that are not selected.
               </Typography>
+              {newKeyChannelIds.length === 0 && (
+                <Alert severity="warning" className="mb-3" icon={<WarningIcon size={18} />}>
+                  Saving with zero approved channels is allowed, but the key will fail closed and cannot view or request catalog content until grants are added.
+                </Alert>
+              )}
               {channelOptions.length > 0 && (
                 <FormControlLabel
                   control={<Checkbox
@@ -1102,6 +1126,11 @@ const ApiKeysSection: React.FC<ApiKeysSectionProps> = ({
           <Typography variant="subtitle2" className="mb-2">
             Approved channels ({selectedChannelIds.length})
           </Typography>
+          {selectedChannelIds.length === 0 && (
+            <Alert severity="warning" className="mb-3" icon={<WarningIcon size={18} />}>
+              Saving with zero approved channels is allowed, but this key will fail closed and cannot view or request catalog content until grants are added.
+            </Alert>
+          )}
           {channelOptions.length > 0 && (
             <FormControlLabel
               control={<Checkbox

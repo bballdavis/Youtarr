@@ -381,14 +381,55 @@ may contain secrets.
 
 1. In **Settings → API Keys → API Keys & External Access**, create an external
    key and save the raw secret; it is shown only once.
+2. The session-authenticated `GET /api/keys` management response includes
+   `channel_grant_count`: the number of grants whose channels are currently
+   enabled and non-terminated. It is not part of the `/external-api/v1` contract.
 3. Choose the smallest request permissions, rating ceiling, media types,
    quotas, and enabled channel grants.
 4. Use the administrator **External Requests** queue to approve or reject
    pending requests when auto-approval is not enabled.
 
+Saving an external key with zero approved channels is intentional and does not
+backfill or grant access. That key fails closed: catalog reads and requests
+return no granted content until an administrator adds enabled, non-terminated
+channel grants.
+
 Existing keys migrate as `legacy_download` and remain limited to
 `POST /api/videos/download`. They cannot use `/external-api/v1`. External
 keys cannot use the legacy direct-download endpoint.
+
+## Synthetic consumer contract
+
+The canonical, production-free consumer dataset lives in
+`fixtures/external-api-v1/contract.json`. Validate its published checksum with
+`npm run test:external-fixture`.
+
+Its `representativeProfile` records only sanitized structural observations
+from a deployed catalog: channel/page scale, media-type mix, common rating and
+nullability patterns, and authenticated artwork URL shape. It contains no
+production titles, identifiers, descriptions, request records, or credentials.
+The ordinary catalog rows follow that profile; deliberately unusual enum,
+duration, rating, sparse-detail, and failure cases remain separate edge data.
+Fixture tests derive the profile back from the rows and fail when they drift.
+
+Run the lightweight contract server with:
+
+```sh
+npm run test:external-contract-server
+```
+
+The executable mounts the real `/external-api/v1` router and authentication
+middleware with deterministic catalog, request, quota, and artwork adapters.
+It prints a JSON object containing its loopback base URL and synthetic API key;
+it never starts the full Youtarr application or requires MySQL. Route tests
+exercise the same server and keep the fixture, checksum, response envelopes,
+query validation, headers, status codes, and request behavior release-gated.
+
+The `/__contract/scenario` and `/__contract/state` endpoints exist only on this
+test executable. They let consumer UI suites select deterministic empty,
+safety-filtered, unauthorized, transport, unsupported-version, malformed,
+delayed, and server-error responses and inspect accepted synthetic writes. They
+are not mounted by Youtarr itself.
 
 For normal Youtarr API integrations such as bookmarklets and mobile shortcuts,
 see [API Integration](API_INTEGRATION.md). This document is the authoritative

@@ -1,5 +1,6 @@
 jest.mock('../../modules/apiKeyModule', () => ({
   createApiKey: jest.fn(),
+  listApiKeys: jest.fn(),
   logApiKeyCreated: jest.fn(),
   updateApiKey: jest.fn(),
   regenerateApiKey: jest.fn(),
@@ -57,6 +58,30 @@ describe('PATCH /api/keys/:id policy management', () => {
     const response = await request(createApp()).patch('/api/keys/1').send({ policy: { role: 'view' } }).expect(200);
     expect(response.body.key).toEqual({ id: 1, name: 'Safe', key_prefix: '12345678' });
     expect(response.body.key).not.toHaveProperty('key_hash');
+  });
+});
+
+describe('GET /api/keys management list', () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  test('returns effective channel grant counts without exposing key hashes', async () => {
+    apiKeyModule.listApiKeys.mockResolvedValue([{
+      id: 1,
+      name: 'External',
+      key_prefix: '12345678',
+      channel_grant_count: 0,
+    }]);
+
+    const response = await request(createApp()).get('/api/keys').expect(200);
+    expect(response.body).toEqual({
+      keys: [{
+        id: 1,
+        name: 'External',
+        key_prefix: '12345678',
+        channel_grant_count: 0,
+      }],
+    });
+    expect(apiKeyModule.listApiKeys).toHaveBeenCalledTimes(1);
   });
 });
 

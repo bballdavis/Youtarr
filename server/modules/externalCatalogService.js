@@ -816,6 +816,7 @@ module.exports = {
   videoThumbnailUrl,
   decodeCursor: decodePageCursor,
   encodeCursor: encodePageCursor,
+  pagination,
   decodeCatalogCursor,
   encodeCatalogCursor,
   paginationDto,

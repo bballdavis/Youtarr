@@ -13,7 +13,7 @@ const fixture = JSON.parse(fixtureBytes.toString('utf8'));
 
 describe('external API shared contract fixture', () => {
   test('covers the complete Plinx-consumed v1 surface', () => {
-    expect(fixture.fixtureVersion).toBe(3);
+    expect(fixture.fixtureVersion).toBe(4);
     expect(fixture.capabilities).toEqual(expect.objectContaining({
       apiVersion: '1',
       policy: expect.objectContaining({
@@ -22,7 +22,7 @@ describe('external API shared contract fixture', () => {
       quota: expect.any(Object),
       features: expect.objectContaining({ videoDetails: true }),
     }));
-    expect(fixture.channelsPage.data).toHaveLength(2);
+    expect(fixture.channelsPage.data).toHaveLength(4);
     expect(fixture.catalogPage.pagination.nextCursor).toEqual(expect.any(String));
     expect(fixture.catalogNextPage.pagination.nextCursor).toBeNull();
     expect(new Set(fixture.catalogPage.data.map((video) => video.mediaType)))
@@ -36,6 +36,35 @@ describe('external API shared contract fixture', () => {
         'pending', 'approved', 'processing', 'completed',
         'rejected', 'failed', 'cancelled',
       ]));
+  });
+
+  test('keeps the ordinary catalog representative of sanitized live shapes', () => {
+    const profile = fixture.representativeProfile;
+    const catalog = fixture.catalogPage.data;
+    const countBy = (field) => catalog.reduce((counts, row) => ({
+      ...counts,
+      [row[field]]: (counts[row[field]] || 0) + 1,
+    }), {});
+
+    expect(profile).toEqual(expect.objectContaining({
+      basis: 'sanitized-live-shape',
+      channelCount: fixture.channelsPage.data.length,
+      catalogFirstPageCount: catalog.length,
+      commonRatings: ['TV-Y', 'TV-Y7'],
+      artworkUsesAuthenticatedSameOriginPaths: true,
+    }));
+    expect(countBy('mediaType')).toEqual(profile.mediaTypeCounts);
+    expect(new Set(catalog.map((video) => video.rating)))
+      .toEqual(new Set(profile.commonRatings));
+    expect(catalog.every((video) => video.description === null)).toBe(true);
+    expect(catalog.every((video) => video.requestStatus === null)).toBe(true);
+    expect(catalog.every((video) => Number.isFinite(video.duration))).toBe(true);
+    expect(catalog.filter((video) => video.mediaType === 'short')
+      .every((video) => video.publishedAt === null)).toBe(true);
+    expect(catalog.every((video) => video.thumbnailUrl ===
+      `/external-api/v1/assets/videos/${video.youtubeId}/thumbnail`)).toBe(true);
+    expect(fixture.channelsPage.data.every((channel) => channel.thumbnailUrl ===
+      `/external-api/v1/assets/channels/${channel.id}/thumbnail`)).toBe(true);
   });
 
   test('contains no credential-shaped fixture fields', () => {

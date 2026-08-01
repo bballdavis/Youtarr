@@ -1,9 +1,13 @@
 jest.mock('../../models/apikey', () => ({
   count: jest.fn(), create: jest.fn(), findAll: jest.fn(), findByPk: jest.fn(),
 }));
+jest.mock('../../modules/apiKeyChannelGrantModule', () => ({
+  getEffectiveChannelGrantCounts: jest.fn(),
+}));
 jest.mock('../../logger', () => ({ info: jest.fn(), debug: jest.fn() }));
 
 const ApiKey = require('../../models/apikey');
+const { getEffectiveChannelGrantCounts } = require('../../modules/apiKeyChannelGrantModule');
 const apiKeyModule = require('../apiKeyModule');
 
 describe('external API key policies', () => {
@@ -130,9 +134,11 @@ describe('external API key policies', () => {
 
   test('uses the management response contract for lists without key hashes', async () => {
     ApiKey.findAll.mockResolvedValue([{ id: 1, name: 'Safe', key_hash: 'must-not-leak', key_prefix: '12345678' }]);
+    getEffectiveChannelGrantCounts.mockResolvedValue(new Map([[1, 2]]));
     await expect(apiKeyModule.listApiKeys()).resolves.toEqual([
-      { id: 1, name: 'Safe', key_prefix: '12345678' },
+      { id: 1, name: 'Safe', key_prefix: '12345678', channel_grant_count: 2 },
     ]);
+    expect(getEffectiveChannelGrantCounts).toHaveBeenCalledWith([1]);
   });
 
   test('retains soft-revoked keys in the management list for audit visibility', async () => {
@@ -143,8 +149,11 @@ describe('external API key policies', () => {
       id: 1, name: 'Revoked', key_prefix: '12345678',
       is_active: false, revoked_at: new Date('2026-07-26T00:00:00.000Z'),
     }]);
+    getEffectiveChannelGrantCounts.mockResolvedValue(new Map());
     await expect(apiKeyModule.listApiKeys()).resolves.toEqual([
-      expect.objectContaining({ id: 1, name: 'Revoked', is_active: false }),
+      expect.objectContaining({
+        id: 1, name: 'Revoked', is_active: false, channel_grant_count: 0,
+      }),
     ]);
     expect(ApiKey.findAll).toHaveBeenCalledWith(expect.not.objectContaining({ where: expect.anything() }));
     expect(key.update).toHaveBeenCalledWith(expect.objectContaining({ revoked_at: expect.any(Date) }));

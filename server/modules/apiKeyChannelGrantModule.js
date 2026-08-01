@@ -39,6 +39,26 @@ async function getChannelGrants(keyId) {
   return { keyId, channelIds: grants.map((grant) => grant.channel_id) };
 }
 
+async function getEffectiveChannelGrantCounts(keyIds) {
+  if (keyIds.length === 0) return new Map();
+  const grants = await ApiKeyChannelGrant.findAll({
+    where: { api_key_id: keyIds },
+    attributes: ['api_key_id'],
+    include: [{
+      model: Channel,
+      as: 'channel',
+      attributes: [],
+      required: true,
+      where: { enabled: true, terminated_at: { [Op.is]: null } },
+    }],
+    raw: true,
+  });
+  return grants.reduce((counts, grant) => {
+    counts.set(grant.api_key_id, (counts.get(grant.api_key_id) || 0) + 1);
+    return counts;
+  }, new Map());
+}
+
 async function replaceChannelGrants(keyId, channelIds, { transaction: existingTransaction } = {}) {
   const normalized = normalizeChannelIds(channelIds);
   const replace = async (transaction) => {
@@ -69,4 +89,9 @@ async function replaceChannelGrants(keyId, channelIds, { transaction: existingTr
     : sequelize.transaction(replace);
 }
 
-module.exports = { getChannelGrants, replaceChannelGrants, normalizeChannelIds };
+module.exports = {
+  getChannelGrants,
+  getEffectiveChannelGrantCounts,
+  replaceChannelGrants,
+  normalizeChannelIds,
+};
