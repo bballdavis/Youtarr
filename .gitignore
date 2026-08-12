@@ -74,3 +74,8 @@ client/build-storybook/
 # Storybook test artifacts
 .out_storybook_
 .storyshots
+
+# Docusaurus generated files
+website/.generated/
+website/build/
+website/.docusaurus/
