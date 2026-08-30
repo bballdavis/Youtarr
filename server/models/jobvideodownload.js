@@ -44,7 +44,7 @@ JobVideoDownload.init(
     sequelize,
     modelName: 'JobVideoDownload',
     timestamps: false,
-    tableName: 'JobVideoDownloads',
+    tableName: 'jobvideodownloads',
     indexes: [
       {
         fields: ['job_id']

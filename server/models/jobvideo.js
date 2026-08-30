@@ -34,7 +34,7 @@ JobVideo.init(
     sequelize,
     modelName: 'JobVideo',
     timestamps: false,
-    tableName: 'JobVideos',
+    tableName: 'jobvideos',
   }
 );
 
