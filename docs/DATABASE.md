@@ -73,7 +73,7 @@ volumes:
 - Avoids the virtualized-filesystem write semantics problem that can affect bind-mounted MariaDB
 - Used automatically for fresh installs started with `./start.sh` on every platform (Linux included, since v1.69)
 - Recommended for Docker Desktop on Windows/macOS, ARM systems, and NAS setups
-- Not easily visible on host: data lives under `/var/lib/docker/volumes/<project>_youtarr-db-data/_data` rather than `./database/`. `./scripts/backup.sh` dumps from the running MariaDB container when it is already up; when it has to start MariaDB for a backup, it detects whether this install uses the bind mount or named volume first.
+- Not easily visible on host: data lives under `/var/lib/docker/volumes/<project>_youtarr-db-data/_data` rather than `./database/`. To back it up, stop Youtarr with `docker stop youtarr`, then run `./scripts/backup.sh`. Keep the database container in place; the script can start it if needed. Use `docker stop` rather than `./stop.sh`, which removes containers. See [Backup and Restore](BACKUP_RESTORE.md).
 
 ### Migrating from Bind Mount to Named Volume
 
