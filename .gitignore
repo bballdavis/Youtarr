@@ -74,3 +74,12 @@ client/build-storybook/
 # Storybook test artifacts
 .out_storybook_
 .storyshots
+
+# Serializes backup/restore operations for this installation
+.backup-restore.lock
+
+# Python script/test bytecode caches
+__pycache__/
+
+# Private restore staging may contain configuration and cookies
+.youtarr-restore-*/
