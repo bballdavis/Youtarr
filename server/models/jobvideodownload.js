@@ -15,7 +15,7 @@ JobVideoDownload.init(
       type: DataTypes.UUID,
       allowNull: false,
       references: {
-        model: 'Jobs',
+        model: 'jobs',
         key: 'id',
       },
       onUpdate: 'CASCADE',

@@ -8,6 +8,10 @@ async function tableExists(queryInterface, tableName) {
   return tablesRaw.some((table) => extractTableName(table) === tableName);
 }
 
+async function tableAndColumnExist(queryInterface, tableName, columnName) {
+  return await tableExists(queryInterface, tableName) && await columnExists(queryInterface, tableName, columnName);
+};
+
 const TABLES = [
   ['ApiKeys', 'apikeys'],
   ['JobVideoDownloads', 'jobvideodownloads'],
@@ -16,6 +20,37 @@ const TABLES = [
   ['Sessions', 'sessions'],
   ['Videos', 'videos'],
 ];
+
+async function renameTableResumably(queryInterface, original, lowercase, destination) {
+  // Recognize temporary names left by either an upgrade or a rollback.
+  // Compare stored names exactly so distinct tables on LCTN=0 are conflicts,
+  // while LCTN=1 naturally returns only the lowercase stored name.
+  const candidates = new Set([original, lowercase, `${original}-tmp`, `${lowercase}-tmp`]);
+  const tables = (await queryInterface.showAllTables()).map(extractTableName);
+  const matches = tables.filter((name) => candidates.has(name));
+  if (matches.length !== 1) {
+    throw new Error(`Cannot rename ${original}: expected one table, found ${matches.length} (${matches.join(', ')})`);
+  }
+
+  const source = matches[0];
+  if (source === destination) return;
+
+  if (source.endsWith('-tmp')) {
+    await queryInterface.renameTable(source, destination);
+  } else {
+    // A case-only rename fails on LCTN=2. Each step commits independently,
+    // so the temporary name must remain recoverable on the next invocation.
+    const temporary = `${source}-tmp`;
+    await queryInterface.renameTable(source, temporary);
+    await queryInterface.renameTable(temporary, destination);
+  }
+}
+
+async function normalizeTableNames(queryInterface) {
+  for (const [original, lowercase] of TABLES) {
+    await renameTableResumably(queryInterface, original, lowercase, lowercase);
+  }
+}
 
 const COLUMNS = [
   ['channels', 'lastFetchedByTab', 'last_fetched_by_tab'],
@@ -51,43 +86,40 @@ const COLUMNS = [
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up (queryInterface, Sequelize) {
-    for (const [from, to] of TABLES) {
-      if (await tableExists(queryInterface, from)) {
-        await queryInterface.renameTable(from, to);
-      }
-    }
+    await normalizeTableNames(queryInterface);
     for (const [tableName, from, to] of COLUMNS) {
-      if (await columnExists(queryInterface, tableName, from)) {
+      if (await tableAndColumnExist(queryInterface, tableName, from)) {
         await queryInterface.renameColumn(tableName, from, to);
       }
     }
 
     // Sequelize generates invalid SQL for these columns since their default (in the database) is `CURRENT_TIMESTAMP`, see https://github.com/sequelize/sequelize/issues/8868
-    if (await columnExists(queryInterface, 'sessions', 'createdAt')) {
+    if (await tableAndColumnExist(queryInterface, 'sessions', 'createdAt')) {
       await queryInterface.sequelize.query('ALTER TABLE sessions CHANGE createdAt created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP');
     }
-    if (await columnExists(queryInterface, 'sessions', 'updatedAt')) {
+    if (await tableAndColumnExist(queryInterface, 'sessions', 'updatedAt')) {
       await queryInterface.sequelize.query('ALTER TABLE sessions CHANGE updatedAt updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
     }
   },
 
   async down (queryInterface, Sequelize) {
-    if (await columnExists(queryInterface, 'sessions', 'created_at')) {
+    // Recover tables before touching columns, including an interrupted upgrade
+    // or a rollback that already restored some original table names.
+    await normalizeTableNames(queryInterface);
+    if (await tableAndColumnExist(queryInterface, 'sessions', 'created_at')) {
       await queryInterface.sequelize.query('ALTER TABLE sessions CHANGE created_at createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP');
     }
-    if (await columnExists(queryInterface, 'sessions', 'updated_at')) {
+    if (await tableAndColumnExist(queryInterface, 'sessions', 'updated_at')) {
       await queryInterface.sequelize.query('ALTER TABLE sessions CHANGE updated_at updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP');
     }
 
     for (const [tableName, to, from] of COLUMNS) {
-      if (await columnExists(queryInterface, tableName, from)) {
+      if (await tableAndColumnExist(queryInterface, tableName, from)) {
         await queryInterface.renameColumn(tableName, from, to);
       }
     }
-    for (const [to, from] of TABLES) {
-      if (await tableExists(queryInterface, from)) {
-        await queryInterface.renameTable(from, to);
-      }
+    for (const [original, lowercase] of TABLES) {
+      await renameTableResumably(queryInterface, original, lowercase, original);
     }
   }
 };
