@@ -23,6 +23,8 @@ jest.mock('../../../models', () => ({
 const MessageEmitter = require('../../messageEmitter');
 const { JobVideoDownload } = require('../../../models');
 const YtdlpOutputRouter = require('../YtdlpOutputRouter');
+const videoActivity = require('../videoActivity');
+const { VIDEO_PERSISTED_MARKER } = require('../../constants/outputMarkers');
 
 const makeMonitor = () => ({
   hasError: false,
@@ -52,6 +54,7 @@ describe('YtdlpOutputRouter', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    videoActivity.entries.clear();
     monitor = makeMonitor();
     errorTracker = makeErrorTracker();
     timeoutController = makeTimeoutController();
@@ -62,6 +65,28 @@ describe('YtdlpOutputRouter', () => {
       errorTracker,
       timeoutController
     });
+  });
+
+  it('keeps a video busy through 100 percent and merging until persistence', () => {
+    router.handleStdoutChunk(Buffer.from('[youtube] Extracting URL: https://www.youtube.com/watch?v=aaaaaaaaaaa\n'));
+    router.handleStdoutChunk(Buffer.from('[download] 100% of 1MiB\n[Merger] Merging formats into video.mp4\n'));
+    expect(videoActivity.snapshot().videos.aaaaaaaaaaa.state).toBe('downloading');
+    router.handleStdoutChunk(Buffer.from(`${VIDEO_PERSISTED_MARKER}aaaaaaaaaaa\n`));
+    expect(videoActivity.snapshot().videos.aaaaaaaaaaa).toBeUndefined();
+  });
+
+  it('releases an archive skip even when extraction never began', () => {
+    videoActivity.claim('job-123', ['https://youtu.be/aaaaaaaaaaa']);
+    router.handleStdoutChunk(Buffer.from('[download] aaaaaaaaaaa: has already been recorded in the archive\n'));
+    expect(videoActivity.isActive('aaaaaaaaaaa')).toBe(false);
+  });
+
+  it('uses the current video for filter skips, not an ID-shaped title word', () => {
+    videoActivity.claim('job-123', ['https://youtu.be/Introducing']);
+    router.handleStdoutChunk(Buffer.from('[youtube] Extracting URL: https://youtu.be/aaaaaaaaaaa\n'));
+    router.handleStdoutChunk(Buffer.from('[download] Introducing: X does not pass filter (members only)\n'));
+    expect(videoActivity.isActive('aaaaaaaaaaa')).toBe(false);
+    expect(videoActivity.isActive('Introducing')).toBe(true);
   });
 
   afterEach(() => {

@@ -2,12 +2,12 @@ import React from 'react';
 import { CalendarToday as CalendarTodayIcon } from '../../../lib/icons';
 import { PlaylistVideo } from '../../../types/playlist';
 
-export type PlaylistVideoStatusColor = 'success' | 'default' | 'warning' | 'error';
+export type PlaylistVideoStatusColor = 'success' | 'default' | 'warning' | 'error' | 'info';
 
 // Ignored videos stay downloadable: explicitly selecting one is an intentional
 // override of the ignore.
 export function isDownloadable(v: PlaylistVideo): boolean {
-  return !v.downloaded && !v.youtube_removed;
+  return !v.activity && !v.downloaded && !v.youtube_removed;
 }
 
 // Maps PlaylistVideo's snake_case file fields to the indicator's camelCase props.
@@ -28,6 +28,7 @@ export function toDownloadFileProps(v: PlaylistVideo): {
 }
 
 export function statusLabel(v: PlaylistVideo): { label: string; color: PlaylistVideoStatusColor } {
+  if (v.activity) return { label: v.activity === 'queued' ? 'Queued…' : 'Downloading…', color: 'info' };
   // "Excluded" is the user-facing name for the per-playlist `ignored` flag:
   // left out of this playlist's downloads, server sync, and M3U files.
   if (v.ignored) return { label: 'Excluded', color: 'warning' };

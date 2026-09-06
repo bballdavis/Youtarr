@@ -7,6 +7,7 @@
 },*/
 
 export interface ChannelVideo {
+  activity?: 'queued' | 'downloading';
   id?: number;
   title: string;
   youtube_id: string;

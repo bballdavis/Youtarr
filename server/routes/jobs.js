@@ -1,5 +1,4 @@
 const express = require('express');
-const router = express.Router();
 
 /**
  * Creates job routes
@@ -9,7 +8,44 @@ const router = express.Router();
  * @param {Object} deps.downloadModule - Download module
  * @returns {express.Router}
  */
-module.exports = function createJobRoutes({ verifyToken, jobModule, downloadModule }) {
+module.exports = function createJobRoutes({ verifyToken, jobModule, downloadModule, videoActivity }) {
+  const router = express.Router();
+  /**
+   * @swagger
+   * /api/jobs/video-activity:
+   *   get:
+   *     summary: Get queued and downloading video activity
+   *     tags: [Jobs]
+   *     responses:
+   *       200:
+   *         description: Transient activity snapshot; entries disappear when work ends
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 instanceId:
+   *                   type: string
+   *                 revision:
+   *                   type: integer
+   *                 videos:
+   *                   type: object
+   *                   additionalProperties:
+   *                     type: object
+   *                     properties:
+   *                       jobId:
+   *                         type: string
+   *                       state:
+   *                         type: string
+   *                         enum: [queued, downloading]
+   *       401:
+   *         description: Authentication required
+   */
+  // Lightweight live activity; deliberately excludes download history and files.
+  router.get('/api/jobs/video-activity', verifyToken, (req, res) => {
+    res.json(videoActivity.snapshot());
+  });
+
   /**
    * @swagger
    * /jobstatus/{jobId}:

@@ -34,7 +34,7 @@ beforeEach(() => {
   ChannelVideo.findAll.mockResolvedValue([]);
   Video.findAll.mockResolvedValue([]);
   Channel.findOne.mockResolvedValue(channelRow);
-  downloadModule.doSpecificDownloads.mockResolvedValue(undefined);
+  downloadModule.doSpecificDownloads.mockImplementation(async ({ body }) => ({ queued: body.urls.length }));
 });
 
 describe('getDownloadableVideos', () => {

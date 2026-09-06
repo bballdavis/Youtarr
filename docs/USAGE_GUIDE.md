@@ -25,6 +25,10 @@ This guide provides step-by-step instructions for common tasks in Youtarr. After
 
 Download specific YouTube videos manually without subscribing to channels.
 
+Video listings and the video preview show **Queued…** while a known video is waiting and **Downloading…** while it is being prepared, transferred, or post-processed. Busy videos cannot be selected for another download. Status updates automatically across tabs, including when an individual video finishes within a larger batch.
+
+Scheduled channel sweeps discover videos as they run, so per-video activity appears once yt-dlp identifies the video. Explicit selections, playlist downloads, and channel **Download all** can show their known queued videos immediately.
+
 1. **Navigate to the Downloads page**
    - Click "Downloads" in the navigation menu
 

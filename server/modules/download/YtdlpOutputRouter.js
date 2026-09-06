@@ -3,6 +3,7 @@
 // partial destinations, stderr buffer), and owns throttled downloadProgress
 // WebSocket emission. One instance per yt-dlp run.
 const path = require('path');
+const videoActivity = require('./videoActivity');
 const logger = require('../../logger');
 const MessageEmitter = require('../messageEmitter');
 const filesystem = require('../filesystem');
@@ -81,6 +82,7 @@ class YtdlpOutputRouter {
         if (line.startsWith(VIDEO_PERSISTED_MARKER)) {
           const youtubeId = line.slice(VIDEO_PERSISTED_MARKER.length).trim();
           MessageEmitter.emitMessage('broadcast', null, 'download', 'videosUpdated', { youtubeId });
+          videoActivity.finish(this.jobId, youtubeId);
           return;
         }
 
@@ -92,10 +94,20 @@ class YtdlpOutputRouter {
             // Extract video ID from URL
             const idMatch = url.match(/[?&]v=([^&]+)|youtu\.be\/([^?&]+)|\/watch\/([^?&]+)|\/([a-zA-Z0-9_-]{10,12})$/);
             if (idMatch) {
-              this.errorTracker.trackVideoStart(idMatch[1] || idMatch[2] || idMatch[3] || idMatch[4]);
+              const youtubeId = idMatch[1] || idMatch[2] || idMatch[3] || idMatch[4];
+              this.errorTracker.trackVideoStart(youtubeId);
+              this.monitor.youtubeId = youtubeId;
+              videoActivity.start(this.jobId, this.monitor.youtubeId);
               logger.debug({ currentVideoId: this.errorTracker.currentVideoId, url }, 'Tracking video extraction');
             }
           }
+        }
+
+        if (line.includes('already been recorded in the archive') || line.includes('does not pass filter')) {
+          const id = line.includes('does not pass filter')
+            ? this.monitor.youtubeId
+            : line.match(/^\[download\]\s+([a-zA-Z0-9_-]{11}): has already been recorded in the archive/)?.[1];
+          if (id) videoActivity.finish(this.jobId, id);
         }
 
         // Track destination files for cleanup
@@ -110,6 +122,8 @@ class YtdlpOutputRouter {
               // Update current video ID if we can extract it from the path
               if (filesystem.isMainVideoFile(destPath)) {
                 this.errorTracker.trackVideoFromDestination(youtubeId);
+                this.monitor.youtubeId = youtubeId;
+                videoActivity.start(this.jobId, youtubeId);
                 logger.debug({ currentVideoId: this.errorTracker.currentVideoId, destPath }, 'Updated current video ID from destination');
               }
 

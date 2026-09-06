@@ -38,7 +38,7 @@ const buildDeps = (overrides = {}) => ({
     ...overrides.m3uGenerator,
   },
   downloadModule: {
-    doPlaylistDownloads: jest.fn().mockResolvedValue(undefined),
+    doPlaylistDownloads: jest.fn().mockResolvedValue(2),
     ...overrides.downloadModule,
   },
   mediaServers: {
@@ -1561,7 +1561,18 @@ describe('POST /api/playlists/:playlistId/download', () => {
       overrideSettings: undefined,
     });
     expect(res.status).toHaveBeenCalledWith(202);
-    expect(res.json).toHaveBeenCalledWith({ status: 'accepted', message: 'Playlist download started' });
+    expect(res.json).toHaveBeenCalledWith({ status: 'accepted', message: 'Playlist download started', queued: 2 });
+  });
+
+  test('reports an empty admission without claiming downloads started', async () => {
+    const deps = buildDeps();
+    deps.models.Playlist.findOne.mockResolvedValue(makePlaylist());
+    deps.downloadModule.doPlaylistDownloads.mockResolvedValue(0);
+    const handler = getHandler('post', '/api/playlists/:playlistId/download', deps);
+    const res = createResponse();
+    await handler({ params: { playlistId: 'PLtest123' }, log: loggerMock }, res);
+    expect(res.status).toHaveBeenCalledWith(202);
+    expect(res.json).toHaveBeenCalledWith({ status: 'accepted', message: 'No eligible videos to queue', queued: 0 });
   });
 
   test('returns 404 when playlist not found or soft-deleted, without starting downloads', async () => {
@@ -1582,7 +1593,7 @@ describe('POST /api/playlists/:playlistId/download', () => {
     expect(deps.downloadModule.doPlaylistDownloads).not.toHaveBeenCalled();
   });
 
-  test('does not reject the response when doPlaylistDownloads rejects (fire-and-forget)', async () => {
+  test('returns 500 when enqueueing playlist downloads fails', async () => {
     const deps = buildDeps();
     const p = makePlaylist();
     deps.models.Playlist.findOne.mockResolvedValue(p);
@@ -1594,8 +1605,8 @@ describe('POST /api/playlists/:playlistId/download', () => {
 
     await handler(req, res);
 
-    // Response is 202 regardless — error is logged asynchronously
-    expect(res.status).toHaveBeenCalledWith(202);
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Failed to start playlist download' });
   });
 
   test('passes videoIds through to doPlaylistDownloads when provided', async () => {

@@ -1,4 +1,4 @@
-export type SearchResultStatus = 'downloaded' | 'missing' | 'never_downloaded';
+export type SearchResultStatus = 'downloaded' | 'missing' | 'never_downloaded' | 'queued' | 'downloading';
 
 export interface SearchResult {
   youtubeId: string;
@@ -10,6 +10,7 @@ export interface SearchResult {
   publishedAt: string | null;
   viewCount: number | null;
   status: SearchResultStatus;
+  isDownloaded?: boolean;
   databaseId?: number | null;
   filePath?: string | null;
   fileSize?: number | null;
