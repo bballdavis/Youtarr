@@ -105,6 +105,8 @@ Add a single YouTube video to the download queue.
 }
 ```
 
+**Duplicate submissions:** URLs are normalized to YouTube video IDs. A video already queued or downloading is not queued again, even when re-downloads are allowed. A successful response includes `queued`, `acceptedIds`, and `alreadyActiveIds`; an already-active single-video request returns HTTP 200 with `queued: 0` and an explanatory message. Queue acceptance is confirmed before responding; download execution continues in the background.
+
 **Error Responses:**
 
 | Status | Response | Description |
@@ -376,3 +378,9 @@ The `/api/videos/download` endpoint is still protected by Youtarr's API key auth
 
 Configure your proxy to skip authentication for the `/api/videos/download` path. The exact configuration varies by proxy - consult your proxy's documentation for path-based bypass rules.
 
+
+### Live video status
+
+Authenticated web clients can read `GET /api/jobs/video-activity` for `{ instanceId, revision, videos }`. Each `videos` entry is keyed by YouTube ID and contains `{ jobId, state }`, where state is `queued` or `downloading`. The `videoActivityUpdated` WebSocket event signals that clients should refresh this snapshot. Re-fetch on reconnect; a changed `instanceId` indicates a server restart and resets revision ordering.
+
+`POST /api/videos/local-status` accepts `{ "youtubeIds": ["dQw4w9WgXcQ"] }` (up to 500 IDs) and returns `{ results }` containing local download status and file metadata. It does not contact YouTube. Use it to refresh search results after downloads finish.

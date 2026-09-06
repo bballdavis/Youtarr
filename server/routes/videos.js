@@ -53,8 +53,67 @@ const apiKeyDownloadLimiter = rateLimit({
  * @param {Object} deps.downloadModule - Download module
  * @returns {express.Router}
  */
-module.exports = function createVideoRoutes({ verifyToken, videosModule, downloadModule, videoOembedEnricher }) {
+module.exports = function createVideoRoutes({ verifyToken, videosModule, downloadModule, videoOembedEnricher, videoLocalStatus }) {
   const router = express.Router();
+  /**
+   * @swagger
+   * /api/videos/local-status:
+   *   post:
+   *     summary: Read local metadata for up to 500 YouTube video IDs
+   *     tags: [Videos]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required: [youtubeIds]
+   *             properties:
+   *               youtubeIds:
+   *                 type: array
+   *                 maxItems: 500
+   *                 items:
+   *                   type: string
+   *                   pattern: '^[a-zA-Z0-9_-]{11}$'
+   *     responses:
+   *       200:
+   *         description: Deduplicated results with local status and available file metadata; no YouTube requests
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 results:
+   *                   type: array
+   *                   items:
+   *                     type: object
+   *                     properties:
+   *                       youtubeId:
+   *                         type: string
+   *                       status:
+   *                         type: string
+   *                         enum: [never_downloaded, missing, downloaded]
+   *       400:
+   *         description: Invalid video IDs or more than 500 IDs
+   *       401:
+   *         description: Authentication required
+   *       500:
+   *         description: Local metadata lookup failed
+   */
+  router.post('/api/videos/local-status', verifyToken, async (req, res) => {
+    const ids = req.body?.youtubeIds;
+    if (!Array.isArray(ids) || ids.length > 500 || !ids.every(id => typeof id === 'string' && /^[a-zA-Z0-9_-]{11}$/.test(id))) {
+      return res.status(400).json({ error: 'youtubeIds must contain at most 500 valid video IDs' });
+    }
+    try {
+      const results = [...new Set(ids)].map(youtubeId => ({ youtubeId, status: 'never_downloaded' }));
+      await videoLocalStatus.applyLocalVideoStatus(results);
+      res.json({ results });
+    } catch (err) {
+      req.log.error({ err }, 'Failed to read local video status');
+      res.status(500).json({ error: 'Failed to read local video status' });
+    }
+  });
 
   /**
    * @swagger
@@ -743,15 +802,13 @@ module.exports = function createVideoRoutes({ verifyToken, videosModule, downloa
         ? { [videoMeta.youtubeId]: videoMeta.channelId }
         : undefined;
 
-      downloadModule.doGroupedManualDownloads({
+      const admission = await downloadModule.doGroupedManualDownloads({
         body: {
           urls: [url],
           overrideSettings: Object.keys(overrideSettings).length > 0 ? overrideSettings : undefined,
           videoChannelMap,
           initiatedBy
         }
-      }).catch((err) => {
-        req.log.error({ err }, 'Failed to start API download');
       });
 
       // Increment usage count for API key statistics
@@ -764,7 +821,8 @@ module.exports = function createVideoRoutes({ verifyToken, videosModule, downloa
 
       res.json({
         success: true,
-        message: 'Video queued for download',
+        message: admission.queued ? 'Video queued for download' : 'Video is already queued or downloading',
+        ...admission,
         video: {
           title: metadata.title,
           thumbnail: metadata.thumbnail,
@@ -823,7 +881,7 @@ module.exports = function createVideoRoutes({ verifyToken, videosModule, downloa
    *       400:
    *         description: Invalid resolution
    */
-  router.post('/triggerspecificdownloads', verifyToken, (req, res) => {
+  router.post('/triggerspecificdownloads', verifyToken, async (req, res) => {
     const { overrideSettings } = req.body;
     if (overrideSettings) {
       if (overrideSettings.resolution) {
@@ -912,10 +970,13 @@ module.exports = function createVideoRoutes({ verifyToken, videosModule, downloa
       }
     }
 
-    downloadModule.doGroupedManualDownloads(req).catch((err) => {
+    try {
+      const admission = await downloadModule.doGroupedManualDownloads(req);
+      res.json({ status: 'success', ...admission });
+    } catch (err) {
       req.log.error({ err }, 'Failed to start manual downloads');
-    });
-    res.json({ status: 'success' });
+      res.status(500).json({ error: 'Failed to queue downloads' });
+    }
   });
 
   /**

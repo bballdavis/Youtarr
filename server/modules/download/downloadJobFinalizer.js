@@ -1,3 +1,4 @@
+const videoActivity = require('./videoActivity');
 // Finalization of a finished yt-dlp run: derives the terminal job status,
 // persists it, broadcasts the final WebSocket payload, reports to the run
 // tracker, dispatches notifications, and triggers completion side effects.
@@ -186,6 +187,12 @@ async function finalizeDownloadJob({
     await downloadResultProcessor.reconcileArchive({ allowRedownload, failedVideosList, videoData, errorTracker });
 
     const wasTerminated = Boolean(timeoutController.shutdownInProgress || timeoutController.shutdownReason || wasManuallyTerminated);
+
+    // Failed attempts have ended; release them before retry admission. Keep
+    // successful/unprocessed IDs until persistence or the terminal job update.
+    for (const video of failedVideosList) {
+      videoActivity.finish(jobId, video.youtubeId);
+    }
 
     // Auto-retry transient 403 failures. Enqueue while this job is still
     // In Progress so the retry queues as Pending behind it, and read job data

@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
+import VideoActivityChip from '../shared/VideoActivityChip';
 import {
   Grid,
   Table,
@@ -287,6 +288,7 @@ const DownloadHistory: React.FC<DownloadHistoryProps> = ({
                                   style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left' }}
                                 >
                                   {singleVideo.youTubeVideoName}
+                                  <VideoActivityChip youtubeId={singleVideo.youtubeId} />
                                 </Link>
                               ) : (
                                 titleText
@@ -384,6 +386,7 @@ const DownloadHistory: React.FC<DownloadHistoryProps> = ({
                                     <Typography variant="caption" color="secondary">
                                       {video.youTubeChannelName}
                                     </Typography>
+                                    <VideoActivityChip youtubeId={video.youtubeId} />
                                     {video.removed && <MissingVideoChip />}
                                   </Box>
                                 </Box>
@@ -543,6 +546,7 @@ const DownloadHistory: React.FC<DownloadHistoryProps> = ({
                                               >
                                                 {video.youTubeVideoName}
                                               </Link>
+                                              <VideoActivityChip youtubeId={video.youtubeId} />
                                               {video.removed && <MissingVideoChip />}
                                             </Box>
                                             <Typography variant="caption" color="secondary" className="block">{video.youTubeChannelName}</Typography>
@@ -592,6 +596,7 @@ const DownloadHistory: React.FC<DownloadHistoryProps> = ({
                                   style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left' }}
                                 >
                                   {singleVideo.youTubeVideoName}
+                                  <VideoActivityChip youtubeId={singleVideo.youtubeId} />
                                 </Link>
                                 <Typography variant="caption" color="secondary" className="block">{singleVideo.youTubeChannelName}</Typography>
                               </Box>

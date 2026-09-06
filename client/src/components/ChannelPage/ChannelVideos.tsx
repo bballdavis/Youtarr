@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useVideoActivity } from '../../providers/VideoActivityProvider';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Card,
@@ -76,7 +77,7 @@ function channelVideoToModalData(
   channelName: string,
   channelId: string | undefined
 ): VideoModalData {
-  const status = getVideoStatus(video);
+  const status = getVideoStatus({ ...video, activity: undefined });
   return {
     youtubeId: video.youtube_id,
     title: video.title,
@@ -450,7 +451,16 @@ function ChannelVideos({
     });
   }, [videos, localIgnoreStatus, localProtectedStatus, localAvailabilityStatus, localPublishedAtStatus]);
 
-  const paginatedVideos = videosWithOverrides;
+  const { snapshot } = useVideoActivity();
+  const paginatedVideos = useMemo(() => videosWithOverrides.map(video => ({
+    ...video, activity: snapshot.videos[video.youtube_id]?.state,
+  })), [videosWithOverrides, snapshot]);
+  useEffect(() => {
+    setCheckedBoxes(previous => {
+      const eligible = previous.filter(id => !snapshot.videos[id]?.state);
+      return eligible.length === previous.length ? previous : eligible;
+    });
+  }, [snapshot]);
   const totalPages = Math.ceil(totalCount / effectivePageSize) || 1;
   const hasNextPage = page < totalPages;
 
@@ -543,7 +553,9 @@ function ChannelVideos({
 
   const handleDownloadConfirm = async (settings: DownloadSettings | null) => {
     setDownloadDialogOpen(false);
-    const urls = checkedBoxes.map((id) => `https://www.youtube.com/watch?v=${id}`);
+    const eligibleIds = checkedBoxes.filter(id => !snapshot.videos[id]?.state);
+    if (!eligibleIds.length) return;
+    const urls = eligibleIds.map((id) => `https://www.youtube.com/watch?v=${id}`);
     const overrideSettings = settings
       ? {
           resolution: settings.resolution,
@@ -554,7 +566,9 @@ function ChannelVideos({
           skipVideoFolder: settings.skipVideoFolder,
         }
       : undefined;
-    await triggerDownloads({ urls, overrideSettings, channelId });
+    const success = await triggerDownloads({ urls, overrideSettings, channelId });
+    if (success === null) return;
+    if (!success) { setErrorMessage('Failed to queue downloads'); return; }
     setCheckedBoxes([]);
     navigate('/downloads/activity');
   };

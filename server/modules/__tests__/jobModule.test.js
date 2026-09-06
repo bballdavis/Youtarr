@@ -993,6 +993,28 @@ describe('JobModule', () => {
       JobModule.saveJobs = jest.fn().mockResolvedValue();
     });
 
+    test('claims video IDs before database creation yields to another submission', async () => {
+      let finishCreate;
+      Job.create.mockImplementationOnce(() => new Promise(resolve => { finishCreate = resolve; }));
+      uuidv4.mockReturnValueOnce('first').mockReturnValueOnce('second');
+      const first = JobModule.addJob({ jobType: 'Manually Added Urls', data: { urls: ['https://youtu.be/aaaaaaaaaaa'] } });
+      const second = await JobModule.addJob({ jobType: 'Manually Added Urls', data: { urls: ['https://youtube.com/shorts/aaaaaaaaaaa'] } });
+      expect(second).toBeNull();
+      expect(Job.create).toHaveBeenCalledTimes(1);
+      finishCreate({});
+      await first;
+    });
+
+    test('rolls back queue ownership if creating the job fails', async () => {
+      const activity = require('../download/videoActivity');
+      Job.create.mockRejectedValueOnce(new Error('offline'));
+      await expect(JobModule.addJob({
+        jobType: 'Manually Added Urls', data: { urls: ['https://youtu.be/aaaaaaaaaaa'] },
+      })).rejects.toThrow('offline');
+      expect(activity.isActive('aaaaaaaaaaa')).toBe(false);
+      expect(JobModule.jobs['generated-uuid']).toBeUndefined();
+    });
+
     test('should create new job with generated UUID', async () => {
       const jobData = { jobType: 'download' };
       const result = await JobModule.addJob(jobData);

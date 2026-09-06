@@ -706,14 +706,11 @@ function createPlaylistRoutes({ verifyToken, playlistModule, downloadModule, m3u
       const p = await findEnabledPlaylist(req.params.playlistId);
       if (!p) return res.status(404).json({ error: 'Playlist not found' });
 
-      const download = downloadModule.doPlaylistDownloads(p, {
+      const queued = await downloadModule.doPlaylistDownloads(p, {
         youtubeIds: videoIds,
         overrideSettings: overrideResult.value,
       });
-      download.catch((err) => {
-        req.log.error({ err, playlist_id: p.playlist_id }, 'doPlaylistDownloads failed');
-      });
-      res.status(202).json({ status: 'accepted', message: 'Playlist download started' });
+      res.status(202).json({ status: 'accepted', message: queued ? 'Playlist download started' : 'No eligible videos to queue', queued });
     } catch (err) {
       req.log.error({ err }, 'trigger playlist download failed');
       res.status(500).json({ error: 'Failed to start playlist download' });
