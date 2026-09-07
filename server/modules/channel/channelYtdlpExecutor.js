@@ -3,7 +3,7 @@ const fsPromises = fs.promises;
 const path = require('path');
 const os = require('os');
 const { v4: uuidv4 } = require('uuid');
-const { spawn } = require('child_process');
+const { spawnYtDlp } = require('../ytdlpProcess');
 const tempPathManager = require('../download/tempPathManager');
 
 class ChannelYtdlpExecutor {
@@ -16,7 +16,7 @@ class ChannelYtdlpExecutor {
    * @returns {Promise<string>} - Output content if outputFile provided
    */
   async executeYtDlpCommand(args, outputFile = null) {
-    const ytDlp = spawn('yt-dlp', args, {
+    const ytDlp = spawnYtDlp(args, {
       env: {
         ...process.env,
         TMPDIR: tempPathManager.getTempBasePath()

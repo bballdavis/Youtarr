@@ -49,6 +49,8 @@ services:
       - AUTH_PRESET_USERNAME=${AUTH_PRESET_USERNAME:-}
       - AUTH_PRESET_PASSWORD=${AUTH_PRESET_PASSWORD:-}
       - TRUST_PROXY=${TRUST_PROXY:-}
+      # Optional external cookies; /app/config uses the existing mount (see docs/CONFIG.md).
+      - YOUTARR_COOKIES_FILE=${YOUTARR_COOKIES_FILE:-}
       # Platform-spoof env vars (used by ./scripts/start-dev.sh --as-elfhosted and full Elfhosted spoofs).
       # Empty when unset on the host, so non-Elfhosted dev runs are unaffected.
       - PLATFORM=${PLATFORM:-}

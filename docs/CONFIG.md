@@ -396,6 +396,87 @@ Sync is one-way (server -> Youtarr). Non-owner Plex users come from the server's
 - **Description**: Indicates if custom cookies.txt file has been uploaded
 - **Note**: Managed automatically by the application
 
+### External Cookie File
+
+To refresh cookies from an external script or service, set the optional
+`YOUTARR_COOKIES_FILE` environment variable to an absolute path **inside the
+container**. Leave it unset to keep the existing upload workflow.
+
+**Recommended setup — no Compose edits:** the bundled Compose files already
+mount the host's `config` directory at `/app/config` and pass through the
+environment variable from `.env`.
+
+1. Have your external process write a Netscape-format file (maximum 1 MB) at
+   `config/cookies.external.txt`. Keep it separate from `cookies.user.txt`, which
+   belongs to the existing upload workflow. The container user must be able to
+   read the file.
+2. Add this to `.env`:
+
+   ```dotenv
+   YOUTARR_COOKIES_FILE=/app/config/cookies.external.txt
+   ```
+3. Recreate the container once to apply the environment change. In Settings →
+   Cookie Configuration, enable **Enable Cookies** and save. No initial upload
+   is needed. The external-file status shows whether yt-dlp can load the file.
+   It refreshes every 30 seconds while these settings are open; use
+   **Refresh file status** to check immediately.
+
+Your external process should write a temporary file such as
+`config/cookies.external.txt.tmp` in the same host directory and rename it over
+the source file only after writing is complete. Preserve
+readable permissions when replacing it. Subsequent updates need no restart.
+
+Each new yt-dlp operation that uses configured cookies reads the current file
+into its own private, writable temporary copy. Running operations finish with
+their existing copy; subsequent operations pick up updates without a restart.
+Youtarr and yt-dlp never modify the external source, and working copies are
+removed when the process closes. This applies wherever configured cookies are
+already used, including downloads, channel/metadata lookups, and thumbnails;
+one-time subscription imports retain their separate upload workflow.
+
+**Validation and failures.** Youtarr uses the installed yt-dlp cookie loader to
+check the private copy locally, without contacting YouTube. It uses the cookies
+yt-dlp successfully loads; malformed entries that yt-dlp skips are left out of
+the working copy and produce a warning. At least one cookie must load.
+
+If the source is missing, unreadable, rejected, or contains no loadable cookies,
+operations **continue without cookies**. The same applies if validation or
+creation of the private copy fails. Settings shows the reason and Youtarr logs
+a warning without cookie contents. Repeated identical warnings are suppressed.
+Downloads requiring authentication or encountering bot challenges may still fail.
+
+A usable replacement automatically restores cookie use for new operations.
+Youtarr checks the current contents each time and reuses validation results
+only while those contents and the installed yt-dlp are unchanged. It does not
+fall back to an older file or to uploaded cookies.
+
+Validation does **not** confirm that YouTube accepts the session. Expired or
+revoked login sessions can still fail even when the file loads successfully;
+refreshing the cookies remains the external process's responsibility.
+
+The external file takes precedence over uploaded cookies while **Enable
+Cookies** is on. Uploads and deletion are unavailable while the environment
+variable is set.
+Previously uploaded cookies and their settings are preserved: unset
+`YOUTARR_COOKIES_FILE` and recreate the container to return to them. Turning off
+**Enable Cookies** disables cookie use for either source.
+
+**Advanced: another host directory.** To keep the source outside `config`, add
+a dedicated directory mount and set the container path in `.env`, for example
+`YOUTARR_COOKIES_FILE=/app/external-cookies/cookies.txt`:
+
+```yaml
+services:
+  youtarr:
+    volumes:
+      - /mnt/server/youtarr-cookies:/app/external-cookies:ro
+```
+
+Merge this into your existing service without removing its other volumes, then
+recreate the container. Mount the **directory**, not the individual file, so
+atomic replacements remain visible. The container user needs read access to
+the file and access to the directory; the source mount can be read-only.
+
 ## Notifications
 
 Youtarr uses [Apprise](https://github.com/caronc/apprise) to send notifications when new videos are downloaded, supporting 100+ notification services.

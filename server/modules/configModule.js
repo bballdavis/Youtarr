@@ -3,6 +3,7 @@ const path = require('path');
 const uuidv4 = require('uuid').v4;
 const EventEmitter = require('events');
 const logger = require('../logger');
+const { getExternalCookiesPath, getExternalCookiesStatus } = require('./externalCookies');
 const { getDefaultNameForUrl } = require('./notificationHelpers');
 
 class ConfigModule extends EventEmitter {
@@ -459,7 +460,16 @@ class ConfigModule extends EventEmitter {
 
   // Cookie helper methods
   getCookiesPath() {
-    if (!this.config.cookiesEnabled || !this.config.customCookiesUploaded) {
+    if (!this.config.cookiesEnabled) {
+      return null;
+    }
+
+    // At launch, yt-dlp validates a private copy of the external source.
+    // Unusable external cookies are omitted without changing the upload workflow.
+    const externalPath = getExternalCookiesPath();
+    if (externalPath) return externalPath;
+
+    if (!this.config.customCookiesUploaded) {
       return null;
     }
 
@@ -480,11 +490,13 @@ class ConfigModule extends EventEmitter {
     const configDir = path.dirname(this.configPath);
     const customPath = path.join(configDir, 'cookies.user.txt');
     const customExists = fs.existsSync(customPath);
+    const external = getExternalCookiesStatus();
 
     return {
       cookiesEnabled: this.config.cookiesEnabled,
       customCookiesUploaded: this.config.customCookiesUploaded,
-      customFileExists: customExists
+      customFileExists: customExists,
+      ...(external ? { external } : {})
     };
   }
 
