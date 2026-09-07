@@ -43,6 +43,7 @@ describe('ConfigModule', () => {
     delete process.env.DATA_PATH;
     delete process.env.PLATFORM;
     delete process.env.PLEX_URL;
+    delete process.env.YOUTARR_COOKIES_FILE;
 
     // Setup fs mocks
     fs = require('fs');
@@ -904,6 +905,26 @@ describe('ConfigModule', () => {
       fs.existsSync.mockReturnValue(true);
       fs.readFileSync.mockReturnValue(JSON.stringify(defaultTemplate));
       ConfigModule = require('../configModule');
+    });
+
+    test('uses an external source without an upload and still honors the cookie toggle', () => {
+      process.env.YOUTARR_COOKIES_FILE = '/external/cookies.txt';
+      ConfigModule.config.cookiesEnabled = true;
+      ConfigModule.config.customCookiesUploaded = false;
+      expect(ConfigModule.getCookiesPath()).toBe('/external/cookies.txt');
+      expect(ConfigModule.config.customCookiesUploaded).toBe(false);
+      ConfigModule.config.cookiesEnabled = false;
+      expect(ConfigModule.getCookiesPath()).toBeNull();
+    });
+
+    test('restores uploaded cookies when the external source is unset', () => {
+      ConfigModule.config.cookiesEnabled = true;
+      ConfigModule.config.customCookiesUploaded = true;
+      const uploadedPath = ConfigModule.getCookiesPath();
+      process.env.YOUTARR_COOKIES_FILE = '/external/cookies.txt';
+      expect(ConfigModule.getCookiesPath()).toBe('/external/cookies.txt');
+      delete process.env.YOUTARR_COOKIES_FILE;
+      expect(ConfigModule.getCookiesPath()).toBe(uploadedPath);
     });
 
     test('should return null for cookies path when cookies are disabled', () => {

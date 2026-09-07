@@ -1,4 +1,4 @@
-const { spawn } = require('child_process');
+const { spawnYtDlp } = require('../ytdlpProcess');
 const path = require('path');
 const configModule = require('../configModule');
 const jobModule = require('../jobModule');
@@ -214,7 +214,7 @@ class DownloadExecutor {
         postProcessDirectives,
       });
 
-      const proc = spawn('yt-dlp', args, { env: procEnv });
+      const proc = spawnYtDlp(args, { env: procEnv });
 
       // Store process reference for manual termination
       this.currentProcess = proc;

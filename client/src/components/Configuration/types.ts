@@ -91,6 +91,13 @@ export interface CookieStatus {
   cookiesEnabled: boolean;
   customCookiesUploaded: boolean;
   customFileExists: boolean;
+  external?: {
+    path: string;
+    ready: boolean;
+    lastModified: string | null;
+    warning: string | null;
+    error: string | null;
+  };
 }
 
 export interface SnackbarState {

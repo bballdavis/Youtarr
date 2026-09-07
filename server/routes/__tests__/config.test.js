@@ -61,6 +61,33 @@ beforeEach(() => {
   filenamePreview.previewTemplate.mockReset();
 });
 
+describe('externally managed cookie routes', () => {
+  let originalSource;
+  beforeEach(() => {
+    originalSource = process.env.YOUTARR_COOKIES_FILE;
+    process.env.YOUTARR_COOKIES_FILE = '/external/cookies.txt';
+  });
+  afterEach(() => {
+    if (originalSource === undefined) delete process.env.YOUTARR_COOKIES_FILE;
+    else process.env.YOUTARR_COOKIES_FILE = originalSource;
+  });
+
+  test('rejects uploads without replacing saved cookies or enabling cookie use', async () => {
+    const { app, configModule } = makeApp();
+    const res = await supertest(app).post('/api/cookies/upload')
+      .attach('cookieFile', Buffer.from('# Netscape HTTP Cookie File'), 'cookies.txt');
+    expect(res.status).toBe(409);
+    expect(configModule.writeCustomCookiesFile).not.toHaveBeenCalled();
+  });
+
+  test('rejects deletion without removing previously uploaded cookies', async () => {
+    const { app, configModule } = makeApp();
+    const res = await supertest(app).delete('/api/cookies');
+    expect(res.status).toBe(409);
+    expect(configModule.deleteCustomCookiesFile).not.toHaveBeenCalled();
+  });
+});
+
 describe('POST /updateconfig', () => {
   test('returns 200 when ytdlpCustomArgs is empty', async () => {
     const { app } = makeApp();

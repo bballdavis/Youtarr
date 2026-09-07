@@ -29,6 +29,7 @@ For multi-part requests (e.g., "review this PR AND explain WebSocket handling"),
 ## Architecture
 
 ### Backend (server/)
+- `modules/externalCookies.js`: validates external cookie snapshots through the installed yt-dlp parser in `utils/validate-cookies.py`, memoizes unchanged results, and reports unusable files for omission; `modules/ytdlpProcess.js` owns snapshot lifetime around yt-dlp processes. No persistent cookie fallback.
 - `server.js`: Express entry point. `db.js`: Sequelize setup. `logger.js`: Pino logger with request correlation.
 - `models/`: Sequelize models (channel, video, job, jobvideo, jobvideodownload, channelvideo, session, apikey, playlist, playlistvideo, playlistsyncstate, subfolder, videowatchstatus). Associations: Channel hasMany Videos, Job hasMany JobVideos, Playlist hasMany PlaylistVideos and hasMany PlaylistSyncStates.
 - `routes/`: API handlers (auth, channels, videos, videoDetail, videoSearch, channelSearch, config, jobs, plex, setup, subscriptions, apikeys, ytdlpOptions, health, maintenance, playlists, mediaServers, subfolders). All use the dependency injection factory pattern; wiring lives in `server/routes/index.js`.

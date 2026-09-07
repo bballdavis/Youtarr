@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const customArgsParser = require('../modules/download/customArgsParser');
 const filenamePreview = require('../modules/filenamePreview');
+const { getExternalCookiesPath } = require('../modules/externalCookies');
 
 // Mirror of the frontend RATE_LIMIT_REGEX. Matches yt-dlp's --limit-rate
 // format: digits with optional decimal, optional K/M/G suffix.
@@ -331,7 +332,7 @@ module.exports = function createConfigRoutes({ verifyToken, configModule, valida
    * /api/cookies/status:
    *   get:
    *     summary: Get cookie file status
-   *     description: Check if a custom YouTube cookie file is configured.
+   *     description: Check uploaded cookies and validate the current external file with yt-dlp when configured. Unusable external cookies are omitted from operations. Does not verify YouTube authentication.
    *     tags: [Configuration]
    *     responses:
    *       200:
@@ -341,11 +342,32 @@ module.exports = function createConfigRoutes({ verifyToken, configModule, valida
    *             schema:
    *               type: object
    *               properties:
-   *                 hasCustomCookies:
+   *                 cookiesEnabled:
    *                   type: boolean
-   *                 lastModified:
-   *                   type: string
-   *                   format: date-time
+   *                 customCookiesUploaded:
+   *                   type: boolean
+   *                 customFileExists:
+   *                   type: boolean
+   *                 external:
+   *                   type: object
+   *                   description: Present only when YOUTARR_COOKIES_FILE is configured.
+   *                   properties:
+   *                     path:
+   *                       type: string
+   *                     ready:
+   *                       type: boolean
+   *                       description: yt-dlp loaded cookies from the current file and a private working copy can be created.
+   *                     lastModified:
+   *                       type: string
+   *                       format: date-time
+   *                       nullable: true
+   *                     warning:
+   *                       type: string
+   *                       nullable: true
+   *                       description: Safe summary of parser warnings. Only cookies loaded by yt-dlp are used.
+   *                     error:
+   *                       type: string
+   *                       nullable: true
    *       500:
    *         description: Failed to get cookie status
    */
@@ -382,11 +404,16 @@ module.exports = function createConfigRoutes({ verifyToken, configModule, valida
    *         description: Cookie file uploaded successfully
    *       400:
    *         description: Invalid file or format
+   *       409:
+   *         description: Cookies are managed externally via YOUTARR_COOKIES_FILE.
    *       500:
    *         description: Failed to upload cookie file
    */
   router.post('/api/cookies/upload', verifyToken, cookieUpload.single('cookieFile'), async (req, res) => {
     try {
+      if (getExternalCookiesPath()) {
+        return res.status(409).json({ error: 'Cookies are managed externally. Update the external file or unset YOUTARR_COOKIES_FILE to use uploads.' });
+      }
       if (!req.file) {
         return res.status(400).json({ error: 'No file uploaded' });
       }
@@ -424,11 +451,16 @@ module.exports = function createConfigRoutes({ verifyToken, configModule, valida
    *     responses:
    *       200:
    *         description: Cookie file deleted successfully
+   *       409:
+   *         description: Cookies are managed externally via YOUTARR_COOKIES_FILE.
    *       500:
    *         description: Failed to delete cookie file
    */
   router.delete('/api/cookies', verifyToken, (req, res) => {
     try {
+      if (getExternalCookiesPath()) {
+        return res.status(409).json({ error: 'Cookies are managed externally. Unset YOUTARR_COOKIES_FILE to manage uploaded cookies.' });
+      }
       configModule.deleteCustomCookiesFile();
       const status = configModule.getCookiesStatus();
       res.json({

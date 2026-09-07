@@ -88,6 +88,44 @@ describe('useCookieManagement', () => {
   });
 
   describe('Cookie Status Fetching', () => {
+    test('refreshes external status periodically and stops polling on unmount', async () => {
+      jest.useFakeTimers();
+      const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
+      mockFetch.mockReset();
+      const external = {
+        path: '/app/config/cookies.external.txt', ready: true,
+        lastModified: null, warning: null, error: null,
+      };
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: jest.fn().mockResolvedValue({ ...mockCookieStatus, external }),
+      } as unknown as Response);
+      const { result, unmount } = renderHook(() => useCookieManagement({
+        token: mockToken, setConfig: mockSetConfig, setSnackbar: mockSetSnackbar,
+      }));
+      try {
+        await waitFor(() => expect(result.current.cookieStatus?.external?.ready).toBe(true));
+        mockFetch.mockResolvedValue({
+          ok: true,
+          json: jest.fn().mockResolvedValue({
+            ...mockCookieStatus,
+            external: { ...external, ready: false, error: 'External cookies: the file was not found.' },
+          }),
+        } as unknown as Response);
+        await act(async () => { jest.advanceTimersByTime(30000); });
+        expect(result.current.cookieStatus?.external?.ready).toBe(false);
+        unmount();
+        const requests = mockFetch.mock.calls.length;
+        await act(async () => { jest.advanceTimersByTime(60000); });
+        expect(mockFetch).toHaveBeenCalledTimes(requests);
+      } finally {
+        unmount();
+        jest.runOnlyPendingTimers();
+        jest.useRealTimers();
+        mockFetch.mockReset();
+      }
+    });
+
     test('fetches cookie status on mount with valid token', async () => {
       const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
       mockFetch.mockResolvedValueOnce({
