@@ -7,7 +7,7 @@ import {manifest} from './manifest.mjs';
 import {rewriteLinks, assertManifest, generate} from './generate-content.mjs';
 
 test('manifest has unique ids and slugs', () => { assert.equal(new Set(manifest.map((x) => x.id)).size, manifest.length); assert.equal(new Set(manifest.map((x) => x.slug)).size, manifest.length); });
-test('canonical corpus covers every public source exactly once', () => { for (const source of ['README.md', 'CONTRIBUTING.md', 'SECURITY.md', 'CHANGELOG.md', 'LICENSE.md', 'CONTRIBUTORS.md']) assert.ok(manifest.some((item) => item.source === source)); assert.ok(manifest.some((item) => item.source.endsWith('YOUTARR_DOWNLOADS_FOLDER_STRUCTURE.md'))); assert.equal(manifest.length, 29); });
+test('canonical corpus covers every public source exactly once', () => { for (const source of ['README.md', 'CONTRIBUTING.md', 'SECURITY.md', 'CHANGELOG.md', 'LICENSE.md', 'CONTRIBUTORS.md']) assert.ok(manifest.some((item) => item.source === source)); assert.ok(manifest.some((item) => item.source.endsWith('YOUTARR_DOWNLOADS_FOLDER_STRUCTURE.md'))); assert.ok(manifest.some((item) => item.source === 'docs/platforms/asustor.md')); assert.equal(manifest.length, 30); });
 test('manifest sources are relative and safe', () => manifest.forEach((x) => { assert.ok(!x.source.startsWith('/')); assert.ok(!x.source.includes('..')); }));
 test('manifest validation rejects missing, duplicate, and unsafe entries', () => {
   assert.throws(() => assertManifest([{id:'x', slug:'x', source:'missing.md'}]), /missing source/);
