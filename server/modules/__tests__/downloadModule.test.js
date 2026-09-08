@@ -1160,7 +1160,7 @@ describe('DownloadModule', () => {
       videoValidationModule = require('../videoValidationModule');
       doSpecificDownloadsSpy = jest
         .spyOn(downloadModule, 'doSpecificDownloads')
-        .mockResolvedValue('job-1');
+        .mockImplementation(async (data) => ({ queued: (data.body || data).urls.length, acceptedIds: [], alreadyActiveIds: [] }));
       buildGroupsSpy = jest.spyOn(manualDownloadGrouper, 'buildGroups');
       startRunSpy = jest.spyOn(downloadRunTracker, 'startRun').mockReturnValue('run-test');
       sealSpy = jest.spyOn(downloadRunTracker, 'seal').mockImplementation(() => {});
@@ -1912,7 +1912,7 @@ describe('DownloadModule', () => {
 
     it('returns without calling download machinery when no playlist videos exist', async () => {
       PlaylistVideoMock.findAll.mockResolvedValue([]);
-      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist);
 
@@ -1925,7 +1925,7 @@ describe('DownloadModule', () => {
         { youtube_id: 'vid002', channel_id: 'UC1' },
       ]);
       VideoMock.findOne.mockResolvedValue({ youtubeId: 'vid001' });
-      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist);
 
@@ -1943,7 +1943,7 @@ describe('DownloadModule', () => {
       ChannelMock.findOne
         .mockResolvedValueOnce(null)   // UCmissing -> missing
         .mockResolvedValueOnce({ channel_id: 'UCpresent' }); // UCpresent -> exists
-      jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist);
 
@@ -1960,7 +1960,7 @@ describe('DownloadModule', () => {
       ]);
       VideoMock.findOne.mockResolvedValue(null);
       ChannelMock.findOne.mockResolvedValueOnce(null);
-      jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist);
 
@@ -1976,7 +1976,7 @@ describe('DownloadModule', () => {
       ]);
       VideoMock.findOne.mockResolvedValue(null);
       ChannelMock.findOne.mockResolvedValue({ channel_id: 'UCknown' });
-      jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist);
 
@@ -1995,7 +1995,7 @@ describe('DownloadModule', () => {
         .mockResolvedValueOnce({ youtubeId: 'vid002' })   // vid002 already downloaded
         .mockResolvedValueOnce(null);                       // vid003 not downloaded
       ChannelMock.findOne.mockResolvedValue({ channel_id: 'UC1' });
-      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist);
 
@@ -2014,7 +2014,7 @@ describe('DownloadModule', () => {
         { youtube_id: 'alreadyDone', channel_id: 'UC1' },
       ]);
       VideoMock.findOne.mockResolvedValue({ youtubeId: 'alreadyDone' });
-      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist);
 
@@ -2027,7 +2027,7 @@ describe('DownloadModule', () => {
       ]);
       VideoMock.findOne.mockResolvedValue(null);
       ChannelMock.findOne.mockResolvedValue({ channel_id: 'UC1' });
-      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist, { youtubeIds: ['vidSel1'] });
 
@@ -2052,7 +2052,7 @@ describe('DownloadModule', () => {
       playlistModuleMock.isUnavailableTitle.mockImplementation(
         (t) => !t || t === '[Private video]'
       );
-      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist);
 
@@ -2068,7 +2068,7 @@ describe('DownloadModule', () => {
       ]);
       VideoMock.findOne.mockResolvedValue(null);
       ChannelMock.findOne.mockResolvedValue({ channel_id: 'UC1' });
-      jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist, { youtubeIds: [] });
 
@@ -2098,7 +2098,7 @@ describe('DownloadModule', () => {
         { resolution: '720', audioFormat: null, skipVideoFolder: false, youtubeIds: ['a'] },
         { resolution: '1080', audioFormat: 'mp3_only', skipVideoFolder: true, youtubeIds: ['b'] },
       ]);
-      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist, { youtubeIds: ['a', 'b'], overrideSettings: {} });
 
@@ -2131,7 +2131,7 @@ describe('DownloadModule', () => {
         { resolution: '720', audioFormat: null, skipVideoFolder: false, youtubeIds: ['a'] },
         { resolution: '1080', audioFormat: null, skipVideoFolder: false, youtubeIds: ['b'] },
       ]);
-      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist, { youtubeIds: ['a', 'b'], overrideSettings: {} });
 
@@ -2148,7 +2148,7 @@ describe('DownloadModule', () => {
       ]);
       VideoMock.findOne.mockResolvedValue(null);
       ChannelMock.findOne.mockResolvedValue({ channel_id: 'exists' });
-      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist, { youtubeIds: ['a', 'b'], overrideSettings: {} });
 
@@ -2161,7 +2161,7 @@ describe('DownloadModule', () => {
       grouperMock.buildGroups.mockResolvedValue([
         { resolution: '1080', audioFormat: null, skipVideoFolder: false, youtubeIds: ['a'] },
       ]);
-      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(
         { ...mockPlaylist, default_sub_folder: 'PLFolder', default_rating: 'PG' },
@@ -2180,7 +2180,7 @@ describe('DownloadModule', () => {
       grouperMock.buildGroups.mockResolvedValue([
         { resolution: '1080', audioFormat: null, skipVideoFolder: false, youtubeIds: ['a'] },
       ]);
-      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(
         { ...mockPlaylist, default_sub_folder: 'PLFolder' },
@@ -2197,7 +2197,7 @@ describe('DownloadModule', () => {
       grouperMock.buildGroups.mockResolvedValue([
         { resolution: '1080', audioFormat: null, skipVideoFolder: false, youtubeIds: ['a'] },
       ]);
-      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist, { youtubeIds: ['a'], overrideSettings: {} });
 
@@ -2209,7 +2209,7 @@ describe('DownloadModule', () => {
     it('skips the already-downloaded filter when allowRedownload is set', async () => {
       PlaylistVideoMock.findAll.mockResolvedValue([{ youtube_id: 'a', channel_id: null }]);
       VideoMock.findOne.mockResolvedValue({ youtubeId: 'a' }); // already downloaded
-      jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist, { youtubeIds: ['a'], overrideSettings: { allowRedownload: true } });
 
@@ -2223,7 +2223,7 @@ describe('DownloadModule', () => {
       ]);
       VideoMock.findOne.mockResolvedValue(null);
       ChannelMock.findOne.mockResolvedValue({ channel_id: 'UC1' });
-      jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist, { refreshFirst: true });
 
@@ -2232,7 +2232,7 @@ describe('DownloadModule', () => {
 
     it('does NOT refresh from YouTube by default', async () => {
       PlaylistVideoMock.findAll.mockResolvedValue([]);
-      jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist);
 
@@ -2241,7 +2241,7 @@ describe('DownloadModule', () => {
 
     it('delegates to the seed-then-track selector (position ASC, added_at included, no DB-level limit) when limitToRecent is set', async () => {
       PlaylistVideoMock.findAll.mockResolvedValue([]);
-      jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist, { limitToRecent: true });
 
@@ -2255,7 +2255,7 @@ describe('DownloadModule', () => {
 
     it('uses ASC order on unlimited bulk runs (no limitToRecent)', async () => {
       PlaylistVideoMock.findAll.mockResolvedValue([]);
-      jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist);
 
@@ -2266,7 +2266,7 @@ describe('DownloadModule', () => {
 
     it('does NOT apply a limit for explicit youtubeIds downloads', async () => {
       PlaylistVideoMock.findAll.mockResolvedValue([]);
-      jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+      jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
       await downloadModule.doPlaylistDownloads(mockPlaylist, { youtubeIds: ['a', 'b'], limitToRecent: true });
 
@@ -2291,7 +2291,7 @@ describe('DownloadModule', () => {
         ]);
         VideoMock.findAll.mockResolvedValue([]);   // nothing downloaded
         VideoMock.findOne.mockResolvedValue(null);
-        const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+        const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
         await downloadModule.doPlaylistDownloads(p, {
           limitToRecent: true,
@@ -2315,7 +2315,7 @@ describe('DownloadModule', () => {
         ]);
         VideoMock.findAll.mockResolvedValue([{ youtubeId: 'oldTail' }]);
         VideoMock.findOne.mockResolvedValue(null);
-        const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+        const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
         const enqueued = await downloadModule.doPlaylistDownloads(p, { limitToRecent: true, overrideSettings: {} });
 
@@ -2330,7 +2330,7 @@ describe('DownloadModule', () => {
           { youtube_id: 'old', channel_id: null, channel_name: null, title: 'o', position: 1, added_at: new Date('2026-06-01T00:00:00Z') },
         ]);
         VideoMock.findAll.mockResolvedValue([]);
-        const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockResolvedValue();
+        const spy = jest.spyOn(downloadModule, 'doSpecificDownloads').mockImplementation(async ({ body }) => ({ queued: body.urls.length, acceptedIds: [], alreadyActiveIds: [] }));
 
         const enqueued = await downloadModule.doPlaylistDownloads(p, { limitToRecent: true, overrideSettings: {} });
 

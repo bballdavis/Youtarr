@@ -26,7 +26,7 @@ describe('POST /api/videos/download subfolder registration', () => {
     subfolderModule.register.mockResolvedValue(undefined);
     downloadModule = {
       doSpecificDownloads: jest.fn(),
-      doGroupedManualDownloads: jest.fn().mockResolvedValue(undefined),
+      doGroupedManualDownloads: jest.fn().mockResolvedValue({ queued: 1, acceptedIds: [], alreadyActiveIds: [] }),
     };
     const createVideoRoutes = require('../videos');
     app = express();

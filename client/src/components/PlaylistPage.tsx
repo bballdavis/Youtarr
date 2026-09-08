@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useVideoActivity } from '../providers/VideoActivityProvider';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Alert,
@@ -86,7 +87,7 @@ function PlaylistPage({ token }: PlaylistPageProps) {
 
   const {
     playlist,
-    videos,
+    videos: playlistVideos,
     notDownloadedCount,
     unsyncableCount,
     loading,
@@ -103,6 +104,11 @@ function PlaylistPage({ token }: PlaylistPageProps) {
     regenerateM3U,
     triggerDownload,
   } = usePlaylistDetail({ token, playlistId, sortOrder, downloadState, watchedState });
+
+  const { snapshot } = useVideoActivity();
+  const videos = useMemo(() => playlistVideos.map(video => ({
+    ...video, activity: snapshot.videos[video.youtube_id]?.state,
+  })), [playlistVideos, snapshot]);
 
   useDownloadListingsRefresh(refetch);
 
@@ -195,14 +201,15 @@ function PlaylistPage({ token }: PlaylistPageProps) {
             skipVideoFolder: settings.skipVideoFolder,
           }
         : undefined;
-      const ids = pendingDownload.mode === 'selected' ? pendingDownload.ids : undefined;
+      const ids = pendingDownload.mode === 'selected' ? pendingDownload.ids.filter(id => !snapshot.videos[id]?.state) : undefined;
+      if (ids && !ids.length) return;
       const ok = await handleAction('Download', () => triggerDownload(ids, overrideSettings));
       if (ok) {
         if (pendingDownload.mode === 'selected') selectionClearRef.current();
         navigate('/downloads/activity');
       }
     },
-    [pendingDownload, handleAction, triggerDownload, navigate]
+    [pendingDownload, handleAction, triggerDownload, navigate, snapshot]
   );
 
   const openDownloadAll = useCallback(() => {
@@ -235,6 +242,10 @@ function PlaylistPage({ token }: PlaylistPageProps) {
   );
 
   const selection = useVideoSelection<string>({ actions: downloadActions });
+  useEffect(() => {
+    const eligible = selection.selectedIds.filter(id => !snapshot.videos[id]?.state);
+    if (eligible.length !== selection.selectedIds.length) selection.set(eligible);
+  }, [snapshot, selection.selectedIds, selection.set]);
 
   useEffect(() => {
     selectionClearRef.current = selection.clear;

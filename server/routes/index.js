@@ -28,6 +28,8 @@ const ratingMapper = require('../modules/ratingMapper');
 const subfolderModule = require('../modules/subfolderModule');
 const playlistVideoFilters = require('../modules/playlistVideoFilters');
 const models = require('../models');
+const videoLocalStatus = require('../modules/videoLocalStatus');
+const videoActivity = require('../modules/download/videoActivity');
 
 /**
  * Registers all route modules with the Express app
@@ -77,7 +79,7 @@ function registerRoutes(app, deps) {
   app.use(createChannelRoutes({ verifyToken, channelModule, archiveModule, channelDownloadAllModule, ratingMapper }));
 
   // Video routes
-  app.use(createVideoRoutes({ verifyToken, videosModule, downloadModule, videoOembedEnricher }));
+  app.use(createVideoRoutes({ verifyToken, videosModule, downloadModule, videoOembedEnricher, videoLocalStatus }));
 
   // Video search routes
   app.use(createVideoSearchRoutes({ verifyToken, videoSearchModule }));
@@ -92,7 +94,7 @@ function registerRoutes(app, deps) {
   app.use(createYtdlpOptionsRoutes({ verifyToken, ytdlpValidationRateLimiter }));
 
   // Job routes
-  app.use(createJobRoutes({ verifyToken, jobModule, downloadModule }));
+  app.use(createJobRoutes({ verifyToken, jobModule, downloadModule, videoActivity }));
 
   // Plex routes
   app.use(createPlexRoutes({ verifyToken, plexModule, configModule }));

@@ -1,3 +1,4 @@
+const { normalizeUrlToVideoId } = require('./youtubeUrlParser');
 const configModule = require('./configModule');
 const jobModule = require('./jobModule');
 const plexModule = require('./plexModule');
@@ -627,9 +628,10 @@ class DownloadModule {
 
     logger.info({ jobData }, 'Running specific downloads job');
 
-    const urls = reqOrJobData.body
-      ? reqOrJobData.body.urls
-      : reqOrJobData.data.urls;
+    const requestedUrls = this.getJobDataValue(jobData, 'urls') || [];
+    const requestedIds = requestedUrls.flatMap(url => {
+      try { return [normalizeUrlToVideoId(url).id]; } catch { return []; }
+    });
     const jobId = await jobModule.addOrUpdateJob(
       {
         jobType: jobType,
@@ -642,140 +644,161 @@ class DownloadModule {
       isNextJob
     );
 
+    if (!jobId) return { queued: 0, acceptedIds: [], alreadyActiveIds: [...new Set(requestedIds)] };
+    const job = jobModule.getJob(jobId);
+    const urls = this.getJobDataValue(jobData, 'urls') || [];
+    const acceptedIds = [...new Set(urls.flatMap(url => {
+      try { return [normalizeUrlToVideoId(url).id]; } catch { return []; }
+    }))];
+    const accepted = new Set(acceptedIds);
+    const admission = { acceptedIds, alreadyActiveIds: [...new Set(requestedIds.filter(id => !accepted.has(id)))] };
     this.registerJobWithRun(jobData, jobId);
 
-    if (jobModule.getJob(jobId).status === 'In Progress') {
-      // Use override settings if provided, otherwise use defaults
-      const overrideSettings = this.getOverrideSettings(jobData);
-      let effectiveQuality = overrideSettings.resolution ||
-        this.getJobDataValue(jobData, 'effectiveQuality') ||
-        null;
+    try {
+      if (job.status === 'In Progress') {
+        // Use override settings if provided, otherwise use defaults
+        const overrideSettings = this.getOverrideSettings(jobData);
+        let effectiveQuality = overrideSettings.resolution ||
+          this.getJobDataValue(jobData, 'effectiveQuality') ||
+          null;
 
-      const channelId = this.getJobDataValue(jobData, 'channelId');
+        const channelId = this.getJobDataValue(jobData, 'channelId');
 
-      let channelRecord = null;
-      if (channelId) {
-        try {
-          const Channel = require('../models/channel');
-          channelRecord = await Channel.findOne({
-            where: { channel_id: channelId },
-            attributes: ['video_quality', 'audio_format', 'skip_video_folder'],
-          });
-
-          if (!effectiveQuality && channelRecord && channelRecord.video_quality) {
-            effectiveQuality = channelRecord.video_quality;
-          }
-        } catch (channelErr) {
-          console.error('[DownloadModule] Error determining channel quality override:', channelErr.message);
-        }
-      }
-
-      const resolution = effectiveQuality || configModule.config.preferredResolution || '1080';
-      const allowRedownload = overrideSettings.allowRedownload || false;
-      const subfolderOverride = overrideSettings.subfolder !== undefined ? overrideSettings.subfolder : null;
-      const subfolderFallback = overrideSettings.subfolderFallback !== undefined ? overrideSettings.subfolderFallback : null;
-      const ratingFallback = overrideSettings.ratingFallback !== undefined ? overrideSettings.ratingFallback : null;
-      // Use override audioFormat if explicitly provided (even if null), otherwise fall back to channel's audio_format setting
-      const audioFormat = overrideSettings.audioFormat !== undefined
-        ? overrideSettings.audioFormat
-        : (channelRecord && channelRecord.audio_format) || null;
-
-      // Persist resolved quality for any subsequent retries of this job
-      this.setJobDataValue(jobData, 'effectiveQuality', resolution);
-
-      const structurePerVideo = !!this.getJobDataValue(jobData, 'structurePerVideo');
-
-      // Per-video structure mode: the yt-dlp template always writes the nested
-      // layout; the post-processor decides flat-vs-subfolder per video. Fixed
-      // mode keeps the pre-resolved per-job value (flat-structure precedence:
-      // override > channel explicit setting > global default).
-      const skipVideoFolder = structurePerVideo
-        ? false
-        : downloadSettingsResolver.resolveSkipVideoFolder({
-          override: overrideSettings,
-          channel: channelRecord,
-          config: configModule.config,
-        });
-
-      // For manual downloads, we don't apply duration filters but still exclude members-only
-      // Subfolder override is passed to post-processor via environment variable
-      // Pass audioFormat for MP3 downloads
-      const args = YtdlpCommandBuilder.getBaseCommandArgsForManualDownload(resolution, allowRedownload, audioFormat, skipVideoFolder);
-
-      // Check if any URLs are for videos marked as ignored, and remove them from archive
-      // This allows users to manually download videos they've marked to ignore for channel downloads
-      if (!allowRedownload) {
-        try {
-          const archiveModule = require('./archiveModule');
-          const ChannelVideo = require('../models/channelvideo');
-
-          // Extract YouTube IDs from URLs
-          const youtubeIds = urls.map(url => {
-            // Match various YouTube URL formats
-            const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
-            return match ? match[1] : null;
-          }).filter(Boolean);
-
-          if (youtubeIds.length > 0) {
-            // Find which of these videos are marked as ignored
-            const ignoredVideos = await ChannelVideo.findAll({
-              where: {
-                youtube_id: youtubeIds,
-                ignored: true
-              },
-              attributes: ['youtube_id']
+        let channelRecord = null;
+        if (channelId) {
+          try {
+            const Channel = require('../models/channel');
+            channelRecord = await Channel.findOne({
+              where: { channel_id: channelId },
+              attributes: ['video_quality', 'audio_format', 'skip_video_folder'],
             });
 
-            // Remove ignored videos from archive so they can be downloaded
-            for (const video of ignoredVideos) {
-              await archiveModule.removeVideoFromArchive(video.youtube_id);
-              logger.info({ youtubeId: video.youtube_id }, 'Removed ignored video from archive for manual download');
+            if (!effectiveQuality && channelRecord && channelRecord.video_quality) {
+              effectiveQuality = channelRecord.video_quality;
             }
+          } catch (channelErr) {
+            console.error('[DownloadModule] Error determining channel quality override:', channelErr.message);
           }
-        } catch (err) {
-          logger.error({ err }, 'Error removing ignored videos from archive');
-          // Continue with download even if this fails
         }
+
+        const resolution = effectiveQuality || configModule.config.preferredResolution || '1080';
+        const allowRedownload = overrideSettings.allowRedownload || false;
+        const subfolderOverride = overrideSettings.subfolder !== undefined ? overrideSettings.subfolder : null;
+        const subfolderFallback = overrideSettings.subfolderFallback !== undefined ? overrideSettings.subfolderFallback : null;
+        const ratingFallback = overrideSettings.ratingFallback !== undefined ? overrideSettings.ratingFallback : null;
+        // Use override audioFormat if explicitly provided (even if null), otherwise fall back to channel's audio_format setting
+        const audioFormat = overrideSettings.audioFormat !== undefined
+          ? overrideSettings.audioFormat
+          : (channelRecord && channelRecord.audio_format) || null;
+
+        // Persist resolved quality for any subsequent retries of this job
+        this.setJobDataValue(jobData, 'effectiveQuality', resolution);
+
+        const structurePerVideo = !!this.getJobDataValue(jobData, 'structurePerVideo');
+
+        // Per-video structure mode: the yt-dlp template always writes the nested
+        // layout; the post-processor decides flat-vs-subfolder per video. Fixed
+        // mode keeps the pre-resolved per-job value (flat-structure precedence:
+        // override > channel explicit setting > global default).
+        const skipVideoFolder = structurePerVideo
+          ? false
+          : downloadSettingsResolver.resolveSkipVideoFolder({
+            override: overrideSettings,
+            channel: channelRecord,
+            config: configModule.config,
+          });
+
+        // For manual downloads, we don't apply duration filters but still exclude members-only
+        // Subfolder override is passed to post-processor via environment variable
+        // Pass audioFormat for MP3 downloads
+        const args = YtdlpCommandBuilder.getBaseCommandArgsForManualDownload(resolution, allowRedownload, audioFormat, skipVideoFolder);
+
+        // Check if any URLs are for videos marked as ignored, and remove them from archive
+        // This allows users to manually download videos they've marked to ignore for channel downloads
+        if (!allowRedownload) {
+          try {
+            const archiveModule = require('./archiveModule');
+            const ChannelVideo = require('../models/channelvideo');
+
+            // Extract YouTube IDs from URLs
+            const youtubeIds = urls.map(url => {
+              // Match various YouTube URL formats
+              const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+              return match ? match[1] : null;
+            }).filter(Boolean);
+
+            if (youtubeIds.length > 0) {
+              // Find which of these videos are marked as ignored
+              const ignoredVideos = await ChannelVideo.findAll({
+                where: {
+                  youtube_id: youtubeIds,
+                  ignored: true
+                },
+                attributes: ['youtube_id']
+              });
+
+              // Remove ignored videos from archive so they can be downloaded
+              for (const video of ignoredVideos) {
+                await archiveModule.removeVideoFromArchive(video.youtube_id);
+                logger.info({ youtubeId: video.youtube_id }, 'Removed ignored video from archive for manual download');
+              }
+            }
+          } catch (err) {
+            logger.error({ err }, 'Error removing ignored videos from archive');
+            // Continue with download even if this fails
+          }
+        }
+
+        // Add URLs to args array
+        urls.forEach((url) => {
+          if (url.startsWith('-')) {
+            args.push('--', url);
+          } else {
+            args.push(url);
+          }
+        });
+
+        // Pass URL count, URLs, allowRedownload flag, and subfolder override as additional parameters for manual downloads
+        void Promise.resolve(this.downloadExecutor.doDownload(
+          args,
+          jobId,
+          jobType,
+          urls.length,
+          urls,
+          allowRedownload,
+          false,
+          {
+            subfolderOverride,
+            subfolderFallback,
+            ratingOverride: overrideSettings.rating !== undefined ? overrideSettings.rating : undefined,
+            ratingFallback,
+            skipVideoFolder,
+            // Fixed-mode jobs omit these (undefined) so the yt-dlp env stays
+            // byte-for-byte unchanged; per-video mode jobs carry them through
+            // to the post-processor via buildYtdlpEnv.
+            structurePerVideo: structurePerVideo || undefined,
+            skipVideoFolderOverride: structurePerVideo && overrideSettings.skipVideoFolder !== undefined
+              ? !!overrideSettings.skipVideoFolder
+              : undefined,
+            // Owning channel / per-video owner map for routing at finalize; see
+            // the resolution priority in videoDownloadPostProcessFiles.js.
+            ownerChannelId: channelId || null,
+            ownerChannelMap: this.getJobDataValue(jobData, 'ownerChannelMap') || null,
+          }
+        )).catch(async err => {
+          // Covers failures before the executor installs its own process
+          // handlers. Never leave an admitted job permanently busy.
+          logger.error({ err, jobId }, 'Failed to start download execution');
+          await jobModule.updateJob(jobId, { status: 'Error', output: err.message });
+          await jobModule.startNextJob();
+        }).catch(err => logger.error({ err, jobId }, 'Failed to clean up download startup'));
       }
-
-      // Add URLs to args array
-      urls.forEach((url) => {
-        if (url.startsWith('-')) {
-          args.push('--', url);
-        } else {
-          args.push(url);
-        }
-      });
-
-      // Pass URL count, URLs, allowRedownload flag, and subfolder override as additional parameters for manual downloads
-      this.downloadExecutor.doDownload(
-        args,
-        jobId,
-        jobType,
-        urls.length,
-        urls,
-        allowRedownload,
-        false,
-        {
-          subfolderOverride,
-          subfolderFallback,
-          ratingOverride: overrideSettings.rating !== undefined ? overrideSettings.rating : undefined,
-          ratingFallback,
-          skipVideoFolder,
-          // Fixed-mode jobs omit these (undefined) so the yt-dlp env stays
-          // byte-for-byte unchanged; per-video mode jobs carry them through
-          // to the post-processor via buildYtdlpEnv.
-          structurePerVideo: structurePerVideo || undefined,
-          skipVideoFolderOverride: structurePerVideo && overrideSettings.skipVideoFolder !== undefined
-            ? !!overrideSettings.skipVideoFolder
-            : undefined,
-          // Owning channel / per-video owner map for routing at finalize; see
-          // the resolution priority in videoDownloadPostProcessFiles.js.
-          ownerChannelId: channelId || null,
-          ownerChannelMap: this.getJobDataValue(jobData, 'ownerChannelMap') || null,
-        }
-      );
+    } catch (err) {
+      await jobModule.updateJob(jobId, { status: 'Error', output: err.message });
+      await jobModule.startNextJob();
+      throw err;
     }
+    return { queued: urls.length, acceptedIds: admission.acceptedIds, alreadyActiveIds: admission.alreadyActiveIds };
   }
 
   /**
@@ -858,13 +881,18 @@ class DownloadModule {
 
     const downloadRunTracker = require('./download/downloadRunTracker');
     const runId = downloadRunTracker.startRun();
+    const result = { queued: 0, acceptedIds: [], alreadyActiveIds: [] };
     try {
       for (const group of groups) {
-        await this.doSpecificDownloads({ body: buildGroupBody(group, runId) });
+        const admission = await this.doSpecificDownloads({ body: buildGroupBody(group, runId) });
+        result.queued += admission.queued;
+        result.acceptedIds.push(...admission.acceptedIds);
+        result.alreadyActiveIds.push(...admission.alreadyActiveIds);
       }
     } finally {
       downloadRunTracker.seal(runId);
     }
+    return result;
   }
 
   /**
@@ -1035,6 +1063,7 @@ class DownloadModule {
     // at finalize. See downloadSettingsResolver.
     const routing = downloadSettingsResolver.buildRoutingDirectives({ override: overrideSettings, playlist });
 
+    let queued = 0;
     for (const group of groups) {
       const urls = group.youtubeIds.map((id) => `https://www.youtube.com/watch?v=${id}`);
       const groupOverride = {
@@ -1049,10 +1078,11 @@ class DownloadModule {
       if (routing.ratingFallback !== undefined) groupOverride.ratingFallback = routing.ratingFallback;
       // doSpecificDownloads accepts an Express-request shape (.body). runId ties
       // these jobs into the parent run so its summary aggregates them.
-      await this.doSpecificDownloads({ body: { urls, overrideSettings: groupOverride, jobLabel, runId: options.runId, ownerChannelMap } });
+      const admission = await this.doSpecificDownloads({ body: { urls, overrideSettings: groupOverride, jobLabel, runId: options.runId, ownerChannelMap } });
+      queued += admission.queued;
     }
 
-    return toDownload.length;
+    return queued;
   }
 
   async afterDownloadHook(downloadedYoutubeIds) {

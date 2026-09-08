@@ -247,7 +247,11 @@ const createServerModule = ({
         jest.doMock('../modules/plexModule', () => ({}));
         const downloadModuleMock = {
           downloadSpecificUrl: jest.fn().mockResolvedValue({ success: true, jobId: 'test-job-id' }),
-          doGroupedManualDownloads: jest.fn().mockResolvedValue(undefined)
+          doGroupedManualDownloads: jest.fn().mockImplementation(async ({ body }) => {
+            const { normalizeUrlToVideoId } = jest.requireActual('../modules/youtubeUrlParser');
+            const acceptedIds = body.urls.map(url => normalizeUrlToVideoId(url).id);
+            return { queued: acceptedIds.length, acceptedIds, alreadyActiveIds: [] };
+          })
         };
         jest.doMock('../modules/downloadModule', () => downloadModuleMock);
         jest.doMock('../modules/jobModule', () => ({
@@ -807,6 +811,11 @@ describe('API Key Authentication - Security Tests', () => {
       expect(res.statusCode).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.message).toContain('queued');
+      expect(res.body).toMatchObject({
+        queued: 1,
+        acceptedIds: ['dQw4w9WgXcQ'],
+        alreadyActiveIds: []
+      });
     });
 
     test('forwards channel attribution from validation metadata as videoChannelMap', async () => {
@@ -1150,4 +1159,3 @@ describe('URL Length Validation - Security Tests', () => {
     expect(res.statusCode).toBe(200);
   });
 });
-

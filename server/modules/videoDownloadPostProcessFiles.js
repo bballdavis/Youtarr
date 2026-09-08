@@ -1,6 +1,7 @@
 const fs = require('fs-extra');
 const path = require('path');
 const { execSync, spawnSync } = require('child_process');
+const { spawnYtDlpSync } = require('./ytdlpProcess');
 const configModule = require('./configModule');
 const nfoGenerator = require('./nfoGenerator');
 const ratingMapper = require('./ratingMapper');
@@ -84,7 +85,7 @@ async function downloadChannelThumbnailIfMissing(channelId) {
       // Build yt-dlp command using centralized helper so proxy/sleep/cookies are respected
       const ytdlpArgs = YtdlpCommandBuilder.buildThumbnailDownloadArgs(channelUrl, channelThumbPath);
 
-      const result = spawnSync('yt-dlp', ytdlpArgs, {
+      const result = spawnYtDlpSync(ytdlpArgs, {
         env: {
           ...process.env,
           TMPDIR: tempPathManager.getTempBasePath()

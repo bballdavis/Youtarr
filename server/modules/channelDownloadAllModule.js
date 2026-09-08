@@ -4,6 +4,7 @@ const downloadModule = require('./downloadModule');
 const { channelDownloadAllJobLabel } = require('./download/jobTypes');
 const { MEDIA_TAB_TYPE_MAP } = require('./tabsUtils');
 const logger = require('../logger');
+const videoActivity = require('./download/videoActivity');
 
 const WATCH_URL_PREFIX = 'https://www.youtube.com/watch?v=';
 
@@ -47,7 +48,7 @@ class ChannelDownloadAllModule {
     const downloaded = new Set(existing.map((video) => video.youtubeId));
 
     return candidates
-      .filter((row) => !downloaded.has(row.youtube_id))
+      .filter((row) => !downloaded.has(row.youtube_id) && !videoActivity.isActive(row.youtube_id))
       .map((row) => ({ youtube_id: row.youtube_id, duration: row.duration }));
   }
 
@@ -81,7 +82,7 @@ class ChannelDownloadAllModule {
     delete settings.allowRedownload;
 
     const urls = videos.map((video) => `${WATCH_URL_PREFIX}${video.youtube_id}`);
-    await downloadModule.doSpecificDownloads({
+    const admission = await downloadModule.doSpecificDownloads({
       body: {
         urls,
         overrideSettings: settings,
@@ -95,7 +96,7 @@ class ChannelDownloadAllModule {
       'Queued channel download-all job'
     );
 
-    return { queued: urls.length };
+    return { queued: admission.queued };
   }
 
   async findChannelOrThrow(channelId) {

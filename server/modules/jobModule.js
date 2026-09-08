@@ -11,7 +11,8 @@ const videoPersistence = require('./videoPersistence');
 const cron = require('node-cron');
 const MessageEmitter = require('./messageEmitter.js'); // import the helper function
 const configModule = require('./configModule');
-const { isDownloadJob } = require('./download/jobTypes');
+const videoActivity = require('./download/videoActivity');
+const { isDownloadJob, isSpecificUrlDownloadJob } = require('./download/jobTypes');
 const downloadCleanup = require('./download/downloadCleanup');
 const { serializeAuxData, parseAuxData } = require('./jobAuxData');
 const logger = require('../logger');
@@ -933,6 +934,11 @@ class JobModule {
 
   async addJob(job) {
     const jobId = uuidv4(); // Generate a new UUID
+    if (isSpecificUrlDownloadJob(job.jobType) && Array.isArray(job.data?.urls)) {
+      const admission = videoActivity.claim(jobId, job.data.urls);
+      job.data.urls = admission.acceptedUrls;
+      if (!admission.acceptedUrls.length) return null;
+    }
     job.timeInitiated = Date.now();
     job.timeCreated = Date.now();
     job.id = jobId;
@@ -951,6 +957,8 @@ class JobModule {
       this.emitJobsUpdated(jobId, job.status);
       return jobId;
     } catch (error) {
+      videoActivity.finishJob(jobId);
+      delete this.jobs[jobId];
       logger.error({ err: error }, 'Error saving job');
       throw error;
     }
@@ -1010,6 +1018,8 @@ class JobModule {
                            updatedFields.status === 'Error' ||
                            updatedFields.status === 'Terminated' ||
                            updatedFields.status === 'Killed';
+
+    if (isCompletedJob) videoActivity.finishJob(jobId);
 
     if (isCompletedJob && jobIsDownload) {
       // For completed download jobs, reload videos from DB to ensure accurate counts

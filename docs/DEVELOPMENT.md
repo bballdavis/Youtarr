@@ -129,6 +129,69 @@ The script runs `npm run build` for the client and then invokes `docker build`, 
   - Leave `AUTH_PRESET_USERNAME` and `AUTH_PRESET_PASSWORD` blank to configure your login via
     UI on first startup (credentials will be saved to `config/config.json`)
 
+### Development container ownership
+
+The development app honors `YOUTARR_UID` and `YOUTARR_GID`, just like production.
+Set both to your host user's numeric IDs (`id -u` and `id -g`) in `.env` when you
+want generated files to be owned by your development account. For example:
+
+```ini
+YOUTARR_UID=1000
+YOUTARR_GID=1000
+```
+
+Unset values retain the root (`0:0`) default. These settings apply to the app,
+not MariaDB. Older versions of `docker-compose.dev.yml` ignored these variables,
+so switching to development could run the app as root even with IDs configured.
+Changing `.env` or this Compose setting does not repair existing file ownership,
+and `docker start` alone does not apply a new container user.
+
+For an existing local development installation with mixed ownership:
+
+1. Stop the app before changing file ownership:
+
+   ```bash
+   docker stop youtarr-dev
+   ```
+
+2. Set the intended IDs in `.env`. For a **dedicated local checkout** whose app
+   should run as `1000:1000`, repair only its configuration and metadata paths:
+
+   ```bash
+   # Run from the repository root; replace the IDs if yours differ.
+   mkdir -p config jobs server/images
+   sudo chown -R 1000:1000 config jobs server/images
+   ```
+
+   This deliberately assigns these app files to the selected development user;
+   it preserves their existing permission modes. Check that the owner has write
+   access to the needed files and directories. Do not recursively chown the
+   repository, `database/`, database volumes, or a shared media library. Custom bind
+   mounts require using their actual host paths instead. If changing ownership
+   fails, check your storage permissions before continuing.
+
+3. Ensure the configured `YOUTUBE_OUTPUT_DIR` is also writable by the selected app
+   account. Repair ownership only for files belonging to this installation, or
+   arrange appropriate permissions for shared storage. Mounted source code must
+   remain readable by the app user too.
+
+4. Recreate the development containers through the normal startup command, then
+   verify the effective app user:
+
+   ```bash
+   ./scripts/start-dev.sh
+   docker inspect youtarr-dev --format '{{.Config.User}}'
+   docker exec youtarr-dev id
+   ```
+
+   The example configuration should report `1000:1000` and UID/GID 1000. Download
+   a small video and check ownership of newly generated metadata/images. If IDs
+   differ, check shell overrides and custom Compose files. Merely restarting the
+   old container retains its old user setting.
+
+These steps repair files created by older development containers. Before backup
+or restore, stop the app again with `docker stop youtarr-dev`.
+
 ### 4. Start Development Environment
 
 **Step 1: Full Docker Development**
@@ -395,6 +458,24 @@ npm run test:coverage
 # Watch mode (backend)
 npm run test:watch
 ```
+
+### External Cookie Validation Tests
+
+The backend Jest suites cover external-file handling and process cleanup. A
+separate Python suite checks the helper against yt-dlp's actual cookie loader,
+including malformed records and suppression of cookie values in diagnostics.
+It runs locally without contacting YouTube or downloading videos:
+
+```bash
+python3 -m unittest discover -s server/utils/__tests__ -p 'test_validate_cookies.py'
+```
+
+This requires Python and yt-dlp's platform-independent zipimport executable on
+`PATH`, the distribution used by the Docker image. Alternatively, set
+`YOUTARR_TEST_YTDLP` to that executable's absolute path. CI downloads the current
+release and runs this suite in the **yt-dlp Cookie Loader Tests** job, required
+by **All Checks**. The helper imports that executable so the parser follows
+yt-dlp updates; it does not maintain a separate installation or format parser.
 
 ### Frontend Tests
 
@@ -802,3 +883,23 @@ Use React DevTools Profiler to identify performance bottlenecks.
 When working on changes that interact with platform-managed deployments, see the dedicated developer guides:
 
 - [Elfhosted](development/ELFHOSTED.md) - environment variables, behavior switches, and how to spoof an Elfhosted deployment locally for testing.
+
+## Backup and restore script validation
+
+The Python regression suite uses temporary fixtures and does not contact Docker
+or a database. Run it from the repository root:
+
+```bash
+python3 -m unittest discover -s scripts/tests -p 'test_backup_restore.py'
+```
+
+CI runs this command in a dedicated Python job required by `All Checks`.
+The local pre-commit hook does not run it. Coverage includes database client
+versions, monitoring mounts, table-name handling, database permissions and roles,
+and restore preflight failures.
+
+Fixture tests do not establish compatibility with real database servers. Validate
+backup/restore round trips and failed-import recovery on disposable installations,
+including bundled MariaDB 10.3 and external MariaDB 11.4/MySQL 8, as appropriate
+to the change. Use separate databases and storage, never a live installation's
+database volume.

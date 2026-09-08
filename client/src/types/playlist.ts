@@ -28,6 +28,7 @@ export interface Playlist {
 }
 
 export interface PlaylistVideo {
+  activity?: 'queued' | 'downloading';
   id: number;
   playlist_id: string;
   youtube_id: string;

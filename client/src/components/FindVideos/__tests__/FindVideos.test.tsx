@@ -1,3 +1,6 @@
+// Local metadata refresh is covered by the hook tests; isolate action/search requests here.
+jest.mock('../../../hooks/useLocalVideoStatus', () => ({ useLocalVideoStatus: () => ({}) }));
+
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';

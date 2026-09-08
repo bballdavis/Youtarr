@@ -7,6 +7,7 @@ This document provides a comprehensive reference for all environment variables s
 - [Application Access](#application-access)
 - [Database Configuration](#database-configuration)
 - [Authentication](#authentication)
+- [YouTube Cookies](#youtube-cookies)
 - [User and Permissions](#user-and-permissions)
 - [Platform Deployment](#platform-deployment)
 - [Development and Debugging](#development-and-debugging)
@@ -126,6 +127,23 @@ To use an external database:
 - Leave unset only if you want the historical Express proxy-header trust behavior; Youtarr's rate-limit, session, and setup audit IPs will still key on the direct peer IP until `TRUST_PROXY` is explicitly configured
 - Set `TRUST_PROXY=1` when Youtarr is behind one trusted reverse proxy and you want per-client rate limits
 - Prefer a specific hop count or trusted subnet over broad `true` when exposing Youtarr through a proxy you control
+
+## YouTube Cookies
+
+### YOUTARR_COOKIES_FILE
+**Required**: No
+**Default**: Unset (use cookies uploaded through Settings)
+**Description**: Absolute path inside the container to an externally maintained
+Netscape cookie file, up to 1 MB. Requires **Enable Cookies** in Settings. Takes
+precedence over uploaded cookies without modifying them. New operations use
+private copies checked by yt-dlp. If the file is missing, unreadable, or rejected,
+operations continue without cookies and a warning appears in Settings and logs.
+A usable replacement restores cookie use automatically. Validation checks file
+format, not whether YouTube accepts the session.
+**Example**: `YOUTARR_COOKIES_FILE=/app/config/cookies.external.txt`
+**Setup**: Put the file at `config/cookies.external.txt` and set this variable
+in `.env` to use the existing mount without editing Compose. See
+[External Cookie File](CONFIG.md#external-cookie-file).
 
 ## User and Permissions
 
