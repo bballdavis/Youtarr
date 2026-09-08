@@ -1,5 +1,40 @@
 # Changelog
 
+## [v1.82.0](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.82.0) - 2026-09-08
+
+## [1.82.0](https://github.com/DialmasterOrg/Youtarr/compare/vv1.81.1...v1.82.0) (2026-09-08)
+
+
+### Features
+
+* rewrite backup and restore for reliability ([69ddcbe](https://github.com/DialmasterOrg/Youtarr/commit/69ddcbeb2c475a3a6d1e1b63e4ffbf88ade45c72))
+* show queued/downloading status per video ([ed882cc](https://github.com/DialmasterOrg/Youtarr/commit/ed882cce8b24640cba107a7c9f880d60dd758718)), closes [#577](https://github.com/DialmasterOrg/Youtarr/issues/577)
+* support externally managed cookie files ([6fcb8ad](https://github.com/DialmasterOrg/Youtarr/commit/6fcb8ada2df68094a4caba33802cb448a1b463cc)), closes [#772](https://github.com/DialmasterOrg/Youtarr/issues/772)
+
+
+### Bug Fixes
+
+* recover interrupted table renames ([2660bcb](https://github.com/DialmasterOrg/Youtarr/commit/2660bcbd8d08bddaac5c528ce95694290a46da94)), closes [#797](https://github.com/DialmasterOrg/Youtarr/issues/797)
+* sync Jellyfin videos inside collections ([cdaf41d](https://github.com/DialmasterOrg/Youtarr/commit/cdaf41def650bb8af406e6f184d95e12c36d9780)), closes [#794](https://github.com/DialmasterOrg/Youtarr/issues/794)
+* update mysql2 to clear security audit ([047d119](https://github.com/DialmasterOrg/Youtarr/commit/047d119dafc20351b924b818c1b6a525856a9e17))
+* warn downgrades require restoring a backup ([adc5dff](https://github.com/DialmasterOrg/Youtarr/commit/adc5dfffd0a6dcd84d228f54af2dcfb1bf4ba33d)), closes [#797](https://github.com/DialmasterOrg/Youtarr/issues/797)
+
+
+### Documentation
+
+* mark jobs uuid collation helper as legacy ([e186804](https://github.com/DialmasterOrg/Youtarr/commit/e186804541e161f42df93d8efbdf78d50c7e8112)), closes [#797](https://github.com/DialmasterOrg/Youtarr/issues/797)
+* update CHANGELOG for v1.81.1 [skip ci] ([8d4c5f8](https://github.com/DialmasterOrg/Youtarr/commit/8d4c5f8c0b2e6928ae9b758d08841e9a569bd9bf))
+
+
+### Code Refactoring
+
+* Rename tables & columns to snake_case ([1f475ae](https://github.com/DialmasterOrg/Youtarr/commit/1f475ae0023a8fb0b17b6cfb1c093f410a705afe))
+* Rename tables & columns to snake_case ([2abf3d8](https://github.com/DialmasterOrg/Youtarr/commit/2abf3d8b3c898573279ef3776a3948dc2f2d2baa))
+
+
+
+
+
 ## [v1.81.1](https://github.com/DialmasterOrg/Youtarr/releases/tag/v1.81.1) - 2026-09-01
 
 ### [1.81.1](https://github.com/DialmasterOrg/Youtarr/compare/vv1.81.0...v1.81.1) (2026-09-01)
