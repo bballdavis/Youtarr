@@ -87,3 +87,4 @@ docs/EXTERNAL_API_VALIDATION.md
 docs/PRD_EXTERNAL_REQUEST_API.md
 scripts/validate-external-api-ingress.sh
 scripts/validate-external-api-rc.sh
+/website/
