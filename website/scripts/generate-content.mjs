@@ -3,6 +3,10 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createManifest, ROOT } from './manifest.mjs';
 
+export function toDocusaurusAnchor(anchor) {
+  return anchor.replace(/^#-/, '#');
+}
+
 export function rewriteLinks(body, source, routes, root = ROOT) {
   const sourceFile = source.startsWith('docs/') ? path.join(root, source) : path.join(root, source);
   let fenced = false;
@@ -10,7 +14,7 @@ export function rewriteLinks(body, source, routes, root = ROOT) {
   const sanitize = (text) => text.replace(/<([A-Z][A-Z0-9_ -]*)>/g, '&lt;$1&gt;').replace(/<\/?([A-Za-z][A-Za-z0-9-]*)(?:\s[^>]*)?>/g, (tag, name) => htmlTags.has(name.toLowerCase()) ? tag : tag.replace(/</g, '&lt;').replace(/>/g, '&gt;')).replace(/<(?=[^A-Za-z\/])/g, '&lt;').replace(/\{/g, '&#123;').replace(/\}/g, '&#125;');
   const safeMdx = body.split('\n').map((line) => { if (/^\s*(```|~~~)/.test(line)) { fenced = !fenced; return line; } if (fenced) return line; let output = ''; let cursor = 0; const codeSpan = /(`+)([\s\S]*?)\1/g; let match; while ((match = codeSpan.exec(line))) { output += sanitize(line.slice(cursor, match.index)) + match[0]; cursor = codeSpan.lastIndex; } return output + sanitize(line.slice(cursor)); }).join('\n');
   return safeMdx.replace(/(!?\[[^\]]*\])\(([^)]+)\)/g, (all, label, href) => {
-    if (href.startsWith('#-')) return `${label}(/docs/${routes.get(source)})`;
+    if (href.startsWith('#-')) return `${label}(/docs/${routes.get(source)}${toDocusaurusAnchor(href)})`;
     if (/^(?:[a-z]+:|\/\/|#|data:)/i.test(href)) return all;
     const [target, ...anchorParts] = href.split('#');
     if (!target) return all;
@@ -21,7 +25,7 @@ export function rewriteLinks(body, source, routes, root = ROOT) {
     const resolved = path.normalize(path.relative(root, path.resolve(path.dirname(sourceFile), target))).replaceAll('\\', '/');
     const canonical = resolved;
     if (!routes.has(canonical)) throw new Error(`unresolved canonical link ${source}:${href}`);
-    const anchor = anchorParts.length ? `#${anchorParts.join('#').replace(/^-/, '')}` : '';
+    const anchor = anchorParts.length ? toDocusaurusAnchor(`#${anchorParts.join('#')}`) : '';
     return `${label}(/docs/${routes.get(canonical)}${anchor})`;
   });
 }
