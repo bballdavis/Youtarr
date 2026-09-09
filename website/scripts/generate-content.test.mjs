@@ -23,7 +23,7 @@ test('source discovery adds Markdown files and excludes CLAUDE.md', () => {
   fs.writeFileSync(path.join(tmp, 'docs', 'new-guide.md'), '# New guide');
   fs.writeFileSync(path.join(tmp, 'docs', 'nested', 'guide.md'), '# Nested guide');
   fs.writeFileSync(path.join(tmp, 'docs', 'CLAUDE.md'), '# Internal instructions');
-  assert.deepEqual(discoverMarkdownSources(tmp), ['README.md', 'docs/nested/guide.md', 'docs/new-guide.md']);
+  assert.deepEqual(discoverMarkdownSources(tmp), ['README.md', 'docs/nested/guide.md', 'docs/new-guide.md'].sort((a, b) => a.localeCompare(b)));
 });
 test('manifest sources are relative and safe', () => manifest.forEach((x) => { assert.ok(!x.source.startsWith('/')); assert.ok(!x.source.includes('..')); }));
 test('manifest validation rejects missing, duplicate, and unsafe entries', () => {
