@@ -61,11 +61,11 @@ test('safe MDX preserves intentional HTML, inline code, and escapes placeholders
   const output = rewriteLinks(fs.readFileSync(path.join(tmp, 'a.md'), 'utf8'), 'a.md', routes, tmp);
   assert.match(output, /<details><summary>More<\/summary><img src="x\.png" \/><\/details>/);
   assert.match(output, /&amp;#123;|&#123;/);
-  assert.match(output, /&lt;YOUR_PATH>/);
+  assert.match(output, /&lt;YOUR_PATH&gt;/);
   assert.ok(output.includes(tick + variable + tick));
   assert.ok(output.includes(tick + 'echo ' + placeholder + tick));
 });
-test('generated OpenAPI is nonempty and representative quick-start is complete', () => { const spec = JSON.parse(fs.readFileSync(new URL('../.generated/static/openapi/youtarr.openapi.json', import.meta.url))); assert.ok(Object.keys(spec.paths).length); const quick = fs.readFileSync(new URL('../.generated/docs/quick-start.md', import.meta.url), 'utf8'); for (const script of ['start.sh', 'start-with-external-db.sh', 'scripts/start-dev.sh', 'scripts/start-dev-external-db.sh']) assert.match(quick, new RegExp(script.replaceAll('.', '\\\\.'))); assert.match(quick, /DB_HOST.*DB_USER.*DB_PASSWORD/s); });
+test('generated OpenAPI is nonempty and representative quick-start is complete', () => { const spec = JSON.parse(fs.readFileSync(new URL('../.generated/static/openapi/youtarr.openapi.json', import.meta.url))); assert.ok(Object.keys(spec.paths).length); const quick = fs.readFileSync(new URL('../.generated/docs/quick-start.md', import.meta.url), 'utf8'); for (const script of ['start.sh', 'start-with-external-db.sh', 'scripts/start-dev.sh', 'scripts/start-dev-external-db.sh']) assert.ok(quick.includes(script)); assert.match(quick, /DB_HOST.*DB_USER.*DB_PASSWORD/s); });
 test('generator accepts injected output and applies OpenAPI security inheritance', async () => {
   const outputRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'youtarr-generated-'));
   await generate({
